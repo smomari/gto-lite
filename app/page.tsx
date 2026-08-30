@@ -74,15 +74,15 @@ export default function Home() {
     setRequestPath(requestPath.slice(0, globalIndex));
   }
 
-  function handleQuickFold(target: Position) {
+  function handleQuickAction(target: Position, action: ActionType) {
     if (result?.kind !== "success") return;
     const startIdx = seatIndex(result.data.heroPosition);
     const endIdx = seatIndex(target);
-    const foldedSeats = SEAT_ORDER.slice(startIdx, endIdx + 1).map((actor) => ({
+    const prefixFolds = SEAT_ORDER.slice(startIdx, endIdx).map((actor) => ({
       actor,
       action: "fold" as ActionType,
     }));
-    setRequestPath([...requestPath, ...foldedSeats]);
+    setRequestPath([...requestPath, ...prefixFolds, { actor: target, action }]);
   }
 
   const current = !loading && result ? result : null;
@@ -113,7 +113,7 @@ export default function Home() {
         loading={loading}
         onAction={handleAction}
         onRevisit={handleRevisit}
-        onQuickFold={handleQuickFold}
+        onQuickAction={handleQuickAction}
       />
 
       {current?.kind === "error" && (
