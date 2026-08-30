@@ -9,11 +9,7 @@
     "lint": "eslint",
     "test": "vitest run",
     "test:watch": "vitest",
-    "generate:equity": "tsx scripts/generate-equity-matrix.ts",
-    "generate:nash": "tsx scripts/generate-nash-ranges.ts",
-    "generate:heuristic": "tsx scripts/generate-heuristic-ranges.ts",
-    "generate:manifest": "tsx scripts/build-manifest.ts",
-    "generate:all": "npm run generate:nash && npm run generate:heuristic && npm run generate:manifest"
+    "generate:equity": "tsx scripts/generate-equity-matrix.ts"
   },
   "dependencies": {
     "next": "16.3.3",

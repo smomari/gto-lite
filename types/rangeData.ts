@@ -1,4 +1,4 @@
-export type Position = "UTG" | "MP" | "CO" | "BTN" | "SB" | "BB";
+export type Position = "UTG" | "UTG1" | "LJ" | "HJ" | "CO" | "BTN" | "SB" | "BB";
 export type StackDepth = number;
 
 export type ActionType = "fold" | "call" | "raise" | "allin";
@@ -30,22 +30,4 @@ export interface RangeScenario {
   generatedAt: string;
   version: string;
   hands: HandFrequency[];
-}
-
-export interface ManifestNode {
-  nodeId: string;
-  label: string;
-  parentNodeId: string | null;
-  source: RangeSource;
-  filePath: string;
-}
-
-export interface ManifestEntry {
-  heroPosition: Position;
-  stackDepth: StackDepth;
-  nodes: ManifestNode[];
-}
-
-export interface RangeManifest {
-  entries: ManifestEntry[];
 }

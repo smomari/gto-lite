@@ -39,6 +39,8 @@ export interface PushFoldParams {
   effectiveStackBb: number;
   smallBlind?: number;
   bigBlind?: number;
+  /** Single BB-posted ante covering the whole table (the modern MTT convention). */
+  bbAnte?: number;
   maxIterations?: number;
 }
 
@@ -69,8 +71,8 @@ const CONVERGENCE_EPSILON = 0.05;
  * mixed, matching the shape of real published push/fold charts.
  *
  * Chip-EV only (no ICM); models the pot as both effective stacks plus the two
- * blinds as dead money — an accepted MVP-level simplification of the exact
- * seats/antes involved in any real hand.
+ * blinds and a single BB-posted ante as dead money — an accepted MVP-level
+ * simplification of the exact seats/antes involved in any real hand.
  */
 export function solvePushFold(
   matrix: EquityMatrix,
@@ -80,9 +82,10 @@ export function solvePushFold(
     effectiveStackBb: S,
     smallBlind = 0.5,
     bigBlind = 1,
+    bbAnte = 1,
     maxIterations = 2000,
   } = params;
-  const deadMoney = smallBlind + bigBlind;
+  const deadMoney = smallBlind + bigBlind + bbAnte;
   const potIfCalled = 2 * S + deadMoney;
 
   let shoveRange: FrequencyMap = allHandsAt(1);

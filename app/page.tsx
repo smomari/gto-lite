@@ -1,145 +1,127 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { PositionSelector } from "@/components/PositionSelector";
-import { StackDepthSelector } from "@/components/StackDepthSelector";
-import { ActionTreeNav } from "@/components/ActionTreeNav";
+import { useEffect, useState } from "react";
+import { StackSizeControl } from "@/components/TableBar/StackSizeControl";
+import { SeatActionBar } from "@/components/TableBar/SeatActionBar";
+import { ActionSummaryTiles } from "@/components/ActionSummaryTiles";
 import { SourceBadge } from "@/components/SourceBadge";
 import { RangeGrid } from "@/components/RangeGrid/RangeGrid";
-import { loadManifest, loadScenario } from "@/lib/dataLoader/loadScenario";
-import type { ManifestNode, Position, RangeManifest, RangeScenario } from "@/types/rangeData";
+import { solveNode, SolveApiError } from "@/lib/apiClient/solveClient";
+import type { ActionType, Position } from "@/types/rangeData";
+import type { SolveResponse } from "@/types/solveApi";
 
-const POSITIONS: Position[] = ["UTG", "MP", "CO", "BTN", "SB", "BB"];
-
-function getRoots(nodes: ManifestNode[]): ManifestNode[] {
-  const ids = new Set(nodes.map((n) => n.nodeId));
-  return nodes.filter((n) => n.parentNodeId === null || !ids.has(n.parentNodeId));
+interface RequestStep {
+  actor: Position;
+  action: ActionType;
 }
 
+type Result =
+  | { key: string; kind: "success"; data: SolveResponse }
+  | { key: string; kind: "resolved"; reason: string }
+  | { key: string; kind: "error"; message: string };
+
 export default function Home() {
-  const [manifest, setManifest] = useState<RangeManifest | null>(null);
-  const [manifestError, setManifestError] = useState<string | null>(null);
+  const [stackBb, setStackBb] = useState(100);
+  const [requestPath, setRequestPath] = useState<RequestStep[]>([]);
+  const [result, setResult] = useState<Result | null>(null);
 
-  const [position, setPosition] = useState<Position>("BTN");
-  const [stackDepth, setStackDepth] = useState<number>(100);
-  const [nodeId, setNodeId] = useState<string | null>(null);
-
-  const [scenario, setScenario] = useState<RangeScenario | null>(null);
-  const [scenarioError, setScenarioError] = useState<string | null>(null);
+  const requestKey = JSON.stringify({ stackBb, requestPath });
+  const loading = result === null || result.key !== requestKey;
 
   useEffect(() => {
-    loadManifest()
-      .then(setManifest)
-      .catch((err) => setManifestError(String(err)));
-  }, []);
+    const controller = new AbortController();
 
-  const stackDepths = useMemo(() => {
-    if (!manifest) return [20, 40, 100];
-    return [...new Set(manifest.entries.map((e) => e.stackDepth))].sort((a, b) => a - b);
-  }, [manifest]);
-
-  const currentEntry = useMemo(() => {
-    return manifest?.entries.find((e) => e.heroPosition === position && e.stackDepth === stackDepth);
-  }, [manifest, position, stackDepth]);
-
-  const resolvedNodeId = useMemo(() => {
-    if (!currentEntry) return null;
-    if (nodeId && currentEntry.nodes.some((n) => n.nodeId === nodeId)) return nodeId;
-    const rfi = currentEntry.nodes.find((n) => n.nodeId === "rfi");
-    if (rfi) return rfi.nodeId;
-    const roots = getRoots(currentEntry.nodes);
-    return roots[0]?.nodeId ?? null;
-  }, [currentEntry, nodeId]);
-
-  function handlePositionChange(next: Position) {
-    setPosition(next);
-    setNodeId(null);
-  }
-
-  function handleStackDepthChange(next: number) {
-    setStackDepth(next);
-    setNodeId(null);
-  }
-
-  useEffect(() => {
-    if (!currentEntry || !resolvedNodeId) return;
-    const node = currentEntry.nodes.find((n) => n.nodeId === resolvedNodeId);
-    if (!node) return;
-
-    let cancelled = false;
-    loadScenario(node.filePath)
-      .then((s) => {
-        if (!cancelled) setScenario(s);
+    solveNode({ effectiveStackBb: stackBb, actionPath: requestPath }, controller.signal)
+      .then((data) => {
+        if (controller.signal.aborted) return;
+        setResult({ key: requestKey, kind: "success", data });
       })
       .catch((err) => {
-        if (!cancelled) setScenarioError(String(err));
+        if (controller.signal.aborted) return;
+        if (err instanceof SolveApiError && err.code === "HAND_RESOLVED") {
+          setResult({ key: requestKey, kind: "resolved", reason: err.reason ?? "resolved" });
+        } else {
+          setResult({
+            key: requestKey,
+            kind: "error",
+            message: err instanceof Error ? err.message : String(err),
+          });
+        }
       });
-    return () => {
-      cancelled = true;
-    };
-  }, [currentEntry, resolvedNodeId]);
 
-  // Only render `scenario` once it actually matches the current selection —
-  // avoids a setState-in-effect just to null it out while a new fetch is in flight.
-  const displayedScenario =
-    scenario &&
-    scenario.heroPosition === position &&
-    scenario.stackDepth === stackDepth &&
-    scenario.nodeId === resolvedNodeId
-      ? scenario
-      : null;
+    return () => controller.abort();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stackBb, requestPath]);
+
+  function handleStackChange(next: number) {
+    setStackBb(next);
+    setRequestPath([]);
+  }
+
+  function handleAction(action: ActionType) {
+    if (result?.kind !== "success") return;
+    setRequestPath([...requestPath, { actor: result.data.heroPosition, action }]);
+  }
+
+  function handleRevisit(globalIndex: number) {
+    setRequestPath(requestPath.slice(0, globalIndex));
+  }
+
+  const current = !loading && result ? result : null;
+  const displayedActionPath = current?.kind === "success" ? current.data.actionPath : [];
+  const activeSeat = current?.kind === "success" ? current.data.heroPosition : null;
+  const availableActions = current?.kind === "success" ? current.data.availableActions : null;
 
   return (
-    <div className="mx-auto flex w-full max-w-4xl flex-col gap-6 px-6 py-10">
+    <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-6 py-10">
       <header>
         <h1 className="text-2xl font-semibold text-zinc-900 dark:text-zinc-100">
           GTO Lite — Preflop Range Viewer
         </h1>
         <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-          Tournament preflop ranges by position, stack depth, and action sequence.
+          8-max tournament preflop ranges. Set the table stack, then click through each seat&apos;s
+          action to build the hand.
         </p>
       </header>
 
-      {manifestError && (
-        <p className="text-sm text-red-600 dark:text-red-400">
-          Failed to load range data: {manifestError}
+      <StackSizeControl value={stackBb} onChange={handleStackChange} />
+
+      <SeatActionBar
+        stackBb={stackBb}
+        actionPath={displayedActionPath}
+        activeSeat={activeSeat}
+        availableActions={availableActions}
+        loading={loading}
+        onAction={handleAction}
+        onRevisit={handleRevisit}
+      />
+
+      {current?.kind === "error" && (
+        <p className="text-sm text-red-600 dark:text-red-400">Error: {current.message}</p>
+      )}
+
+      {current?.kind === "resolved" && (
+        <p className="text-sm text-zinc-500 dark:text-zinc-400">
+          {current.reason === "uncontested"
+            ? "Hand ends uncontested — everyone folded."
+            : "Preflop action is closed — multiple players see a flop."}{" "}
+          Undo a seat above to continue exploring.
         </p>
       )}
 
-      <section className="flex flex-col gap-3">
-        <PositionSelector positions={POSITIONS} value={position} onChange={handlePositionChange} />
-        <StackDepthSelector
-          stackDepths={stackDepths}
-          value={stackDepth}
-          onChange={handleStackDepthChange}
-        />
-      </section>
-
-      {currentEntry ? (
-        <ActionTreeNav
-          nodes={currentEntry.nodes}
-          currentNodeId={resolvedNodeId}
-          onNavigate={setNodeId}
-        />
-      ) : (
-        <p className="text-sm text-zinc-400 dark:text-zinc-500">
-          No data generated for {position} at {stackDepth}bb yet.
-        </p>
-      )}
-
-      {scenarioError && (
-        <p className="text-sm text-red-600 dark:text-red-400">
-          Failed to load scenario: {scenarioError}
-        </p>
-      )}
-
-      {displayedScenario ? (
-        <section className="flex flex-col gap-3">
-          <SourceBadge source={displayedScenario.source} />
-          <RangeGrid scenario={displayedScenario} />
+      {current?.kind === "success" && (
+        <section className="flex flex-col gap-4">
+          <div className="flex items-center gap-3">
+            <SourceBadge source={current.data.source} />
+            <span className="text-sm text-zinc-500 dark:text-zinc-400">
+              Pot {current.data.potBb.toFixed(1)}bb
+              {current.data.availableActions.call &&
+                ` · to call ${current.data.availableActions.call.amountBb.toFixed(1)}bb`}
+            </span>
+          </div>
+          <ActionSummaryTiles hands={current.data.hands} />
+          <RangeGrid scenario={current.data} />
         </section>
-      ) : (
-        !manifestError && <p className="text-sm text-zinc-400 dark:text-zinc-500">Loading...</p>
       )}
     </div>
   );

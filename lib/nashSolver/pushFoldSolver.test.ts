@@ -63,6 +63,16 @@ describe("solvePushFold (synthetic matrix)", () => {
     );
   });
 
+  it("shoves a wider range with the BB ante in than without it (more dead money to win)", () => {
+    const withAnte = solvePushFold(synthetic, { effectiveStackBb: 15, bbAnte: 1 });
+    const withoutAnte = solvePushFold(synthetic, { effectiveStackBb: 15, bbAnte: 0 });
+    const weightedShoveCombos = (freq: Map<string, number>) =>
+      ALL_HANDS.reduce((sum, h) => sum + h.combos * (freq.get(h.hand) ?? 0), 0);
+    expect(weightedShoveCombos(withAnte.shoveFrequency)).toBeGreaterThan(
+      weightedShoveCombos(withoutAnte.shoveFrequency),
+    );
+  });
+
 });
 
 describe("solvePushFold (real 20bb equity matrix — directional regression)", () => {
