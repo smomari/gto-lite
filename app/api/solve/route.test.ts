@@ -48,6 +48,9 @@ describe("POST /api/solve", () => {
     const body = await res.json();
     expect(body.code).toBe("HAND_RESOLVED");
     expect(body.reason).toBe("uncontested");
+    expect(body.actionPath).toHaveLength(7);
+    expect(body.actionPath.every((n: { action: string }) => n.action === "fold")).toBe(true);
+    expect(body.potBb).toBe(2.5);
   });
 
   it("ignores client-supplied label/sizeBb and returns server-canonical values, including on a reopened seat", async () => {

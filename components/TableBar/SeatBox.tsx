@@ -16,6 +16,9 @@ interface SeatBoxProps {
   loading: boolean;
   onAction: (action: ActionType) => void;
   onRevisit: (globalIndex: number) => void;
+  /** True for a not-yet-reached seat after the active one — offers a one-click "fold up to here" shortcut. */
+  showQuickFold: boolean;
+  onQuickFold: () => void;
 }
 
 function describeAction(entry: ActionNode): string {
@@ -41,6 +44,8 @@ export function SeatBox({
   loading,
   onAction,
   onRevisit,
+  showQuickFold,
+  onQuickFold,
 }: SeatBoxProps) {
   return (
     <div
@@ -119,7 +124,18 @@ export function SeatBox({
       )}
 
       {!isActive && history.length === 0 && (
-        <span className="text-xs text-zinc-300 dark:text-zinc-600">—</span>
+        showQuickFold ? (
+          <button
+            type="button"
+            onClick={onQuickFold}
+            className="rounded px-1.5 py-0.5 text-left text-xs text-zinc-400 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-500 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
+            title="Fold this seat and every seat before it"
+          >
+            Fold
+          </button>
+        ) : (
+          <span className="text-xs text-zinc-300 dark:text-zinc-600">—</span>
+        )
       )}
     </div>
   );

@@ -3,12 +3,16 @@ import type { SolveErrorBody, SolveRequest, SolveResponse } from "@/types/solveA
 export class SolveApiError extends Error {
   code: SolveErrorBody["code"];
   reason?: SolveErrorBody["reason"];
+  actionPath?: SolveErrorBody["actionPath"];
+  potBb?: SolveErrorBody["potBb"];
 
   constructor(body: SolveErrorBody) {
     super(body.error);
     this.name = "SolveApiError";
     this.code = body.code;
     this.reason = body.reason;
+    this.actionPath = body.actionPath;
+    this.potBb = body.potBb;
   }
 }
 

@@ -90,6 +90,8 @@ export async function POST(request: Request): Promise<Response> {
       error: `Hand already resolved (${replayResult.reason})`,
       code: "HAND_RESOLVED",
       reason: replayResult.reason,
+      actionPath: replayResult.canonicalActionPath,
+      potBb: replayResult.potState.potBb,
     });
   }
 

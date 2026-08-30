@@ -38,6 +38,10 @@ export interface SolveErrorBody {
   error: string;
   code: SolveErrorCode;
   reason?: HandResolvedReason;
+  /** Present only when code === "HAND_RESOLVED": the server-canonical path that led to resolution. */
+  actionPath?: ActionNode[];
+  /** Present only when code === "HAND_RESOLVED": final pot size. */
+  potBb?: number;
 }
 
 export type { ActionType };

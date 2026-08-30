@@ -7,7 +7,8 @@ import { ActionSummaryTiles } from "@/components/ActionSummaryTiles";
 import { SourceBadge } from "@/components/SourceBadge";
 import { RangeGrid } from "@/components/RangeGrid/RangeGrid";
 import { solveNode, SolveApiError } from "@/lib/apiClient/solveClient";
-import type { ActionType, Position } from "@/types/rangeData";
+import { SEAT_ORDER, seatIndex } from "@/lib/actionTree/seatOrder";
+import type { ActionNode, ActionType, Position } from "@/types/rangeData";
 import type { SolveResponse } from "@/types/solveApi";
 
 interface RequestStep {
@@ -17,7 +18,7 @@ interface RequestStep {
 
 type Result =
   | { key: string; kind: "success"; data: SolveResponse }
-  | { key: string; kind: "resolved"; reason: string }
+  | { key: string; kind: "resolved"; reason: string; actionPath: ActionNode[]; potBb: number }
   | { key: string; kind: "error"; message: string };
 
 export default function Home() {
@@ -39,7 +40,13 @@ export default function Home() {
       .catch((err) => {
         if (controller.signal.aborted) return;
         if (err instanceof SolveApiError && err.code === "HAND_RESOLVED") {
-          setResult({ key: requestKey, kind: "resolved", reason: err.reason ?? "resolved" });
+          setResult({
+            key: requestKey,
+            kind: "resolved",
+            reason: err.reason ?? "resolved",
+            actionPath: err.actionPath ?? [],
+            potBb: err.potBb ?? 0,
+          });
         } else {
           setResult({
             key: requestKey,
@@ -67,8 +74,20 @@ export default function Home() {
     setRequestPath(requestPath.slice(0, globalIndex));
   }
 
+  function handleQuickFold(target: Position) {
+    if (result?.kind !== "success") return;
+    const startIdx = seatIndex(result.data.heroPosition);
+    const endIdx = seatIndex(target);
+    const foldedSeats = SEAT_ORDER.slice(startIdx, endIdx + 1).map((actor) => ({
+      actor,
+      action: "fold" as ActionType,
+    }));
+    setRequestPath([...requestPath, ...foldedSeats]);
+  }
+
   const current = !loading && result ? result : null;
-  const displayedActionPath = current?.kind === "success" ? current.data.actionPath : [];
+  const displayedActionPath =
+    current?.kind === "success" ? current.data.actionPath : current?.kind === "resolved" ? current.actionPath : [];
   const activeSeat = current?.kind === "success" ? current.data.heroPosition : null;
   const availableActions = current?.kind === "success" ? current.data.availableActions : null;
 
@@ -94,6 +113,7 @@ export default function Home() {
         loading={loading}
         onAction={handleAction}
         onRevisit={handleRevisit}
+        onQuickFold={handleQuickFold}
       />
 
       {current?.kind === "error" && (
@@ -105,7 +125,7 @@ export default function Home() {
           {current.reason === "uncontested"
             ? "Hand ends uncontested — everyone folded."
             : "Preflop action is closed — multiple players see a flop."}{" "}
-          Undo a seat above to continue exploring.
+          Pot {current.potBb.toFixed(1)}bb. Undo a seat above to continue exploring.
         </p>
       )}
 
