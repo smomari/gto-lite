@@ -1,4 +1,4 @@
-import type { ActionNode, ActionType, RangeScenario } from "./rangeData";
+import type { ActionNode, ActionType, Position, RangeScenario } from "./rangeData";
 
 export interface SolveRequest {
   effectiveStackBb: number;
@@ -42,6 +42,12 @@ export interface SolveErrorBody {
   actionPath?: ActionNode[];
   /** Present only when code === "HAND_RESOLVED": final pot size. */
   potBb?: number;
+  /**
+   * Present only when code === "HAND_RESOLVED": chips each live seat had
+   * committed at resolution — lets a client derive each seat's remaining
+   * stack (effectiveStackBb - committed[seat]) for a postflop hand-off.
+   */
+  committed?: Partial<Record<Position, number>>;
 }
 
 export type { ActionType };

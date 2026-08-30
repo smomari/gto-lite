@@ -92,6 +92,7 @@ export async function POST(request: Request): Promise<Response> {
       reason: replayResult.reason,
       actionPath: replayResult.canonicalActionPath,
       potBb: replayResult.potState.potBb,
+      committed: replayResult.potState.committed,
     });
   }
 

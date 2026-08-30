@@ -18,13 +18,26 @@ interface RequestStep {
 
 type Result =
   | { key: string; kind: "success"; data: SolveResponse }
-  | { key: string; kind: "resolved"; reason: string; actionPath: ActionNode[]; potBb: number }
+  | {
+      key: string;
+      kind: "resolved";
+      reason: string;
+      actionPath: ActionNode[];
+      potBb: number;
+      committed: Partial<Record<Position, number>>;
+    }
   | { key: string; kind: "error"; message: string };
 
 export default function Home() {
   const [stackBb, setStackBb] = useState(100);
   const [requestPath, setRequestPath] = useState<RequestStep[]>([]);
   const [result, setResult] = useState<Result | null>(null);
+  // Each live seat's own decision-point response, captured as the walk-through
+  // reaches them — this *is* "their range entering the flop" once the hand
+  // resolves (combined with which action they actually took, from the
+  // resolved actionPath). Reset on anything that can invalidate history
+  // (stack change, undo) so it never holds stale data from a discarded branch.
+  const [seatResponses, setSeatResponses] = useState<Partial<Record<Position, SolveResponse>>>({});
 
   const requestKey = JSON.stringify({ stackBb, requestPath });
   const loading = result === null || result.key !== requestKey;
@@ -36,6 +49,7 @@ export default function Home() {
       .then((data) => {
         if (controller.signal.aborted) return;
         setResult({ key: requestKey, kind: "success", data });
+        setSeatResponses((prev) => ({ ...prev, [data.heroPosition]: data }));
       })
       .catch((err) => {
         if (controller.signal.aborted) return;
@@ -46,6 +60,7 @@ export default function Home() {
             reason: err.reason ?? "resolved",
             actionPath: err.actionPath ?? [],
             potBb: err.potBb ?? 0,
+            committed: err.committed ?? {},
           });
         } else {
           setResult({
@@ -63,6 +78,7 @@ export default function Home() {
   function handleStackChange(next: number) {
     setStackBb(next);
     setRequestPath([]);
+    setSeatResponses({});
   }
 
   function handleAction(action: ActionType) {
@@ -72,6 +88,11 @@ export default function Home() {
 
   function handleRevisit(globalIndex: number) {
     setRequestPath(requestPath.slice(0, globalIndex));
+    // Seats after the truncation point may no longer be reachable on this
+    // branch — drop all captured history rather than risk showing a stale
+    // seat's range from a line that no longer exists; it recaptures itself
+    // as the user replays forward.
+    setSeatResponses({});
   }
 
   function handleQuickAction(target: Position, action: ActionType) {
@@ -82,7 +103,24 @@ export default function Home() {
       actor,
       action: "fold" as ActionType,
     }));
-    setRequestPath([...requestPath, ...prefixFolds, { actor: target, action }]);
+    const prefixPath = [...requestPath, ...prefixFolds];
+
+    // The quick-action shortcut skips ever making `target` the active seat in
+    // its own render, so its own decision-point range (hands) would otherwise
+    // never get captured into seatResponses — fetch it directly here so it's
+    // available for a postflop hand-off just like a seat reached one click at
+    // a time. Fire-and-forget: a stale/aborted result here just means that
+    // seat's range isn't captured yet, not a broken UI (the main flow below
+    // is unaffected either way).
+    solveNode({ effectiveStackBb: stackBb, actionPath: prefixPath })
+      .then((data) => {
+        if (data.heroPosition === target) {
+          setSeatResponses((prev) => ({ ...prev, [target]: data }));
+        }
+      })
+      .catch(() => {});
+
+    setRequestPath([...prefixPath, { actor: target, action }]);
   }
 
   const current = !loading && result ? result : null;
@@ -121,12 +159,35 @@ export default function Home() {
       )}
 
       {current?.kind === "resolved" && (
-        <p className="text-sm text-zinc-500 dark:text-zinc-400">
-          {current.reason === "uncontested"
-            ? "Hand ends uncontested — everyone folded."
-            : "Preflop action is closed — multiple players see a flop."}{" "}
-          Pot {current.potBb.toFixed(1)}bb. Undo a seat above to continue exploring.
-        </p>
+        <div className="flex flex-col gap-2">
+          <p className="text-sm text-zinc-500 dark:text-zinc-400">
+            {current.reason === "uncontested"
+              ? "Hand ends uncontested — everyone folded."
+              : "Preflop action is closed — multiple players see a flop."}{" "}
+            Pot {current.potBb.toFixed(1)}bb. Undo a seat above to continue exploring.
+          </p>
+          {current.reason === "action-closed" && (
+            <div className="text-sm text-zinc-500 dark:text-zinc-400">
+              <p className="mb-1">Live to the flop:</p>
+              <ul className="list-inside list-disc">
+                {Object.entries(current.committed)
+                  .filter(([seat]) => {
+                    const history = current.actionPath.filter((n) => n.actor === seat);
+                    return history.length === 0 || history[history.length - 1].action !== "fold";
+                  })
+                  .map(([seat, committedBb]) => (
+                    <li key={seat}>
+                      {seat} — {(stackBb - (committedBb ?? 0)).toFixed(1)}bb remaining
+                      {seatResponses[seat as Position] ? " (range captured)" : ""}
+                    </li>
+                  ))}
+              </ul>
+              <p className="mt-1 text-xs text-zinc-400 dark:text-zinc-600">
+                Postflop solving connects to this data in a later phase.
+              </p>
+            </div>
+          )}
+        </div>
       )}
 
       {current?.kind === "success" && (

@@ -5,6 +5,7 @@ export class SolveApiError extends Error {
   reason?: SolveErrorBody["reason"];
   actionPath?: SolveErrorBody["actionPath"];
   potBb?: SolveErrorBody["potBb"];
+  committed?: SolveErrorBody["committed"];
 
   constructor(body: SolveErrorBody) {
     super(body.error);
@@ -13,6 +14,7 @@ export class SolveApiError extends Error {
     this.reason = body.reason;
     this.actionPath = body.actionPath;
     this.potBb = body.potBb;
+    this.committed = body.committed;
   }
 }
 
