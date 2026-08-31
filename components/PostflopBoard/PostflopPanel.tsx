@@ -6,8 +6,19 @@ import { PostflopActionBar } from "./PostflopActionBar";
 import { PostflopRangeGrid } from "@/components/PostflopStrategy/PostflopRangeGrid";
 import { SolveProgress } from "@/components/PostflopStrategy/SolveProgress";
 import { solvePostflopInWorker } from "@/lib/postflopSolver/worker/workerClient";
-import type { ActionWeightKey, PostflopResultMessage, SerializedTreeNode } from "@/types/postflopSolver";
+import type { PostflopPlayer } from "@/lib/postflopSolver/potState";
+import type {
+  ActionWeightKey,
+  PostflopResultMessage,
+  SerializedDecisionAction,
+  SerializedTreeNode,
+} from "@/types/postflopSolver";
 import type { HandFrequency } from "@/types/rangeData";
+
+interface PostflopHistoryEntry {
+  actor: PostflopPlayer;
+  label: string;
+}
 
 interface PostflopPanelProps {
   heroLabel: string;
@@ -31,10 +42,19 @@ const ITERATIONS = 1000;
 export function PostflopPanel(props: PostflopPanelProps) {
   const [state, setState] = useState<SolveState>({ kind: "idle" });
   const [currentNode, setCurrentNode] = useState<SerializedTreeNode | null>(null);
+  const [history, setHistory] = useState<PostflopHistoryEntry[]>([]);
+
+  function handleNavigate(action: SerializedDecisionAction) {
+    if (currentNode?.type === "decision") {
+      setHistory((prev) => [...prev, { actor: currentNode.actor, label: action.label }]);
+    }
+    setCurrentNode(action.child);
+  }
 
   function handleBoardConfirm(board: string[]) {
     setState({ kind: "solving", phase: "equity", done: 0, total: 1 });
     setCurrentNode(null);
+    setHistory([]);
 
     solvePostflopInWorker(
       {
@@ -72,7 +92,13 @@ export function PostflopPanel(props: PostflopPanelProps) {
 
       {state.kind === "done" && currentNode && (
         <div className="flex flex-col gap-3">
-          <PostflopActionBar node={currentNode} onNavigate={setCurrentNode} />
+          <PostflopActionBar
+            node={currentNode}
+            history={history}
+            heroLabel={props.heroLabel}
+            villainLabel={props.villainLabel}
+            onNavigate={handleNavigate}
+          />
           {currentNode.type === "decision" && (
             <PostflopRangeGrid
               range={currentNode.actor === "P1" ? state.result.heroRange : state.result.villainRange}
@@ -82,14 +108,20 @@ export function PostflopPanel(props: PostflopPanelProps) {
           <div className="flex gap-3">
             <button
               type="button"
-              onClick={() => setCurrentNode(state.result.tree)}
+              onClick={() => {
+                setCurrentNode(state.result.tree);
+                setHistory([]);
+              }}
               className="text-xs text-zinc-500 underline hover:text-zinc-900 dark:hover:text-zinc-100"
             >
               Reset to start of street
             </button>
             <button
               type="button"
-              onClick={() => setState({ kind: "idle" })}
+              onClick={() => {
+                setState({ kind: "idle" });
+                setHistory([]);
+              }}
               className="text-xs text-zinc-500 underline hover:text-zinc-900 dark:hover:text-zinc-100"
             >
               Pick a different board
