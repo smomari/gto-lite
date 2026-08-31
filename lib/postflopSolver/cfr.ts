@@ -30,6 +30,7 @@ export function runCfr(
   villainRange: ComboRange,
   equityTable: EquityTable,
   iterations: number,
+  onProgress?: (done: number, total: number) => void,
 ): CfrSolution {
   const heroCombos = heroRange.map((c) => c.cards);
   const villainCombos = villainRange.map((c) => c.cards);
@@ -140,8 +141,10 @@ export function runCfr(
       : { utilP1: nonActingUtil, utilP2: actingUtil };
   }
 
+  const progressInterval = Math.max(1, Math.floor(iterations / 50));
   for (let t = 1; t <= iterations; t++) {
     traverse(tree, initialReachP1, initialReachP2, t);
+    if (onProgress && (t % progressInterval === 0 || t === iterations)) onProgress(t, iterations);
   }
 
   return {

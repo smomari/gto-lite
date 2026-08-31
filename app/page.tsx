@@ -7,9 +7,11 @@ import { ActionSummaryTiles } from "@/components/ActionSummaryTiles";
 import { SourceBadge } from "@/components/SourceBadge";
 import { RangeGrid } from "@/components/RangeGrid/RangeGrid";
 import { solveNode, SolveApiError } from "@/lib/apiClient/solveClient";
-import { SEAT_ORDER, seatIndex } from "@/lib/actionTree/seatOrder";
+import { SEAT_ORDER, seatIndex, postflopSeatIndex } from "@/lib/actionTree/seatOrder";
+import { PostflopPanel } from "@/components/PostflopBoard/PostflopPanel";
 import type { ActionNode, ActionType, Position } from "@/types/rangeData";
 import type { SolveResponse } from "@/types/solveApi";
+import type { ActionWeightKey } from "@/types/postflopSolver";
 
 interface RequestStep {
   actor: Position;
@@ -158,37 +160,78 @@ export default function Home() {
         <p className="text-sm text-red-600 dark:text-red-400">Error: {current.message}</p>
       )}
 
-      {current?.kind === "resolved" && (
-        <div className="flex flex-col gap-2">
-          <p className="text-sm text-zinc-500 dark:text-zinc-400">
-            {current.reason === "uncontested"
-              ? "Hand ends uncontested — everyone folded."
-              : "Preflop action is closed — multiple players see a flop."}{" "}
-            Pot {current.potBb.toFixed(1)}bb. Undo a seat above to continue exploring.
-          </p>
-          {current.reason === "action-closed" && (
-            <div className="text-sm text-zinc-500 dark:text-zinc-400">
-              <p className="mb-1">Live to the flop:</p>
-              <ul className="list-inside list-disc">
-                {Object.entries(current.committed)
-                  .filter(([seat]) => {
-                    const history = current.actionPath.filter((n) => n.actor === seat);
-                    return history.length === 0 || history[history.length - 1].action !== "fold";
-                  })
-                  .map(([seat, committedBb]) => (
+      {(() => {
+        if (current?.kind !== "resolved") return null;
+        const resolvedActionPath = current.actionPath;
+        const liveSeats = Object.entries(current.committed)
+          .filter(([seat]) => {
+            const history = resolvedActionPath.filter((n) => n.actor === seat);
+            return history.length === 0 || history[history.length - 1].action !== "fold";
+          })
+          .map(([seat, committedBb]) => ({
+            seat: seat as Position,
+            remaining: stackBb - (committedBb ?? 0),
+          }));
+
+        const bothCaptured =
+          liveSeats.length === 2 && liveSeats.every(({ seat }) => seatResponses[seat] !== undefined);
+
+        // P1 = OOP (acts first postflop — SB first, BTN always last), P2 = IP.
+        const [p1, p2] = bothCaptured
+          ? [...liveSeats].sort((a, b) => postflopSeatIndex(a.seat) - postflopSeatIndex(b.seat))
+          : [];
+
+        function actionKeyFor(seat: Position): ActionWeightKey {
+          const history = resolvedActionPath.filter((n) => n.actor === seat);
+          const lastAction = history[history.length - 1]?.action ?? "call";
+          return lastAction as ActionWeightKey;
+        }
+
+        return (
+          <div className="flex flex-col gap-3">
+            <p className="text-sm text-zinc-500 dark:text-zinc-400">
+              {current.reason === "uncontested"
+                ? "Hand ends uncontested — everyone folded."
+                : "Preflop action is closed — multiple players see a flop."}{" "}
+              Pot {current.potBb.toFixed(1)}bb. Undo a seat above to continue exploring.
+            </p>
+
+            {current.reason === "action-closed" && (
+              <div className="text-sm text-zinc-500 dark:text-zinc-400">
+                <p className="mb-1">Live to the flop:</p>
+                <ul className="list-inside list-disc">
+                  {liveSeats.map(({ seat, remaining }) => (
                     <li key={seat}>
-                      {seat} — {(stackBb - (committedBb ?? 0)).toFixed(1)}bb remaining
-                      {seatResponses[seat as Position] ? " (range captured)" : ""}
+                      {seat} — {remaining.toFixed(1)}bb remaining
+                      {seatResponses[seat] ? " (range captured)" : ""}
                     </li>
                   ))}
-              </ul>
-              <p className="mt-1 text-xs text-zinc-400 dark:text-zinc-600">
-                Postflop solving connects to this data in a later phase.
+                </ul>
+              </div>
+            )}
+
+            {current.reason === "action-closed" && !bothCaptured && (
+              <p className="text-xs text-zinc-400 dark:text-zinc-600">
+                Postflop solving needs exactly 2 live seats with a captured range (Phase 1 doesn&apos;t
+                support multiway yet).
               </p>
-            </div>
-          )}
-        </div>
-      )}
+            )}
+
+            {p1 && p2 && (
+              <PostflopPanel
+                heroLabel={p1.seat}
+                heroHands={seatResponses[p1.seat]!.hands}
+                heroActionKey={actionKeyFor(p1.seat)}
+                villainLabel={p2.seat}
+                villainHands={seatResponses[p2.seat]!.hands}
+                villainActionKey={actionKeyFor(p2.seat)}
+                startPot={current.potBb}
+                effectiveStackBb={Math.min(p1.remaining, p2.remaining)}
+              />
+            )}
+          </div>
+        );
+      })()}
 
       {current?.kind === "success" && (
         <section className="flex flex-col gap-4">

@@ -55,16 +55,27 @@ function shareCard(a: [string, string], b: [string, string]): boolean {
 }
 
 /** Builds the full pairwise equity table for two ranges on a fixed board, skipping card-blocked (impossible) pairs. */
-export function buildEquityTable(heroRange: ComboRange, villainRange: ComboRange, board: string[]): EquityTable {
+export function buildEquityTable(
+  heroRange: ComboRange,
+  villainRange: ComboRange,
+  board: string[],
+  onProgress?: (done: number, total: number) => void,
+): EquityTable {
   const table: EquityTable = new Map();
+  const total = heroRange.length * villainRange.length;
+  let done = 0;
   for (const h of heroRange) {
     for (const v of villainRange) {
+      done++;
       if (shareCard(h.cards, v.cards)) continue;
       const key = `${comboKey(h.cards)}|${comboKey(v.cards)}`;
-      if (table.has(key)) continue;
-      table.set(key, comboVsComboRunoutEquity(h.cards, v.cards, board));
+      if (!table.has(key)) {
+        table.set(key, comboVsComboRunoutEquity(h.cards, v.cards, board));
+      }
+      if (onProgress && done % 200 === 0) onProgress(done, total);
     }
   }
+  onProgress?.(total, total);
   return table;
 }
 

@@ -26,8 +26,13 @@ export interface PostflopSolveResult {
   solution: CfrSolution;
 }
 
+export type PostflopSolvePhase = "equity" | "cfr";
+
 /** Top-level Phase 1 orchestrator: preflop HandFrequency[] pairs in, a solved flop street tree out. */
-export function solvePostflopStreet(input: PostflopSolveInput): PostflopSolveResult {
+export function solvePostflopStreet(
+  input: PostflopSolveInput,
+  onProgress?: (phase: PostflopSolvePhase, done: number, total: number) => void,
+): PostflopSolveResult {
   const heroRange = expandToCombos(input.heroHandFrequencies, input.heroActionWeight, input.board);
   const villainRange = expandToCombos(input.villainHandFrequencies, input.villainActionWeight, input.board);
 
@@ -35,9 +40,13 @@ export function solvePostflopStreet(input: PostflopSolveInput): PostflopSolveRes
     throw new Error("solvePostflopStreet: hero and villain ranges must both be non-empty after board removal");
   }
 
-  const equityTable = buildEquityTable(heroRange, villainRange, input.board);
+  const equityTable = buildEquityTable(heroRange, villainRange, input.board, (done, total) =>
+    onProgress?.("equity", done, total),
+  );
   const tree = buildStreetTree(input.startPot, input.effectiveStackBb);
-  const solution = runCfr(tree, heroRange, villainRange, equityTable, input.iterations);
+  const solution = runCfr(tree, heroRange, villainRange, equityTable, input.iterations, (done, total) =>
+    onProgress?.("cfr", done, total),
+  );
 
   return { tree, heroRange, villainRange, solution };
 }
