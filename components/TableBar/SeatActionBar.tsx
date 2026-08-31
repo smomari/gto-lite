@@ -1,7 +1,6 @@
 import type { ActionNode, ActionType, Position } from "@/types/rangeData";
 import type { AvailableActions } from "@/types/solveApi";
-import { SEAT_ORDER, seatIndex } from "@/lib/actionTree/seatOrder";
-import { previewQuickAction } from "@/lib/solveEngine/preview";
+import { computeRoundActingOrder, previewQuickAction } from "@/lib/solveEngine/preview";
 import { SeatBox } from "./SeatBox";
 
 interface SeatActionBarProps {
@@ -25,37 +24,43 @@ export function SeatActionBar({
   onRevisit,
   onQuickAction,
 }: SeatActionBarProps) {
-  const activeIndex = activeSeat ? seatIndex(activeSeat) : -1;
+  const pendingSeats = activeSeat ? computeRoundActingOrder(actionPath, activeSeat, stackBb).slice(1) : [];
 
   return (
     <div className="flex flex-wrap gap-2">
-      {SEAT_ORDER.map((position) => {
-        const history = actionPath
-          .map((entry, globalIndex) => ({ entry, globalIndex }))
-          .filter(({ entry }) => entry.actor === position);
-        const isFolded = history.length > 0 && history[history.length - 1].entry.action === "fold";
-        const isActive = position === activeSeat;
-        const isPending =
-          !isActive && history.length === 0 && activeIndex !== -1 && seatIndex(position) > activeIndex;
-        const quickActions =
-          isPending && activeSeat ? previewQuickAction(actionPath, activeSeat, position, stackBb) : null;
-        return (
-          <SeatBox
-            key={position}
-            position={position}
-            stackBb={stackBb}
-            history={history}
-            isActive={isActive}
-            isFolded={isFolded}
-            availableActions={isActive ? availableActions : null}
-            loading={isActive && loading}
-            onAction={onAction}
-            onRevisit={onRevisit}
-            quickActions={quickActions}
-            onQuickAction={(action) => onQuickAction(position, action)}
-          />
-        );
-      })}
+      {actionPath.map((entry, globalIndex) => (
+        <SeatBox
+          key={`h-${globalIndex}`}
+          kind="history"
+          position={entry.actor}
+          stackBb={stackBb}
+          action={entry}
+          onRevisit={() => onRevisit(globalIndex)}
+        />
+      ))}
+
+      {activeSeat && (
+        <SeatBox
+          key="active"
+          kind="active"
+          position={activeSeat}
+          stackBb={stackBb}
+          availableActions={availableActions}
+          loading={loading}
+          onAction={onAction}
+        />
+      )}
+
+      {pendingSeats.map((position) => (
+        <SeatBox
+          key={`p-${position}`}
+          kind="pending"
+          position={position}
+          stackBb={stackBb}
+          quickActions={activeSeat ? previewQuickAction(actionPath, activeSeat, position, stackBb) : null}
+          onQuickAction={(action) => onQuickAction(position, action)}
+        />
+      ))}
     </div>
   );
 }

@@ -1,30 +1,29 @@
 import type { ActionNode, ActionType, Position } from "@/types/rangeData";
 import type { AvailableActions } from "@/types/solveApi";
 
-interface HistoryItem {
-  entry: ActionNode;
-  globalIndex: number;
-}
-
-interface SeatBoxProps {
-  position: Position;
-  stackBb: number;
-  history: HistoryItem[];
-  isActive: boolean;
-  isFolded: boolean;
-  availableActions: AvailableActions | null;
-  loading: boolean;
-  onAction: (action: ActionType) => void;
-  onRevisit: (globalIndex: number) => void;
-  /**
-   * For a not-yet-reached seat after the active one: what its Fold/Call/Raise/
-   * Allin options would be if every seat between the active one and this seat
-   * folded first. Null when that isn't a reachable spot (e.g. it would already
-   * resolve the hand before this seat gets a turn).
-   */
-  quickActions: AvailableActions | null;
-  onQuickAction: (action: ActionType) => void;
-}
+type SeatBoxProps =
+  | {
+      kind: "history";
+      position: Position;
+      stackBb: number;
+      action: ActionNode;
+      onRevisit: () => void;
+    }
+  | {
+      kind: "active";
+      position: Position;
+      stackBb: number;
+      availableActions: AvailableActions | null;
+      loading: boolean;
+      onAction: (action: ActionType) => void;
+    }
+  | {
+      kind: "pending";
+      position: Position;
+      stackBb: number;
+      quickActions: AvailableActions | null;
+      onQuickAction: (action: ActionType) => void;
+    };
 
 function describeAction(entry: ActionNode): string {
   switch (entry.action) {
@@ -103,21 +102,16 @@ function ActionButtons({ actions, onClick, compact }: ActionButtonsProps) {
   );
 }
 
-export function SeatBox({
-  position,
-  stackBb,
-  history,
-  isActive,
-  isFolded,
-  availableActions,
-  loading,
-  onAction,
-  onRevisit,
-  quickActions,
-  onQuickAction,
-}: SeatBoxProps) {
+export function SeatBox(props: SeatBoxProps) {
+  const { position, stackBb } = props;
+  const isActive = props.kind === "active";
+  const isFolded = props.kind === "history" && props.action.action === "fold";
+
   return (
     <div
+      data-testid="seat-box"
+      data-kind={props.kind}
+      data-position={position}
       className={`flex min-w-[130px] flex-col gap-1.5 rounded-lg border p-2.5 ${
         isActive
           ? "border-emerald-500 ring-1 ring-emerald-500"
@@ -131,36 +125,35 @@ export function SeatBox({
         <span className="text-zinc-500 dark:text-zinc-400">{stackBb}bb</span>
       </div>
 
-      {history.length > 0 && (
+      {props.kind === "history" && (
         <div className="flex flex-col gap-0.5">
-          {history.map(({ entry, globalIndex }, i) => (
-            <button
-              key={i}
-              type="button"
-              onClick={() => onRevisit(globalIndex)}
-              className="rounded px-1.5 py-0.5 text-left text-xs text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
-              title="Click to undo back to this point"
-            >
-              {describeAction(entry)}
-            </button>
-          ))}
+          <button
+            type="button"
+            onClick={props.onRevisit}
+            className="rounded px-1.5 py-0.5 text-left text-xs text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
+            title="Click to undo back to this point"
+          >
+            {describeAction(props.action)}
+          </button>
         </div>
       )}
 
-      {isActive && (
+      {props.kind === "active" && (
         <div className="flex flex-col gap-1">
-          {loading ? (
+          {props.loading ? (
             <span className="text-xs text-zinc-400">...</span>
           ) : (
-            availableActions && <ActionButtons actions={availableActions} onClick={onAction} compact={false} />
+            props.availableActions && (
+              <ActionButtons actions={props.availableActions} onClick={props.onAction} compact={false} />
+            )
           )}
         </div>
       )}
 
-      {!isActive && history.length === 0 && (
+      {props.kind === "pending" && (
         <div className="flex flex-col gap-0.5">
-          {quickActions ? (
-            <ActionButtons actions={quickActions} onClick={onQuickAction} compact={true} />
+          {props.quickActions ? (
+            <ActionButtons actions={props.quickActions} onClick={props.onQuickAction} compact={true} />
           ) : (
             <span className="text-xs text-zinc-300 dark:text-zinc-600">—</span>
           )}

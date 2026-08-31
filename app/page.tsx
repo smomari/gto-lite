@@ -7,7 +7,8 @@ import { ActionSummaryTiles } from "@/components/ActionSummaryTiles";
 import { SourceBadge } from "@/components/SourceBadge";
 import { RangeGrid } from "@/components/RangeGrid/RangeGrid";
 import { solveNode, SolveApiError } from "@/lib/apiClient/solveClient";
-import { SEAT_ORDER, seatIndex, postflopSeatIndex } from "@/lib/actionTree/seatOrder";
+import { postflopSeatIndex } from "@/lib/actionTree/seatOrder";
+import { computeRoundActingOrder } from "@/lib/solveEngine/preview";
 import { PostflopPanel } from "@/components/PostflopBoard/PostflopPanel";
 import type { ActionNode, ActionType, Position } from "@/types/rangeData";
 import type { SolveResponse } from "@/types/solveApi";
@@ -99,9 +100,10 @@ export default function Home() {
 
   function handleQuickAction(target: Position, action: ActionType) {
     if (result?.kind !== "success") return;
-    const startIdx = seatIndex(result.data.heroPosition);
-    const endIdx = seatIndex(target);
-    const prefixFolds = SEAT_ORDER.slice(startIdx, endIdx).map((actor) => ({
+    const order = computeRoundActingOrder(requestPath, result.data.heroPosition, stackBb);
+    const targetIdx = order.indexOf(target);
+    if (targetIdx <= 0) return;
+    const prefixFolds = order.slice(0, targetIdx).map((actor) => ({
       actor,
       action: "fold" as ActionType,
     }));
