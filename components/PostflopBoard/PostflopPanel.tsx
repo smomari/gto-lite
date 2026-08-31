@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { BoardPicker } from "./BoardPicker";
 import { PostflopActionBar } from "./PostflopActionBar";
-import { ComboRangeGrid } from "@/components/PostflopStrategy/ComboRangeGrid";
+import { PostflopRangeGrid } from "@/components/PostflopStrategy/PostflopRangeGrid";
 import { SolveProgress } from "@/components/PostflopStrategy/SolveProgress";
 import { solvePostflopInWorker } from "@/lib/postflopSolver/worker/workerClient";
 import type { ActionWeightKey, PostflopResultMessage, SerializedTreeNode } from "@/types/postflopSolver";
@@ -74,7 +74,7 @@ export function PostflopPanel(props: PostflopPanelProps) {
         <div className="flex flex-col gap-3">
           <PostflopActionBar node={currentNode} onNavigate={setCurrentNode} />
           {currentNode.type === "decision" && (
-            <ComboRangeGrid
+            <PostflopRangeGrid
               range={currentNode.actor === "P1" ? state.result.heroRange : state.result.villainRange}
               node={currentNode}
             />
