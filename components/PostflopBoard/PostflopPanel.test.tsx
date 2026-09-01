@@ -67,6 +67,91 @@ function allinCallFlopResult(effectiveStackBb: number): PostflopResultMessage {
   };
 }
 
+function checkCheckTurnResult(committed: { P1: number; P2: number }): PostflopResultMessage {
+  const terminal: SerializedTreeNode = { type: "terminal-showdown", potBb: 17.5, committed };
+  const p2Node: SerializedTreeNode = {
+    type: "decision",
+    actor: "P2",
+    potBb: 17.5,
+    currentBetToCall: 0,
+    actions: [{ action: "check", label: "Check", child: terminal }],
+    strategy: [[1]],
+  };
+  const tree: SerializedTreeNode = {
+    type: "decision",
+    actor: "P1",
+    potBb: 17.5,
+    currentBetToCall: 0,
+    actions: [{ action: "check", label: "Check", child: p2Node }],
+    strategy: [[1]],
+  };
+  return {
+    type: "result",
+    tree,
+    heroRange: [{ cards: ["Ah", "Kd"], weight: 1 }],
+    villainRange: [{ cards: ["7c", "2c"], weight: 1 }],
+    iterations: 100,
+  };
+}
+
+function checkCheckRiverResult(committed: { P1: number; P2: number }): PostflopResultMessage {
+  const terminal: SerializedTreeNode = { type: "terminal-showdown", potBb: 17.5, committed };
+  const p2Node: SerializedTreeNode = {
+    type: "decision",
+    actor: "P2",
+    potBb: 17.5,
+    currentBetToCall: 0,
+    actions: [{ action: "check", label: "Check", child: terminal }],
+    strategy: [[1]],
+  };
+  const tree: SerializedTreeNode = {
+    type: "decision",
+    actor: "P1",
+    potBb: 17.5,
+    currentBetToCall: 0,
+    actions: [{ action: "check", label: "Check", child: p2Node }],
+    strategy: [[1]],
+  };
+  return {
+    type: "result",
+    tree,
+    heroRange: [{ cards: ["Ah", "Kd"], weight: 1 }],
+    villainRange: [{ cards: ["7c", "2c"], weight: 1 }],
+    iterations: 100,
+  };
+}
+
+function allinCallTurnResult(effectiveStackBb: number): PostflopResultMessage {
+  const terminal: SerializedTreeNode = {
+    type: "terminal-showdown",
+    potBb: 17.5 + effectiveStackBb * 2,
+    committed: { P1: effectiveStackBb, P2: effectiveStackBb },
+  };
+  const p2Node: SerializedTreeNode = {
+    type: "decision",
+    actor: "P2",
+    potBb: 17.5 + effectiveStackBb,
+    currentBetToCall: effectiveStackBb,
+    actions: [{ action: "call", label: "Call", child: terminal }],
+    strategy: [[1]],
+  };
+  const tree: SerializedTreeNode = {
+    type: "decision",
+    actor: "P1",
+    potBb: 17.5,
+    currentBetToCall: 0,
+    actions: [{ action: "allin", label: `Allin ${effectiveStackBb.toFixed(1)}bb`, child: p2Node }],
+    strategy: [[1]],
+  };
+  return {
+    type: "result",
+    tree,
+    heroRange: [{ cards: ["Ah", "Kd"], weight: 1 }],
+    villainRange: [{ cards: ["7c", "2c"], weight: 1 }],
+    iterations: 100,
+  };
+}
+
 function turnResult(): PostflopResultMessage {
   const tree: SerializedTreeNode = {
     type: "decision",
@@ -198,5 +283,95 @@ describe("PostflopPanel", () => {
     const stages = screen.getAllByTestId("street-stage");
     expect(stages).toHaveLength(1);
     expect(screen.getByText(/All-in — hand is already decided/)).toBeInTheDocument();
+  });
+
+  async function reachTurnCheckCheck() {
+    solvePostflopInWorker.mockResolvedValueOnce(checkCheckFlopResult({ P1: 0, P2: 0 }));
+    render(<PostflopPanel {...baseProps(20)} />);
+
+    pickFlopBoard();
+    await screen.findByRole("button", { name: "Check" });
+    fireEvent.click(screen.getByRole("button", { name: "Check" }));
+    fireEvent.click(screen.getByRole("button", { name: "Check" }));
+
+    solvePostflopInWorker.mockResolvedValueOnce(checkCheckTurnResult({ P1: 0, P2: 0 }));
+    fireEvent.click(screen.getByRole("button", { name: "7h" }));
+    fireEvent.click(screen.getByRole("button", { name: "Solve turn" }));
+  }
+
+  it("reaching the turn's own check-check terminal-showdown appends an idle River stage", async () => {
+    await reachTurnCheckCheck();
+
+    const turnChecks = await screen.findAllByRole("button", { name: "Check" });
+    fireEvent.click(turnChecks[0]); // P1 checks the turn
+    fireEvent.click(screen.getByRole("button", { name: "Check" })); // P2 checks, closes the street
+
+    const stages = screen.getAllByTestId("street-stage");
+    expect(stages).toHaveLength(3);
+    expect(stages[2]).toHaveAttribute("data-street", "River");
+    expect(within(stages[2]).getByText(/Pick the river card/)).toBeInTheDocument();
+    expect(within(stages[1]).getByText(/river card coming next/)).toBeInTheDocument();
+  });
+
+  it("solving the river sends a combos-kind request derived from the turn's path", async () => {
+    await reachTurnCheckCheck();
+    const turnChecks = await screen.findAllByRole("button", { name: "Check" });
+    fireEvent.click(turnChecks[0]);
+    fireEvent.click(screen.getByRole("button", { name: "Check" }));
+
+    solvePostflopInWorker.mockResolvedValueOnce(checkCheckRiverResult({ P1: 0, P2: 0 }));
+    fireEvent.click(screen.getByRole("button", { name: "2h" }));
+    fireEvent.click(screen.getByRole("button", { name: "Solve river" }));
+    await screen.findByRole("button", { name: "Pick a different river card" });
+
+    const riverRequest = solvePostflopInWorker.mock.calls[2][0] as PostflopSolveRequest;
+    expect(riverRequest.kind).toBe("combos");
+    if (riverRequest.kind === "combos") {
+      expect(riverRequest.board).toEqual(["As", "Kd", "Qh", "7h", "2h"]);
+      expect(riverRequest.heroRange).toEqual([{ cards: ["Ah", "Kd"], weight: 1 }]);
+      expect(riverRequest.villainRange).toEqual([{ cards: ["7c", "2c"], weight: 1 }]);
+    }
+  });
+
+  it("reaching the river's own terminal-showdown does not add a further stage, and shows a final-showdown message", async () => {
+    await reachTurnCheckCheck();
+    const turnChecks = await screen.findAllByRole("button", { name: "Check" });
+    fireEvent.click(turnChecks[0]);
+    fireEvent.click(screen.getByRole("button", { name: "Check" }));
+
+    solvePostflopInWorker.mockResolvedValueOnce(checkCheckRiverResult({ P1: 0, P2: 0 }));
+    fireEvent.click(screen.getByRole("button", { name: "2h" }));
+    fireEvent.click(screen.getByRole("button", { name: "Solve river" }));
+
+    const riverChecks = await screen.findAllByRole("button", { name: "Check" });
+    fireEvent.click(riverChecks[0]);
+    fireEvent.click(screen.getByRole("button", { name: "Check" }));
+
+    const stages = screen.getAllByTestId("street-stage");
+    expect(stages).toHaveLength(3);
+    expect(within(stages[2]).getByText(/Showdown/)).toBeInTheDocument();
+  });
+
+  it("an all-in-call terminal on the turn (no stack left) does not offer a river stage (regression)", async () => {
+    solvePostflopInWorker.mockResolvedValueOnce(checkCheckFlopResult({ P1: 0, P2: 0 }));
+    render(<PostflopPanel {...baseProps(20)} />);
+
+    pickFlopBoard();
+    await screen.findByRole("button", { name: "Check" });
+    fireEvent.click(screen.getByRole("button", { name: "Check" }));
+    fireEvent.click(screen.getByRole("button", { name: "Check" }));
+
+    solvePostflopInWorker.mockResolvedValueOnce(allinCallTurnResult(20));
+    fireEvent.click(screen.getByRole("button", { name: "7h" }));
+    fireEvent.click(screen.getByRole("button", { name: "Solve turn" }));
+
+    await screen.findByRole("button", { name: "Allin 20.0bb" });
+    fireEvent.click(screen.getByRole("button", { name: "Allin 20.0bb" }));
+    fireEvent.click(screen.getByRole("button", { name: "Call" }));
+
+    const stages = screen.getAllByTestId("street-stage");
+    expect(stages).toHaveLength(2);
+    expect(within(stages[1]).getByText(/All-in — hand is already decided/)).toBeInTheDocument();
+    expect(screen.queryByText(/isn't implemented yet/)).not.toBeInTheDocument();
   });
 });

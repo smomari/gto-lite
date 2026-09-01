@@ -34,33 +34,51 @@ type SolveState =
   | { kind: "done"; result: PostflopResultMessage }
   | { kind: "error"; message: string };
 
+type StreetLabel = "Flop" | "Turn" | "River";
+
 /**
  * One street's worth of state: board picking, solving, and tree navigation.
- * Kept as an array (rather than separate flop/turn fields) so a future river
- * stage slots in without restructuring — flop and turn already share every
- * bit of this shape and rendering logic.
+ * Kept as an array so flop/turn/river all share the same shape and rendering
+ * logic instead of separate per-street fields.
  */
 interface StreetStage {
-  streetLabel: "Flop" | "Turn";
-  /** Cumulative board through this stage (3 cards for the flop, 4 for the turn). */
+  streetLabel: StreetLabel;
+  /** Cumulative board through this stage (3/4/5 cards for flop/turn/river). */
   board: string[];
   state: SolveState;
   currentNode: SerializedTreeNode | null;
   path: TreePathStep[];
+  /** Effective stack behind at the start of this street (before any of this street's action). */
+  effectiveStackAtStart: number;
 }
 
 const ITERATIONS = 1000;
 
-function idleFlopStage(): StreetStage {
-  return { streetLabel: "Flop", board: [], state: { kind: "idle" }, currentNode: null, path: [] };
+function streetLabelForBoardLength(boardLength: number): StreetLabel {
+  if (boardLength === 3) return "Flop";
+  if (boardLength === 4) return "Turn";
+  if (boardLength === 5) return "River";
+  throw new Error(`streetLabelForBoardLength: unexpected board length ${boardLength}`);
 }
 
-function idleTurnStage(): StreetStage {
-  return { streetLabel: "Turn", board: [], state: { kind: "idle" }, currentNode: null, path: [] };
+/** The river (5-card board) is the last street — nothing more to deal after it. */
+function hasNextStreet(boardLength: number): boolean {
+  return boardLength < 5;
+}
+
+function idleStage(boardLength: number, effectiveStackAtStart: number): StreetStage {
+  return {
+    streetLabel: streetLabelForBoardLength(boardLength),
+    board: [],
+    state: { kind: "idle" },
+    currentNode: null,
+    path: [],
+    effectiveStackAtStart,
+  };
 }
 
 export function PostflopPanel(props: PostflopPanelProps) {
-  const [streets, setStreets] = useState<StreetStage[]>([idleFlopStage()]);
+  const [streets, setStreets] = useState<StreetStage[]>([idleStage(3, props.effectiveStackBb)]);
 
   function handleNavigate(stageIndex: number, action: SerializedDecisionAction) {
     setStreets((prev) => {
@@ -74,16 +92,16 @@ export function PostflopPanel(props: PostflopPanelProps) {
       };
       const next = [...prev.slice(0, stageIndex), updatedStage];
 
-      // Only the flop hands off to a turn stage — a live stack still behind
-      // is what makes a turn worth solving; an all-in-call terminal already
-      // has its final (2-card-runout) equity baked into the flop's own CFR
-      // result, so there's nothing left to solve.
+      // A live stack still behind, on a street short of the river, is what
+      // makes a next street worth solving — an all-in-call terminal already
+      // has its final runout equity baked into this street's own CFR result,
+      // and the river itself has no further street to deal.
       if (
-        stageIndex === 0 &&
         action.child.type === "terminal-showdown" &&
-        props.effectiveStackBb - action.child.committed.P1 > 0
+        hasNextStreet(stage.board.length) &&
+        stage.effectiveStackAtStart - action.child.committed.P1 > 0
       ) {
-        next.push(idleTurnStage());
+        next.push(idleStage(stage.board.length + 1, stage.effectiveStackAtStart - action.child.committed.P1));
       }
 
       return next;
@@ -122,18 +140,18 @@ export function PostflopPanel(props: PostflopPanelProps) {
         iterations: ITERATIONS,
       };
     } else {
-      const flop = streets[0];
-      if (flop.state.kind !== "done" || flop.currentNode?.type !== "terminal-showdown") {
-        throw new Error("handleBoardConfirm: the turn requires the flop to be at a terminal-showdown");
+      const prevStage = streets[stageIndex - 1];
+      if (prevStage.state.kind !== "done" || prevStage.currentNode?.type !== "terminal-showdown") {
+        throw new Error("handleBoardConfirm: the next street requires the previous street to be at a terminal-showdown");
       }
-      const terminal: SerializedTerminalNode = flop.currentNode;
+      const terminal: SerializedTerminalNode = prevStage.currentNode;
       request = {
         kind: "combos",
         board: fullBoard,
-        heroRange: narrowRangeAlongPath(flop.state.result.heroRange, "P1", flop.path),
-        villainRange: narrowRangeAlongPath(flop.state.result.villainRange, "P2", flop.path),
+        heroRange: narrowRangeAlongPath(prevStage.state.result.heroRange, "P1", prevStage.path),
+        villainRange: narrowRangeAlongPath(prevStage.state.result.villainRange, "P2", prevStage.path),
         startPot: terminal.potBb,
-        effectiveStackBb: props.effectiveStackBb - terminal.committed.P1,
+        effectiveStackBb: prevStage.effectiveStackAtStart - terminal.committed.P1,
         iterations: ITERATIONS,
       };
     }
@@ -184,6 +202,7 @@ export function PostflopPanel(props: PostflopPanelProps) {
       {streets.map((stage, i) => {
         const solveState = stage.state;
         const currentNode = stage.currentNode;
+        const isFlop = stage.streetLabel === "Flop";
 
         return (
           <div
@@ -198,10 +217,10 @@ export function PostflopPanel(props: PostflopPanelProps) {
 
             {solveState.kind === "idle" && (
               <BoardPicker
-                count={i === 0 ? 3 : 1}
+                count={isFlop ? 3 : 1}
                 excludedCards={i === 0 ? [] : streets[i - 1].board}
-                title={i === 0 ? "Pick the 3 flop cards" : "Pick the turn card"}
-                confirmLabel={i === 0 ? "Solve flop" : "Solve turn"}
+                title={isFlop ? "Pick the 3 flop cards" : `Pick the ${stage.streetLabel.toLowerCase()} card`}
+                confirmLabel={`Solve ${stage.streetLabel.toLowerCase()}`}
                 onConfirm={(cards) => handleBoardConfirm(i, cards)}
               />
             )}
@@ -226,15 +245,17 @@ export function PostflopPanel(props: PostflopPanelProps) {
                   villainLabel={props.villainLabel}
                   onNavigate={(action) => handleNavigate(i, action)}
                   terminalShowdownMessage={(potBb) => {
-                    if (i > 0) {
-                      return `Turn ends — pot ${potBb.toFixed(1)}bb. River solving isn't implemented yet.`;
-                    }
                     const committed = currentNode.type === "terminal-showdown" ? currentNode.committed : null;
-                    const stackLeft = committed ? props.effectiveStackBb - committed.P1 : null;
+                    const stackLeft = committed ? stage.effectiveStackAtStart - committed.P1 : null;
+
                     if (stackLeft !== null && stackLeft <= 0) {
                       return `All-in — hand is already decided, pot ${potBb.toFixed(1)}bb runs out to showdown automatically.`;
                     }
-                    return `Street ends — pot ${potBb.toFixed(1)}bb, turn card coming next.`;
+                    if (!hasNextStreet(stage.board.length)) {
+                      return `Showdown — pot ${potBb.toFixed(1)}bb. Hand complete.`;
+                    }
+                    const nextStreetLabel = streetLabelForBoardLength(stage.board.length + 1);
+                    return `Street ends — pot ${potBb.toFixed(1)}bb, ${nextStreetLabel.toLowerCase()} card coming next.`;
                   }}
                 />
                 {currentNode.type === "decision" && (
@@ -256,7 +277,7 @@ export function PostflopPanel(props: PostflopPanelProps) {
                     onClick={() => handlePickDifferentBoard(i)}
                     className="text-xs text-zinc-500 underline hover:text-zinc-900 dark:hover:text-zinc-100"
                   >
-                    {i === 0 ? "Pick a different board" : "Pick a different turn card"}
+                    {isFlop ? "Pick a different board" : `Pick a different ${stage.streetLabel.toLowerCase()} card`}
                   </button>
                 </div>
               </>
