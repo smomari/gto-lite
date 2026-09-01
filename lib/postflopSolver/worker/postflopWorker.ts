@@ -5,7 +5,7 @@ import type {
   PostflopWorkerOutMessage,
 } from "@/types/postflopSolver";
 import type { HandFrequency } from "@/types/rangeData";
-import { solvePostflopStreet } from "../solvePostflop";
+import { solvePostflopStreet, type PostflopSolveInput } from "../solvePostflop";
 import { serializeCombos, serializeTree } from "../serialize";
 
 // Runs entirely client-side in a Worker: no Node `fs`, no equity-matrix file,
@@ -21,17 +21,31 @@ self.onmessage = (event: MessageEvent<PostflopSolveInMessage>) => {
   const { request } = event.data;
 
   try {
+    const solveInput: PostflopSolveInput =
+      request.kind === "canonical"
+        ? {
+            kind: "canonical",
+            board: request.board,
+            heroHandFrequencies: request.heroHandFrequencies,
+            heroActionWeight: actionWeight(request.heroActionKey),
+            villainHandFrequencies: request.villainHandFrequencies,
+            villainActionWeight: actionWeight(request.villainActionKey),
+            startPot: request.startPot,
+            effectiveStackBb: request.effectiveStackBb,
+            iterations: request.iterations,
+          }
+        : {
+            kind: "combos",
+            board: request.board,
+            heroRange: request.heroRange,
+            villainRange: request.villainRange,
+            startPot: request.startPot,
+            effectiveStackBb: request.effectiveStackBb,
+            iterations: request.iterations,
+          };
+
     const result = solvePostflopStreet(
-      {
-        board: request.board,
-        heroHandFrequencies: request.heroHandFrequencies,
-        heroActionWeight: actionWeight(request.heroActionKey),
-        villainHandFrequencies: request.villainHandFrequencies,
-        villainActionWeight: actionWeight(request.villainActionKey),
-        startPot: request.startPot,
-        effectiveStackBb: request.effectiveStackBb,
-        iterations: request.iterations,
-      },
+      solveInput,
       (phase, done, total) => {
         const progress: PostflopWorkerOutMessage = { type: "progress", phase, done, total };
         self.postMessage(progress);

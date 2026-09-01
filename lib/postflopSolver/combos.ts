@@ -47,17 +47,21 @@ export function expandToCombos(
   actionWeight: (hf: HandFrequency) => number,
   blockedCards: string[],
 ): ComboRange {
-  const blocked = new Set(blockedCards);
   const range: ComboRange = [];
   for (const hf of handFrequencies) {
     const weight = actionWeight(hf);
     if (weight <= 0) continue;
     for (const [c1, c2] of enumerateCombos(hf.hand)) {
-      if (blocked.has(c1) || blocked.has(c2)) continue;
       range.push({ cards: [c1, c2], weight });
     }
   }
-  return range;
+  return filterBlockedCombos(range, blockedCards);
+}
+
+/** Drops any combo sharing a card with `blockedCards` (e.g. the board) — used both by `expandToCombos` and by combo-level ranges carried forward from a prior street, where a newly-dealt card (e.g. the turn) hasn't been filtered against yet. */
+export function filterBlockedCombos(range: ComboRange, blockedCards: string[]): ComboRange {
+  const blocked = new Set(blockedCards);
+  return range.filter(({ cards: [c1, c2] }) => !blocked.has(c1) && !blocked.has(c2));
 }
 
 /** Total combo count across ALL_HANDS, for sanity checks (should be 1326 = C(52,2)). */

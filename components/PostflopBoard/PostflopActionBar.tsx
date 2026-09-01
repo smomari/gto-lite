@@ -13,9 +13,21 @@ interface PostflopActionBarProps {
   heroLabel: string;
   villainLabel: string;
   onNavigate: (action: SerializedDecisionAction) => void;
+  /** Message shown at a terminal-showdown node. Defaults to the original flop-only wording. */
+  terminalShowdownMessage?: (potBb: number) => string;
 }
 
-export function PostflopActionBar({ node, history, heroLabel, villainLabel, onNavigate }: PostflopActionBarProps) {
+const defaultTerminalShowdownMessage = (potBb: number) =>
+  `Street ends (checked/called through) — pot ${potBb.toFixed(1)}bb, runs out to the river.`;
+
+export function PostflopActionBar({
+  node,
+  history,
+  heroLabel,
+  villainLabel,
+  onNavigate,
+  terminalShowdownMessage,
+}: PostflopActionBarProps) {
   const seatLabel = (actor: PostflopPlayer) => (actor === "P1" ? heroLabel : villainLabel);
 
   return (
@@ -41,7 +53,7 @@ export function PostflopActionBar({ node, history, heroLabel, villainLabel, onNa
         <p className="text-sm text-zinc-500 dark:text-zinc-400">
           {node.type === "terminal-fold"
             ? `${seatLabel(node.winner!)} wins uncontested — pot ${node.potBb.toFixed(1)}bb.`
-            : `Street ends (checked/called through) — pot ${node.potBb.toFixed(1)}bb, runs out to the river.`}
+            : (terminalShowdownMessage ?? defaultTerminalShowdownMessage)(node.potBb)}
         </p>
       )}
     </div>

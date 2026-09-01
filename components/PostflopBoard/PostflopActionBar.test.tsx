@@ -7,7 +7,11 @@ function decisionNode(actor: "P1" | "P2", actions: SerializedDecisionAction[]): 
   return { type: "decision", actor, potBb: 10, currentBetToCall: 0, actions, strategy: [] };
 }
 
-const terminalShowdown: SerializedTreeNode = { type: "terminal-showdown", potBb: 10 };
+const terminalShowdown: SerializedTreeNode = {
+  type: "terminal-showdown",
+  potBb: 10,
+  committed: { P1: 0, P2: 0 },
+};
 const noop = () => {};
 
 describe("PostflopActionBar", () => {
@@ -68,7 +72,7 @@ describe("PostflopActionBar", () => {
   it("terminal node: renders the plain-text message and zero active box", () => {
     render(
       <PostflopActionBar
-        node={{ type: "terminal-fold", potBb: 12, winner: "P2" }}
+        node={{ type: "terminal-fold", potBb: 12, winner: "P2", committed: { P1: 0, P2: 0 } }}
         history={[{ actor: "P1", label: "Fold" }]}
         heroLabel="BTN"
         villainLabel="BB"
@@ -80,5 +84,35 @@ describe("PostflopActionBar", () => {
       screen.getAllByTestId("postflop-seat-box").filter((b) => b.getAttribute("data-kind") === "active"),
     ).toHaveLength(0);
     expect(screen.getByText(/wins uncontested/)).toBeInTheDocument();
+  });
+
+  it("terminal-showdown: shows the default 'runs out to the river' message when no override is given", () => {
+    render(
+      <PostflopActionBar
+        node={terminalShowdown}
+        history={[]}
+        heroLabel="BTN"
+        villainLabel="BB"
+        onNavigate={noop}
+      />,
+    );
+
+    expect(screen.getByText(/runs out to the river/)).toBeInTheDocument();
+  });
+
+  it("terminal-showdown: uses terminalShowdownMessage when given, instead of the default", () => {
+    render(
+      <PostflopActionBar
+        node={terminalShowdown}
+        history={[]}
+        heroLabel="BTN"
+        villainLabel="BB"
+        onNavigate={noop}
+        terminalShowdownMessage={(potBb) => `Custom message, pot ${potBb.toFixed(1)}bb`}
+      />,
+    );
+
+    expect(screen.getByText("Custom message, pot 10.0bb")).toBeInTheDocument();
+    expect(screen.queryByText(/runs out to the river/)).not.toBeInTheDocument();
   });
 });

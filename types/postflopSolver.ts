@@ -4,16 +4,27 @@ import type { PostflopActionType, PostflopPlayer } from "@/lib/postflopSolver/po
 /** Which of a hand's fold/call/raise/allin frequencies defines a player's range entering the street. */
 export type ActionWeightKey = "fold" | "call" | "raise" | "allin";
 
-export interface PostflopSolveRequest {
-  board: string[];
-  heroHandFrequencies: HandFrequency[];
-  heroActionKey: ActionWeightKey;
-  villainHandFrequencies: HandFrequency[];
-  villainActionKey: ActionWeightKey;
-  startPot: number;
-  effectiveStackBb: number;
-  iterations: number;
-}
+export type PostflopSolveRequest =
+  | {
+      kind: "canonical";
+      board: string[];
+      heroHandFrequencies: HandFrequency[];
+      heroActionKey: ActionWeightKey;
+      villainHandFrequencies: HandFrequency[];
+      villainActionKey: ActionWeightKey;
+      startPot: number;
+      effectiveStackBb: number;
+      iterations: number;
+    }
+  | {
+      kind: "combos";
+      board: string[];
+      heroRange: SerializedCombo[];
+      villainRange: SerializedCombo[];
+      startPot: number;
+      effectiveStackBb: number;
+      iterations: number;
+    };
 
 export interface SerializedCombo {
   cards: [string, string];
@@ -41,6 +52,8 @@ export interface SerializedTerminalNode {
   potBb: number;
   /** Only present for terminal-fold. */
   winner?: PostflopPlayer;
+  /** Chips each player committed this street — used to derive the next street's effective stack. */
+  committed: { P1: number; P2: number };
 }
 
 export type SerializedTreeNode = SerializedDecisionNode | SerializedTerminalNode;

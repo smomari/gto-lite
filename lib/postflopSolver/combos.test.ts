@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { ALL_HANDS } from "@/lib/handRange/handList";
 import type { HandFrequency } from "@/types/rangeData";
-import { enumerateCombos, expandToCombos, TOTAL_PREFLOP_COMBOS } from "./combos";
+import { enumerateCombos, expandToCombos, filterBlockedCombos, TOTAL_PREFLOP_COMBOS } from "./combos";
 
 describe("enumerateCombos", () => {
   it("gives a pair 6 combos, all same rank different suits", () => {
@@ -76,5 +76,22 @@ describe("expandToCombos", () => {
     }));
     const range = expandToCombos(hands, (hf) => hf.raise, []);
     expect(range).toHaveLength(6); // only KK's 6 combos, since raise=0 everywhere else
+  });
+});
+
+describe("filterBlockedCombos", () => {
+  it("drops combos sharing a card with any blocked card", () => {
+    const range = [
+      { cards: ["Ah", "Kd"] as [string, string], weight: 1 },
+      { cards: ["7c", "2c"] as [string, string], weight: 1 },
+      { cards: ["Kd", "Qs"] as [string, string], weight: 1 },
+    ];
+    const filtered = filterBlockedCombos(range, ["Kd"]);
+    expect(filtered).toEqual([{ cards: ["7c", "2c"], weight: 1 }]);
+  });
+
+  it("keeps every combo when nothing is blocked", () => {
+    const range = [{ cards: ["Ah", "Kd"] as [string, string], weight: 1 }];
+    expect(filterBlockedCombos(range, [])).toEqual(range);
   });
 });
