@@ -10,37 +10,58 @@ function remainingDeck(used: string[]): string[] {
   return FULL_DECK.filter((c) => !usedSet.has(c));
 }
 
+/** Every `count`-card combination of `deck`, in stable index order. */
+function enumerateRunouts(deck: string[], count: number): string[][] {
+  if (count === 0) return [[]];
+  const result: string[][] = [];
+  const chosen: string[] = [];
+  function recurse(start: number) {
+    if (chosen.length === count) {
+      result.push([...chosen]);
+      return;
+    }
+    for (let i = start; i < deck.length; i++) {
+      chosen.push(deck[i]);
+      recurse(i + 1);
+      chosen.pop();
+    }
+  }
+  recurse(0);
+  return result;
+}
+
 /**
- * Exact equity of heroCombo vs villainCombo on a fixed flop board, enumerating
- * every possible turn+river completion (C(45,2) = 990 runouts) — not Monte
- * Carlo. Phase 1 only ever reaches showdown-type terminals with 2 more board
- * cards still to come (this is a flop-only solver: even a "both players
- * check" or "bet gets called" terminal isn't a real showdown yet in actual
- * poker, it's just where this street's action ends), so every non-fold
- * terminal's value is a runout equity, computed identically regardless of
- * whether it was reached via check-check, bet-call, or an all-in.
+ * Exact equity of heroCombo vs villainCombo on a fixed board, enumerating
+ * every possible completion to a 5-card board — not Monte Carlo. A 3-card
+ * (flop) board enumerates every turn+river pair (C(45,2) = 990 runouts); a
+ * 4-card (turn) board enumerates every single river card. Every non-fold
+ * terminal's value is a runout equity this way, computed identically
+ * regardless of whether it was reached via check-check, bet-call, or an
+ * all-in.
  */
 export function comboVsComboRunoutEquity(
   heroCombo: [string, string],
   villainCombo: [string, string],
   board: string[],
 ): number {
-  const deck = remainingDeck([...heroCombo, ...villainCombo, ...board]);
-  let wins = 0;
-  let ties = 0;
-  let total = 0;
-
-  for (let i = 0; i < deck.length; i++) {
-    for (let j = i + 1; j < deck.length; j++) {
-      const runout = [...board, deck[i], deck[j]];
-      const cmp = compareHands([...heroCombo, ...runout], [...villainCombo, ...runout]);
-      if (cmp > 0) wins++;
-      else if (cmp === 0) ties++;
-      total++;
-    }
+  const remaining = 5 - board.length;
+  if (remaining < 0 || remaining > 2) {
+    throw new Error(`comboVsComboRunoutEquity: unsupported board length ${board.length} (expected 3, 4, or 5 cards)`);
   }
 
-  return (wins + ties * 0.5) / total;
+  const deck = remainingDeck([...heroCombo, ...villainCombo, ...board]);
+  const runouts = enumerateRunouts(deck, remaining);
+  let wins = 0;
+  let ties = 0;
+
+  for (const extra of runouts) {
+    const fullBoard = [...board, ...extra];
+    const cmp = compareHands([...heroCombo, ...fullBoard], [...villainCombo, ...fullBoard]);
+    if (cmp > 0) wins++;
+    else if (cmp === 0) ties++;
+  }
+
+  return (wins + ties * 0.5) / runouts.length;
 }
 
 function comboKey(cards: [string, string]): string {

@@ -28,10 +28,15 @@ function actionLabel(action: PostflopActionType, actor: PostflopPlayer, childSta
  */
 export function serializeTree(node: PostflopTreeNode, solution: CfrSolution): SerializedTreeNode {
   if (node.type === "terminal-fold") {
-    return { type: "terminal-fold", potBb: totalPot(node.state), winner: node.winner };
+    return {
+      type: "terminal-fold",
+      potBb: totalPot(node.state),
+      winner: node.winner,
+      committed: { ...node.state.committed },
+    };
   }
   if (node.type === "terminal-showdown") {
-    return { type: "terminal-showdown", potBb: totalPot(node.state) };
+    return { type: "terminal-showdown", potBb: totalPot(node.state), committed: { ...node.state.committed } };
   }
 
   return {

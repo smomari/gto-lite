@@ -4,7 +4,7 @@ import { PostflopRangeGrid } from "./PostflopRangeGrid";
 import type { SerializedCombo, SerializedDecisionNode } from "@/types/postflopSolver";
 
 function terminal(potBb: number): SerializedDecisionNode["actions"][number]["child"] {
-  return { type: "terminal-showdown", potBb };
+  return { type: "terminal-showdown", potBb, committed: { P1: 0, P2: 0 } };
 }
 
 describe("PostflopRangeGrid", () => {

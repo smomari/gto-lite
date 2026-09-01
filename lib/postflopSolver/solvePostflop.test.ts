@@ -19,6 +19,7 @@ describe("solvePostflopStreet", () => {
   it("runs end-to-end from preflop-shaped HandFrequency[] to a solved tree", () => {
     const board = ["Kh", "7s", "2d"];
     const result = solvePostflopStreet({
+      kind: "canonical",
       board,
       heroHandFrequencies: narrowHands(["KK", "AA"]), // 12 combos before board removal
       heroActionWeight: (hf) => hf.call,
@@ -48,6 +49,7 @@ describe("solvePostflopStreet", () => {
     const board = ["Kh", "7s", "2d"];
     expect(() =>
       solvePostflopStreet({
+        kind: "canonical",
         board,
         heroHandFrequencies: narrowHands([]), // nobody weighted -> empty range
         heroActionWeight: (hf) => hf.call,
@@ -58,5 +60,31 @@ describe("solvePostflopStreet", () => {
         iterations: 50,
       }),
     ).toThrow();
+  });
+
+  it("kind: combos — solves from an already-computed combo range, re-filtering for a newly-dealt card", () => {
+    const board = ["Kh", "7s", "2d", "9c"]; // turn board: 3 flop cards + 1 new turn card
+    const result = solvePostflopStreet({
+      kind: "combos",
+      board,
+      heroRange: [
+        { cards: ["Ks", "Kd"], weight: 1 },
+        { cards: ["9s", "9h"], weight: 1 }, // blocked by the turn's 9c? no — different suits, stays
+        { cards: ["9c", "8d"], weight: 1 }, // blocked by the turn card itself
+      ],
+      villainRange: [
+        { cards: ["7h", "6c"], weight: 1 },
+        { cards: ["Ah", "Ad"], weight: 1 },
+      ],
+      startPot: 12.4,
+      effectiveStackBb: 20,
+      iterations: 100,
+    });
+
+    expect(result.heroRange).toEqual([
+      { cards: ["Ks", "Kd"], weight: 1 },
+      { cards: ["9s", "9h"], weight: 1 },
+    ]);
+    expect(result.villainRange).toHaveLength(2);
   });
 });

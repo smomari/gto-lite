@@ -29,6 +29,26 @@ describe("comboVsComboRunoutEquity", () => {
     const equity = comboVsComboRunoutEquity(["Tc", "3h"], ["4c", "5d"], BOARD);
     expect(equity).toBeGreaterThan(0.85);
   });
+
+  it("on a 4-card (turn) board, is still exactly symmetric (single river card left)", () => {
+    const turnBoard = ["Th", "9s", "2d", "6h"];
+    const a = comboVsComboRunoutEquity(["As", "Kd"], ["7c", "2c"], turnBoard);
+    const b = comboVsComboRunoutEquity(["7c", "2c"], ["As", "Kd"], turnBoard);
+    expect(a + b).toBeCloseTo(1, 10);
+  });
+
+  it("on a 4-card (turn) board, gives a set a near-total edge over complete air (only one card left)", () => {
+    const turnBoard = ["Kh", "7s", "2d", "9c"]; // scattered, no straight/flush texture
+    const equity = comboVsComboRunoutEquity(["Kc", "Kd"], ["4c", "5d"], turnBoard);
+    expect(equity).toBeGreaterThan(0.95);
+  });
+
+  it("throws for an unsupported board length", () => {
+    expect(() => comboVsComboRunoutEquity(["As", "Kd"], ["7c", "2c"], ["Th", "9s"])).toThrow();
+    expect(() =>
+      comboVsComboRunoutEquity(["As", "Kd"], ["7c", "2c"], ["Th", "9s", "2d", "6h", "3c", "4d"]),
+    ).toThrow();
+  });
 });
 
 describe("buildEquityTable / equityVsRange", () => {

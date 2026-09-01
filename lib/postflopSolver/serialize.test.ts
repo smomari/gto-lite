@@ -51,7 +51,21 @@ describe("serializeTree", () => {
     const betChild = checkChild.actions.find((a) => a.action === "bet")!.child;
     if (betChild.type !== "decision") throw new Error("expected P1 facing-bet decision");
     const fold = betChild.actions.find((a) => a.action === "fold")!.child;
-    expect(fold).toEqual({ type: "terminal-fold", potBb: expect.any(Number), winner: "P2" });
+    expect(fold).toEqual({
+      type: "terminal-fold",
+      potBb: expect.any(Number),
+      winner: "P2",
+      committed: { P1: expect.any(Number), P2: expect.any(Number) },
+    });
+  });
+
+  it("committed is symmetric at a terminal-showdown (uniform-stack model)", () => {
+    const checkChild = serialized.type === "decision" ? serialized.actions.find((a) => a.action === "check")!.child : null;
+    if (!checkChild || checkChild.type !== "decision") throw new Error("expected P2 decision after check");
+    const callChild = checkChild.actions.find((a) => a.action === "check")!.child;
+    expect(callChild.type).toBe("terminal-showdown");
+    if (callChild.type !== "terminal-showdown") return;
+    expect(callChild.committed.P1).toBe(callChild.committed.P2);
   });
 });
 
