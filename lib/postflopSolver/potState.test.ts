@@ -7,6 +7,7 @@ describe("initialPostflopPotState", () => {
     expect(state.startPot).toBe(7.5);
     expect(state.committed).toEqual({ P1: 0, P2: 0 });
     expect(state.currentBetToCall).toBe(0);
+    expect(state.raiseCount).toBe(0);
     expect(totalPot(state)).toBe(7.5);
   });
 });
@@ -38,6 +39,28 @@ describe("applyPostflopAction", () => {
   it("bet: throws without betToBb", () => {
     const state = initialPostflopPotState(7.5);
     expect(() => applyPostflopAction(state, "P1", "bet", { effectiveStackBb: 97 })).toThrow();
+  });
+
+  it("bet: does not increment raiseCount (opening a street isn't a raise)", () => {
+    const state = initialPostflopPotState(7.5);
+    const next = applyPostflopAction(state, "P1", "bet", { effectiveStackBb: 97, betToBb: 5 });
+    expect(next.raiseCount).toBe(0);
+  });
+
+  it("raise: sets committed/currentBetToCall/lastAggressor and increments raiseCount", () => {
+    let state = initialPostflopPotState(7.5);
+    state = applyPostflopAction(state, "P1", "bet", { effectiveStackBb: 97, betToBb: 5 });
+    const next = applyPostflopAction(state, "P2", "raise", { effectiveStackBb: 97, betToBb: 20 });
+    expect(next.committed.P2).toBe(20);
+    expect(next.currentBetToCall).toBe(20);
+    expect(next.lastAggressor).toBe("P2");
+    expect(next.raiseCount).toBe(1);
+  });
+
+  it("raise: throws without betToBb", () => {
+    let state = initialPostflopPotState(7.5);
+    state = applyPostflopAction(state, "P1", "bet", { effectiveStackBb: 97, betToBb: 5 });
+    expect(() => applyPostflopAction(state, "P2", "raise", { effectiveStackBb: 97 })).toThrow();
   });
 
   it("call: matches currentBetToCall", () => {
