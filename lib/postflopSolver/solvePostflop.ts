@@ -2,6 +2,7 @@ import type { HandFrequency } from "@/types/rangeData";
 import type { BoardCards, ComboRange } from "./types";
 import { expandToCombos, filterBlockedCombos } from "./combos";
 import { buildEquityTable } from "./terminalEquity";
+import { streetForBoardLength } from "./betAbstraction";
 import { buildStreetTree, type PostflopTreeNode } from "./treeBuilder";
 import { runCfr, type CfrSolution } from "./cfr";
 
@@ -67,7 +68,7 @@ export function solvePostflopStreet(
   const equityTable = buildEquityTable(heroRange, villainRange, input.board, (done, total) =>
     onProgress?.("equity", done, total),
   );
-  const tree = buildStreetTree(input.startPot, input.effectiveStackBb);
+  const tree = buildStreetTree(input.startPot, input.effectiveStackBb, streetForBoardLength(input.board.length));
   const solution = runCfr(tree, heroRange, villainRange, equityTable, input.iterations, (done, total) =>
     onProgress?.("cfr", done, total),
   );

@@ -37,9 +37,13 @@ function actionSum(row: number[]): number {
 }
 
 describe("runCfr", () => {
-  const tree = buildStreetTree(START_POT, EFFECTIVE_STACK);
+  const tree = buildStreetTree(START_POT, EFFECTIVE_STACK, "flop");
   const table = buildEquityTable(heroRange, villainRange, BOARD);
-  const solution = runCfr(tree, heroRange, villainRange, table, 800);
+  // Phase A's richer action space (multiple bet sizes + a raise level) takes
+  // meaningfully longer to converge than Phase 1's tiny 3-action tree did —
+  // 800 iterations left root-level bet-vs-allin mixing visibly unsettled in
+  // manual testing, so this fixture's base solve uses more iterations.
+  const solution = runCfr(tree, heroRange, villainRange, table, 3200);
 
   it("every combo's average strategy at every decision node sums to 1", () => {
     (function walk(node: PostflopTreeNode) {
@@ -58,22 +62,31 @@ describe("runCfr", () => {
     expect(nutsCheck).toBeLessThan(airCheck);
   });
 
-  it("facing a bet (check -> bet line): hero's nuts calls, hero's air folds — clean and near-deterministic", () => {
+  it("facing a bet (check -> bet line): hero's nuts continues (call/raise/allin), hero's air folds — clean and near-deterministic", () => {
     const afterCheck = findChild(tree, "check") as DecisionNode; // P2 to act
-    const afterBet = findChild(afterCheck, "bet") as DecisionNode; // P1 facing a bet: fold/call
+    const afterBet = findChild(afterCheck, "bet") as DecisionNode; // P1 facing a bet
     const strat = solution.getAverageStrategy(afterBet);
-    const callIdx = afterBet.actions.map((a) => a.action).indexOf("call");
-
-    const nutsCallFreq = strat[0][callIdx];
-    const airCallFreq = strat[1][callIdx];
-    expect(nutsCallFreq).toBeGreaterThan(airCallFreq);
-    expect(nutsCallFreq).toBeGreaterThan(0.99); // trip kings should essentially never fold here
-    expect(airCallFreq).toBeLessThan(0.01); // pure air should essentially never call here
+    const foldIdx = afterBet.actions.map((a) => a.action).indexOf("fold");
+    // With allin now available as its own lever when facing a bet, the nuts
+    // may prefer shoving over flat-calling — the invariant that still must
+    // hold is "continues (anything but fold)", not specifically "calls".
+    const nutsContinueFreq = 1 - strat[0][foldIdx];
+    const airContinueFreq = 1 - strat[1][foldIdx];
+    expect(nutsContinueFreq).toBeGreaterThan(airContinueFreq);
+    expect(nutsContinueFreq).toBeGreaterThan(0.99); // trip kings should essentially never fold here
+    // Air has a small but genuine equilibrium bluff-shove/raise frequency
+    // now that those levers exist facing a bet (stable ~1.5-2% even at tens
+    // of thousands of iterations in manual testing) — "mostly folds", not
+    // "never continues", is the correct invariant for the enriched tree.
+    expect(airContinueFreq).toBeLessThan(0.05);
   });
 
   it("the average strategy stabilizes (a convergence proxy) as iteration count grows", () => {
-    const shorter = runCfr(tree, heroRange, villainRange, table, 800);
-    const longer = runCfr(tree, heroRange, villainRange, table, 3200);
+    // Phase A's tree needs a bigger iteration jump than Phase 1's did before
+    // the bet-vs-allin mixing at the root settles down (see the comment on
+    // `solution` above).
+    const shorter = runCfr(tree, heroRange, villainRange, table, 3200);
+    const longer = runCfr(tree, heroRange, villainRange, table, 12800);
     const shortStrat = shorter.getAverageStrategy(tree as DecisionNode);
     const longStrat = longer.getAverageStrategy(tree as DecisionNode);
     for (let c = 0; c < shortStrat.length; c++) {

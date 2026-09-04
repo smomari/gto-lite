@@ -16,7 +16,7 @@ const villainRange: ComboRange = [
 ];
 
 describe("serializeTree", () => {
-  const tree = buildStreetTree(7.5, 10);
+  const tree = buildStreetTree(7.5, 10, "flop");
   const table = buildEquityTable(heroRange, villainRange, BOARD);
   const solution = runCfr(tree, heroRange, villainRange, table, 300);
   const serialized = serializeTree(tree, solution);
@@ -34,15 +34,33 @@ describe("serializeTree", () => {
     for (const row of serialized.strategy) {
       expect(row.reduce((s, x) => s + x, 0)).toBeCloseTo(1, 6);
     }
-    expect(serialized.actions.map((a) => a.action).sort()).toEqual(["allin", "bet", "check"]);
+    // Flop has 2 bet sizes, so "bet" appears twice among the root's actions.
+    const actionCounts = serialized.actions.reduce<Record<string, number>>((acc, a) => {
+      acc[a.action] = (acc[a.action] ?? 0) + 1;
+      return acc;
+    }, {});
+    expect(actionCounts).toEqual({ check: 1, bet: 2, allin: 1 });
   });
 
-  it("labels a bet/allin action with its size in bb", () => {
+  it("labels bet/allin actions with their size in bb", () => {
     if (serialized.type !== "decision") throw new Error("expected decision");
-    const bet = serialized.actions.find((a) => a.action === "bet")!;
-    expect(bet.label).toMatch(/^Bet \d+\.\d bb$|^Bet \d+\.\dbb$/);
+    const bets = serialized.actions.filter((a) => a.action === "bet");
+    for (const bet of bets) expect(bet.label).toMatch(/^Bet \d+\.\dbb$/);
     const allin = serialized.actions.find((a) => a.action === "allin")!;
     expect(allin.label).toBe("Allin 10.0bb");
+  });
+
+  it("labels a raise action with 'Raise to Xbb'", () => {
+    // A deeper stack than the shared fixture's (10bb) is needed for a
+    // full-pot raise to have room to exist rather than collapsing into allin.
+    const deepTree = buildStreetTree(7.5, 40, "flop");
+    const deepSolution = runCfr(deepTree, heroRange, villainRange, buildEquityTable(heroRange, villainRange, BOARD), 300);
+    const deepSerialized = serializeTree(deepTree, deepSolution);
+    if (deepSerialized.type !== "decision") throw new Error("expected decision");
+    const betChild = deepSerialized.actions.find((a) => a.action === "bet")!.child;
+    if (betChild.type !== "decision") throw new Error("expected P2 facing-bet decision");
+    const raise = betChild.actions.find((a) => a.action === "raise")!;
+    expect(raise.label).toMatch(/^Raise to \d+\.\dbb$/);
   });
 
   it("a fold terminal carries the winner", () => {

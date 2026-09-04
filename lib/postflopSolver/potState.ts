@@ -2,15 +2,13 @@
  * 2-player postflop pot ledger for a single street. Much simpler than the
  * preflop 8-seat rotation (lib/solveEngine/rotation.ts): postflop is always
  * exactly 2 live players by the time it's reached (Phase 1 doesn't support
- * multiway), and Phase 1's bet abstraction caps action at a single
- * aggressive action per street (no re-raising — see betAbstraction.ts), so
- * a dedicated rotation state machine isn't needed; treeBuilder.ts walks the
- * (small, fixed-shape) turn order directly.
+ * multiway), so a dedicated rotation state machine isn't needed;
+ * treeBuilder.ts walks the (small, fixed-shape) turn order directly.
  */
 
 /** P1 acts first this street (the seat with the lower preflop seat-order index, i.e. OOP). */
 export type PostflopPlayer = "P1" | "P2";
-export type PostflopActionType = "fold" | "check" | "call" | "bet" | "allin";
+export type PostflopActionType = "fold" | "check" | "call" | "bet" | "raise" | "allin";
 
 export interface PostflopPotState {
   /** Pot size entering this street — fixed dead money from before, neither player reclaims it by folding. */
@@ -21,6 +19,8 @@ export interface PostflopPotState {
   currentBetToCall: number;
   lastAggressor: PostflopPlayer | null;
   lastActor: PostflopPlayer | null;
+  /** How many times a bet has been raised this street — see betAbstraction.ts's RAISE_CAP. */
+  raiseCount: number;
 }
 
 export function initialPostflopPotState(startPot: number): PostflopPotState {
@@ -30,6 +30,7 @@ export function initialPostflopPotState(startPot: number): PostflopPotState {
     currentBetToCall: 0,
     lastAggressor: null,
     lastActor: null,
+    raiseCount: 0,
   };
 }
 
@@ -43,7 +44,7 @@ export function totalPot(state: PostflopPotState): number {
 
 export interface ApplyPostflopActionOptions {
   effectiveStackBb: number;
-  /** Required for "bet" — the bet-to amount (total committed this street after betting). */
+  /** Required for "bet"/"raise" — the resulting total committed this street after the action. */
   betToBb?: number;
 }
 
@@ -70,7 +71,7 @@ export function applyPostflopAction(
 
     case "bet": {
       if (betToBb === undefined) {
-        throw new Error("applyPostflopAction: betToBb is required for a bet action");
+        throw new Error("applyPostflopAction: betToBb is required for a bet or raise action");
       }
       return {
         ...state,
@@ -78,6 +79,20 @@ export function applyPostflopAction(
         currentBetToCall: betToBb,
         lastAggressor: actor,
         lastActor: actor,
+      };
+    }
+
+    case "raise": {
+      if (betToBb === undefined) {
+        throw new Error("applyPostflopAction: betToBb is required for a bet or raise action");
+      }
+      return {
+        ...state,
+        committed: { ...state.committed, [actor]: betToBb },
+        currentBetToCall: betToBb,
+        lastAggressor: actor,
+        lastActor: actor,
+        raiseCount: state.raiseCount + 1,
       };
     }
 

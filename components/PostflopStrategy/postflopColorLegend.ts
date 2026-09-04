@@ -5,8 +5,9 @@ export const POSTFLOP_ACTION_COLORS: Record<PostflopActionType, string> = {
   check: "#60a5fa",
   call: "#3b82f6",
   bet: "#f97316",
+  raise: "#dc2626",
   allin: "#7f1d1d",
 };
 
 /** Stacking order for the color bar, most aggressive action on top (mirrors the preflop grid). */
-export const POSTFLOP_ACTION_ORDER: PostflopActionType[] = ["allin", "bet", "call", "check", "fold"];
+export const POSTFLOP_ACTION_ORDER: PostflopActionType[] = ["allin", "raise", "bet", "call", "check", "fold"];

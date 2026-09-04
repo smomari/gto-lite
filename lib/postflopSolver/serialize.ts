@@ -15,6 +15,8 @@ function actionLabel(action: PostflopActionType, actor: PostflopPlayer, childSta
       return "Call";
     case "bet":
       return `Bet ${committed.toFixed(1)}bb`;
+    case "raise":
+      return `Raise to ${committed.toFixed(1)}bb`;
     case "allin":
       return `Allin ${committed.toFixed(1)}bb`;
   }
