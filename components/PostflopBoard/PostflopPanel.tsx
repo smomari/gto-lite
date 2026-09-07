@@ -5,6 +5,7 @@ import { BoardPicker } from "./BoardPicker";
 import { PostflopActionBar } from "./PostflopActionBar";
 import { PostflopRangeGrid } from "@/components/PostflopStrategy/PostflopRangeGrid";
 import { SolveProgress } from "@/components/PostflopStrategy/SolveProgress";
+import { ExploitabilityBadge } from "@/components/PostflopStrategy/ExploitabilityBadge";
 import { solvePostflopInWorker } from "@/lib/postflopSolver/worker/workerClient";
 import { narrowRangeAlongPath, type TreePathStep } from "@/lib/postflopSolver/rangeNarrowing";
 import type {
@@ -235,6 +236,9 @@ export function PostflopPanel(props: PostflopPanelProps) {
 
             {solveState.kind === "done" && currentNode && (
               <>
+                {solveState.result.exploitability && (
+                  <ExploitabilityBadge exploitability={solveState.result.exploitability} />
+                )}
                 <PostflopActionBar
                   node={currentNode}
                   history={stage.path.map((step) => ({

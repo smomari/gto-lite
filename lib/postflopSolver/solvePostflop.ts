@@ -5,6 +5,7 @@ import { buildEquityTable } from "./terminalEquity";
 import { streetForBoardLength } from "./betAbstraction";
 import { buildStreetTree, type PostflopTreeNode } from "./treeBuilder";
 import { runCfr, type CfrSolution } from "./cfr";
+import { computeExploitability, type ExploitabilityResult } from "./exploitability";
 
 interface PostflopSolveInputCommon {
   board: BoardCards;
@@ -36,6 +37,7 @@ export interface PostflopSolveResult {
   heroRange: ComboRange;
   villainRange: ComboRange;
   solution: CfrSolution;
+  exploitability: ExploitabilityResult;
 }
 
 export type PostflopSolvePhase = "equity" | "cfr";
@@ -72,6 +74,7 @@ export function solvePostflopStreet(
   const solution = runCfr(tree, heroRange, villainRange, equityTable, input.iterations, (done, total) =>
     onProgress?.("cfr", done, total),
   );
+  const exploitability = computeExploitability(tree, solution, heroRange, villainRange, equityTable, input.startPot);
 
-  return { tree, heroRange, villainRange, solution };
+  return { tree, heroRange, villainRange, solution, exploitability };
 }
