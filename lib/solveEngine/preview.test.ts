@@ -73,7 +73,7 @@ describe("previewQuickAction", () => {
     const actions = previewQuickAction([], "UTG", "CO", 100);
     expect(actions).not.toBeNull();
     expect(actions!.call).toBeNull(); // opening decision, nothing to call
-    expect(actions!.raise).toEqual({ toBb: 3 }); // CO is IP-half: 3x BB
+    expect(actions!.raise).toEqual({ toBb: 2.5 }); // CO is IP-half, deep stack (100bb)
     expect(actions!.allin).toEqual({ toBb: 100 });
   });
 
@@ -93,7 +93,7 @@ describe("previewQuickAction", () => {
     expect(actions).toEqual({
       fold: true,
       call: null,
-      raise: { toBb: 3 },
+      raise: { toBb: 2 }, // CO is IP-half, at the shallow-stack threshold (40bb)
       allin: { toBb: 40 },
     });
   });

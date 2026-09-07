@@ -70,9 +70,9 @@ describe("POST /api/solve", () => {
     expect(body.heroPosition).toBe("UTG"); // reopened, facing BB's 3-bet
     const utgNode = body.actionPath.find((n: { actor: string }) => n.actor === "UTG");
     expect(utgNode.label).toBe("open");
-    expect(utgNode.sizeBb).toBe(4);
+    expect(utgNode.sizeBb).toBe(2.8); // OOP deep size at 100bb
     const bbNode = body.actionPath.find((n: { actor: string }) => n.actor === "BB");
     expect(bbNode.label).toBe("3bet");
-    expect(bbNode.sizeBb).toBe(12);
+    expect(bbNode.sizeBb).toBe(8.4); // 2.8 * 3 (IP reactive)
   });
 });
