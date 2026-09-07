@@ -1,5 +1,6 @@
 import type { HandFrequency } from "./rangeData";
 import type { PostflopActionType, PostflopPlayer } from "@/lib/postflopSolver/potState";
+import type { ExploitabilityResult } from "@/lib/postflopSolver/exploitability";
 
 /** Which of a hand's fold/call/raise/allin frequencies defines a player's range entering the street. */
 export type ActionWeightKey = "fold" | "call" | "raise" | "allin";
@@ -69,6 +70,8 @@ export interface PostflopResultMessage {
   heroRange: SerializedCombo[];
   villainRange: SerializedCombo[];
   iterations: number;
+  /** Optional so hand-built test fixtures don't need to supply it — a real solve always populates it. */
+  exploitability?: ExploitabilityResult;
 }
 
 export interface PostflopProgressMessage {

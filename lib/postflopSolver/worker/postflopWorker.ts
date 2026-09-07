@@ -58,6 +58,7 @@ self.onmessage = (event: MessageEvent<PostflopSolveInMessage>) => {
       heroRange: serializeCombos(result.heroRange),
       villainRange: serializeCombos(result.villainRange),
       iterations: result.solution.iterations,
+      exploitability: result.exploitability,
     };
     self.postMessage(message);
   } catch (err) {
