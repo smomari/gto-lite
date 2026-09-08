@@ -13,7 +13,10 @@ interface PostflopSolveInputCommon {
   startPot: number;
   /** Effective stack behind, shared by both players (mirrors the preflop tool's uniform-stack model). */
   effectiveStackBb: number;
-  iterations: number;
+  /** Hard safety cap on CFR iterations — passed straight through to runCfr, no default injected here. */
+  maxIterations: number;
+  /** Stop CFR early once measured exploitability is at or below this (% of pot). Omit to disable early stopping. */
+  targetExploitabilityPercent?: number;
 }
 
 export type PostflopSolveInput =
@@ -52,7 +55,7 @@ export type PostflopSolvePhase = "equity" | "cfr";
  */
 export function solvePostflopStreet(
   input: PostflopSolveInput,
-  onProgress?: (phase: PostflopSolvePhase, done: number, total: number) => void,
+  onProgress?: (phase: PostflopSolvePhase, done: number, total: number, exploitabilityPercent?: number) => void,
 ): PostflopSolveResult {
   const heroRange =
     input.kind === "canonical"
@@ -71,8 +74,13 @@ export function solvePostflopStreet(
     onProgress?.("equity", done, total),
   );
   const tree = buildStreetTree(input.startPot, input.effectiveStackBb, streetForBoardLength(input.board.length));
-  const solution = runCfr(tree, heroRange, villainRange, equityTable, input.iterations, (done, total) =>
-    onProgress?.("cfr", done, total),
+  const solution = runCfr(
+    tree,
+    heroRange,
+    villainRange,
+    equityTable,
+    { maxIterations: input.maxIterations, targetExploitabilityPercent: input.targetExploitabilityPercent },
+    (done, total, exploitabilityPercent) => onProgress?.("cfr", done, total, exploitabilityPercent),
   );
   const exploitability = computeExploitability(tree, solution, heroRange, villainRange, equityTable, input.startPot);
 

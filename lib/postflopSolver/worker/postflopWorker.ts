@@ -32,7 +32,8 @@ self.onmessage = (event: MessageEvent<PostflopSolveInMessage>) => {
             villainActionWeight: actionWeight(request.villainActionKey),
             startPot: request.startPot,
             effectiveStackBb: request.effectiveStackBb,
-            iterations: request.iterations,
+            maxIterations: request.maxIterations,
+            targetExploitabilityPercent: request.targetExploitabilityPercent,
           }
         : {
             kind: "combos",
@@ -41,13 +42,14 @@ self.onmessage = (event: MessageEvent<PostflopSolveInMessage>) => {
             villainRange: request.villainRange,
             startPot: request.startPot,
             effectiveStackBb: request.effectiveStackBb,
-            iterations: request.iterations,
+            maxIterations: request.maxIterations,
+            targetExploitabilityPercent: request.targetExploitabilityPercent,
           };
 
     const result = solvePostflopStreet(
       solveInput,
-      (phase, done, total) => {
-        const progress: PostflopWorkerOutMessage = { type: "progress", phase, done, total };
+      (phase, done, total, exploitabilityPercent) => {
+        const progress: PostflopWorkerOutMessage = { type: "progress", phase, done, total, exploitabilityPercent };
         self.postMessage(progress);
       },
     );

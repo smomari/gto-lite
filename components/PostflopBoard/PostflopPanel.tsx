@@ -8,6 +8,7 @@ import { SolveProgress } from "@/components/PostflopStrategy/SolveProgress";
 import { ExploitabilityBadge } from "@/components/PostflopStrategy/ExploitabilityBadge";
 import { solvePostflopInWorker } from "@/lib/postflopSolver/worker/workerClient";
 import { narrowRangeAlongPath, type TreePathStep } from "@/lib/postflopSolver/rangeNarrowing";
+import { DEFAULT_MAX_CFR_ITERATIONS, DEFAULT_TARGET_EXPLOITABILITY_PERCENT } from "@/lib/postflopSolver/cfr";
 import type {
   ActionWeightKey,
   PostflopResultMessage,
@@ -31,7 +32,7 @@ interface PostflopPanelProps {
 
 type SolveState =
   | { kind: "idle" }
-  | { kind: "solving"; phase: "equity" | "cfr"; done: number; total: number }
+  | { kind: "solving"; phase: "equity" | "cfr"; done: number; total: number; exploitabilityPercent?: number }
   | { kind: "done"; result: PostflopResultMessage }
   | { kind: "error"; message: string };
 
@@ -52,8 +53,6 @@ interface StreetStage {
   /** Effective stack behind at the start of this street (before any of this street's action). */
   effectiveStackAtStart: number;
 }
-
-const ITERATIONS = 1000;
 
 function streetLabelForBoardLength(boardLength: number): StreetLabel {
   if (boardLength === 3) return "Flop";
@@ -138,7 +137,8 @@ export function PostflopPanel(props: PostflopPanelProps) {
         villainActionKey: props.villainActionKey,
         startPot: props.startPot,
         effectiveStackBb: props.effectiveStackBb,
-        iterations: ITERATIONS,
+        maxIterations: DEFAULT_MAX_CFR_ITERATIONS,
+        targetExploitabilityPercent: DEFAULT_TARGET_EXPLOITABILITY_PERCENT,
       };
     } else {
       const prevStage = streets[stageIndex - 1];
@@ -153,7 +153,8 @@ export function PostflopPanel(props: PostflopPanelProps) {
         villainRange: narrowRangeAlongPath(prevStage.state.result.villainRange, "P2", prevStage.path),
         startPot: terminal.potBb,
         effectiveStackBb: prevStage.effectiveStackAtStart - terminal.committed.P1,
-        iterations: ITERATIONS,
+        maxIterations: DEFAULT_MAX_CFR_ITERATIONS,
+        targetExploitabilityPercent: DEFAULT_TARGET_EXPLOITABILITY_PERCENT,
       };
     }
 
@@ -170,10 +171,10 @@ export function PostflopPanel(props: PostflopPanelProps) {
     });
 
     solvePostflopInWorker(request, {
-      onProgress: (phase, done, total) =>
+      onProgress: (phase, done, total, exploitabilityPercent) =>
         setStreets((prev) => {
           const next = [...prev];
-          next[stageIndex] = { ...next[stageIndex], state: { kind: "solving", phase, done, total } };
+          next[stageIndex] = { ...next[stageIndex], state: { kind: "solving", phase, done, total, exploitabilityPercent } };
           return next;
         }),
     })
@@ -227,7 +228,13 @@ export function PostflopPanel(props: PostflopPanelProps) {
             )}
 
             {solveState.kind === "solving" && (
-              <SolveProgress phase={solveState.phase} done={solveState.done} total={solveState.total} />
+              <SolveProgress
+                phase={solveState.phase}
+                done={solveState.done}
+                total={solveState.total}
+                exploitabilityPercent={solveState.exploitabilityPercent}
+                targetExploitabilityPercent={DEFAULT_TARGET_EXPLOITABILITY_PERCENT}
+              />
             )}
 
             {solveState.kind === "error" && (

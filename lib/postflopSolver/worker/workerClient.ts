@@ -6,7 +6,7 @@ import type {
 } from "@/types/postflopSolver";
 
 export interface SolvePostflopOptions {
-  onProgress?: (phase: "equity" | "cfr", done: number, total: number) => void;
+  onProgress?: (phase: "equity" | "cfr", done: number, total: number, exploitabilityPercent?: number) => void;
   signal?: AbortSignal;
 }
 
@@ -46,7 +46,7 @@ export function solvePostflopInWorker(
     worker.onmessage = (event: MessageEvent<PostflopWorkerOutMessage>) => {
       const msg = event.data;
       if (msg.type === "progress") {
-        options?.onProgress?.(msg.phase, msg.done, msg.total);
+        options?.onProgress?.(msg.phase, msg.done, msg.total, msg.exploitabilityPercent);
         return;
       }
       if (settled) return;
