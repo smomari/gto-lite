@@ -6,9 +6,22 @@ import type { DecisionNode, PostflopTreeNode } from "./treeBuilder";
 import { computeExploitability } from "./exploitability";
 
 interface CfrNodeData {
-  /** [comboIndex][actionIndex], CFR+ regret (floored at 0 after every update). */
+  /**
+   * [comboIndex][actionIndex], DCFR cumulative regret. Signed — NOT floored
+   * at 0 like the previous CFR+ implementation. Discounted every iteration:
+   * after adding this iteration's delta, the resulting value is multiplied
+   * by `t^α/(t^α+1)` if positive, or a constant 0.5 (= `t^β/(t^β+1)` with
+   * β=0) if negative or zero. The discount compounds across iterations
+   * since it's applied to the stored cumulative value each time, not just
+   * to the new delta. See DCFR_ALPHA/DCFR_NEGATIVE_REGRET_DISCOUNT.
+   */
   regret: number[][];
-  /** [comboIndex][actionIndex], iteration-weighted accumulation for the averaged (equilibrium) strategy. */
+  /**
+   * [comboIndex][actionIndex], DCFR-weighted accumulation for the averaged
+   * (equilibrium) strategy. Each iteration's contribution is scaled by
+   * `t^γ` (steeper than CFR+'s plain linear `t` weighting), so later
+   * iterations dominate the average more aggressively. See DCFR_GAMMA.
+   */
   stratSum: number[][];
 }
 
@@ -18,13 +31,40 @@ export interface CfrSolution {
   getAverageStrategy(node: DecisionNode): number[][];
 }
 
-/** See the Phase B-2 plan doc for the reasoning behind these defaults — revisit once real wide-range (100bb, 130-190 combo/side) telemetry is collected. */
+/**
+ * See the Phase B-2 plan doc for the reasoning behind these defaults —
+ * revisit once real wide-range (100bb, 130-190 combo/side) telemetry is
+ * collected. Phase B-3 switched the underlying algorithm from CFR+ to DCFR,
+ * which converges faster in practice — this hasn't been lowered pending
+ * that same telemetry, since the early-stop mechanism already captures the
+ * speedup without needing to touch the safety ceiling.
+ */
 export const DEFAULT_MAX_CFR_ITERATIONS = 20000;
 /** Percent of pot. Loose end of TexasSolver's cited 0.275-0.5% range — this phase targets UX (not maximal precision). */
 export const DEFAULT_TARGET_EXPLOITABILITY_PERCENT = 0.5;
 
 const DEFAULT_EXPLOITABILITY_CHECK_START_INTERVAL = 100;
 const EXPLOITABILITY_CHECK_INTERVAL_CEILING = 2000;
+
+/**
+ * DCFR (Brown & Sandholm 2019) discount exponents — these replace CFR+'s
+ * hard floor-at-0 regret with a smooth, signed discount. α controls how much
+ * positive cumulative regret is retained iteration-to-iteration; β controls
+ * the same for negative/zero regret; γ controls how strongly later
+ * iterations dominate the averaged (equilibrium) strategy. 1.5 / 0 / 2 are
+ * the paper's own recommended defaults (best empirical performance across
+ * their benchmark games, §8) — no local tuning has been done yet, revisit
+ * only if telemetry on this codebase's actual scenarios suggests otherwise.
+ */
+const DCFR_ALPHA = 1.5;
+const DCFR_GAMMA = 2;
+/**
+ * t^β/(t^β+1) with β=0 is 1/(1+1) = 0.5 for every t (t^0 is always 1) —
+ * hardcoded as a constant rather than computed per-iteration. If a nonzero β
+ * is ever wanted, this must become a per-iteration
+ * Math.pow(t, beta) / (Math.pow(t, beta) + 1) again.
+ */
+const DCFR_NEGATIVE_REGRET_DISCOUNT = 0.5;
 
 export interface CfrRunOptions {
   /** Hard safety cap — CFR always stops here even if the target was never reached. */
@@ -36,11 +76,13 @@ export interface CfrRunOptions {
 }
 
 /**
- * Range-vector CFR+: instead of one regret table per literal information-set
+ * Range-vector DCFR: instead of one regret table per literal information-set
  * string, hero's and villain's entire ranges are tracked as reach-probability
  * arrays threaded through the tree (parallel to `heroCombos`/`villainCombos`),
- * so one traversal updates every combo's strategy at once. See the plan doc
- * for the algorithm's derivation; this is the concrete implementation of it.
+ * so one traversal updates every combo's strategy at once. Regret/average-
+ * strategy accumulation follows Brown & Sandholm 2019's Discounted CFR (see
+ * DCFR_ALPHA/DCFR_GAMMA/DCFR_NEGATIVE_REGRET_DISCOUNT above). See the plan
+ * doc for the algorithm's derivation; this is the concrete implementation of it.
  */
 export function runCfr(
   tree: PostflopTreeNode,
@@ -78,7 +120,9 @@ export function runCfr(
     node: PostflopTreeNode,
     reachP1: number[],
     reachP2: number[],
-    iteration: number,
+    positiveDiscount: number,
+    negativeDiscount: number,
+    stratWeight: number,
   ): { utilP1: number[]; utilP2: number[] } {
     if (node.type === "terminal-fold") {
       const pot = totalPot(node.state);
@@ -113,7 +157,7 @@ export function runCfr(
     const childResults = node.actions.map((edge, a) => {
       const childReachP1 = isP1Acting ? reachP1.map((r, c) => r * strategy[c][a]) : reachP1;
       const childReachP2 = isP1Acting ? reachP2 : reachP2.map((r, c) => r * strategy[c][a]);
-      return traverse(edge.child, childReachP1, childReachP2, iteration);
+      return traverse(edge.child, childReachP1, childReachP2, positiveDiscount, negativeDiscount, stratWeight);
     });
 
     // Acting player's utility per their own combo, under their own (per-combo) strategy.
@@ -145,13 +189,21 @@ export function runCfr(
       return v;
     });
 
-    // CFR+ regret update (floored at 0) + linearly-weighted average-strategy accumulation.
+    // DCFR regret update (Brown & Sandholm 2019): cumulative regret stays
+    // signed — no floor at 0, unlike CFR+ — and the resulting value (old
+    // regret + this iteration's delta) is discounted every iteration:
+    // `positiveDiscount` if it's positive, `negativeDiscount` if it's
+    // negative or zero. Since the discount is applied to the stored
+    // cumulative value each time (not just the new delta), it compounds
+    // across iterations. Average-strategy accumulation uses `stratWeight`
+    // (t^γ) instead of CFR+'s plain linear `t` weighting.
     for (let c = 0; c < actingCombos.length; c++) {
       for (let a = 0; a < numActions; a++) {
         const actionUtil = isP1Acting ? childResults[a].utilP1[c] : childResults[a].utilP2[c];
         const regretDelta = actionUtil - actingUtil[c];
-        data.regret[c][a] = Math.max(0, data.regret[c][a] + regretDelta);
-        data.stratSum[c][a] += iteration * actingReach[c] * strategy[c][a];
+        const updatedRegret = data.regret[c][a] + regretDelta;
+        data.regret[c][a] = updatedRegret * (updatedRegret > 0 ? positiveDiscount : negativeDiscount);
+        data.stratSum[c][a] += stratWeight * actingReach[c] * strategy[c][a];
       }
     }
 
@@ -173,7 +225,13 @@ export function runCfr(
   const progressInterval = Math.max(1, Math.floor(maxIterations / 50));
   let nextCheck = checkIntervalIterations ?? DEFAULT_EXPLOITABILITY_CHECK_START_INTERVAL;
   for (let t = 1; t <= maxIterations; t++) {
-    traverse(tree, initialReachP1, initialReachP2, t);
+    // Discount factors depend only on t, not on the node/combo/action being
+    // updated, so compute them once per outer iteration rather than
+    // redundantly at every node visited during this traversal.
+    const tAlpha = Math.pow(t, DCFR_ALPHA);
+    const positiveDiscount = tAlpha / (tAlpha + 1);
+    const stratWeight = Math.pow(t, DCFR_GAMMA);
+    traverse(tree, initialReachP1, initialReachP2, positiveDiscount, DCFR_NEGATIVE_REGRET_DISCOUNT, stratWeight);
 
     if (targetExploitabilityPercent !== undefined && t >= nextCheck) {
       const snapshot: CfrSolution = { iterations: t, getAverageStrategy };
