@@ -43,7 +43,7 @@ describe("runCfr", () => {
   // meaningfully longer to converge than Phase 1's tiny 3-action tree did —
   // 800 iterations left root-level bet-vs-allin mixing visibly unsettled in
   // manual testing, so this fixture's base solve uses more iterations.
-  const solution = runCfr(tree, heroRange, villainRange, table, 3200);
+  const solution = runCfr(tree, heroRange, villainRange, table, { maxIterations: 3200 });
 
   it("every combo's average strategy at every decision node sums to 1", () => {
     (function walk(node: PostflopTreeNode) {
@@ -85,8 +85,8 @@ describe("runCfr", () => {
     // Phase A's tree needs a bigger iteration jump than Phase 1's did before
     // the bet-vs-allin mixing at the root settles down (see the comment on
     // `solution` above).
-    const shorter = runCfr(tree, heroRange, villainRange, table, 3200);
-    const longer = runCfr(tree, heroRange, villainRange, table, 12800);
+    const shorter = runCfr(tree, heroRange, villainRange, table, { maxIterations: 3200 });
+    const longer = runCfr(tree, heroRange, villainRange, table, { maxIterations: 12800 });
     const shortStrat = shorter.getAverageStrategy(tree as DecisionNode);
     const longStrat = longer.getAverageStrategy(tree as DecisionNode);
     for (let c = 0; c < shortStrat.length; c++) {
@@ -97,7 +97,7 @@ describe("runCfr", () => {
   });
 
   it("keeps producing well-formed (finite, in-range) probabilities with more iterations", () => {
-    const longer = runCfr(tree, heroRange, villainRange, table, 3200);
+    const longer = runCfr(tree, heroRange, villainRange, table, { maxIterations: 3200 });
     const strat = longer.getAverageStrategy(tree as DecisionNode);
     for (const row of strat) {
       for (const p of row) {
@@ -107,5 +107,48 @@ describe("runCfr", () => {
       }
       expect(actionSum(row)).toBeCloseTo(1, 6);
     }
+  });
+
+  it("stops early once exploitability target is hit", () => {
+    // exploitability.test.ts observed this same fixture at ~0.56% by 800
+    // iterations, well under a loose 1% target — 5000 gives a wide margin
+    // against flakiness while still proving real early-stop behavior.
+    const solution = runCfr(tree, heroRange, villainRange, table, {
+      maxIterations: 20000,
+      targetExploitabilityPercent: 1,
+    });
+    expect(solution.iterations).toBeLessThan(5000);
+  });
+
+  it("hits the max-iteration cap when the target is unreachable", () => {
+    const solution = runCfr(tree, heroRange, villainRange, table, {
+      maxIterations: 500,
+      targetExploitabilityPercent: 0.0001,
+    });
+    expect(solution.iterations).toBe(500);
+  });
+
+  it("onProgress only reports exploitability when a target is set", () => {
+    const withTargetCalls: (number | undefined)[] = [];
+    runCfr(
+      tree,
+      heroRange,
+      villainRange,
+      table,
+      { maxIterations: 300, targetExploitabilityPercent: 0.0001 },
+      (_done, _total, exploitabilityPercent) => withTargetCalls.push(exploitabilityPercent),
+    );
+    expect(withTargetCalls.some((v) => typeof v === "number" && Number.isFinite(v))).toBe(true);
+
+    const withoutTargetCalls: (number | undefined)[] = [];
+    runCfr(
+      tree,
+      heroRange,
+      villainRange,
+      table,
+      { maxIterations: 300 },
+      (_done, _total, exploitabilityPercent) => withoutTargetCalls.push(exploitabilityPercent),
+    );
+    expect(withoutTargetCalls.every((v) => v === undefined)).toBe(true);
   });
 });

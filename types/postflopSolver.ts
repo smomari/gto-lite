@@ -15,7 +15,8 @@ export type PostflopSolveRequest =
       villainActionKey: ActionWeightKey;
       startPot: number;
       effectiveStackBb: number;
-      iterations: number;
+      maxIterations: number;
+      targetExploitabilityPercent?: number;
     }
   | {
       kind: "combos";
@@ -24,7 +25,8 @@ export type PostflopSolveRequest =
       villainRange: SerializedCombo[];
       startPot: number;
       effectiveStackBb: number;
-      iterations: number;
+      maxIterations: number;
+      targetExploitabilityPercent?: number;
     };
 
 export interface SerializedCombo {
@@ -79,6 +81,7 @@ export interface PostflopProgressMessage {
   phase: "equity" | "cfr";
   done: number;
   total: number;
+  exploitabilityPercent?: number;
 }
 
 export interface PostflopErrorMessage {

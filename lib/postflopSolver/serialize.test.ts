@@ -18,7 +18,7 @@ const villainRange: ComboRange = [
 describe("serializeTree", () => {
   const tree = buildStreetTree(7.5, 10, "flop");
   const table = buildEquityTable(heroRange, villainRange, BOARD);
-  const solution = runCfr(tree, heroRange, villainRange, table, 300);
+  const solution = runCfr(tree, heroRange, villainRange, table, { maxIterations: 300 });
   const serialized = serializeTree(tree, solution);
 
   it("produces a JSON-safe plain object (no functions survive a roundtrip)", () => {
@@ -54,7 +54,7 @@ describe("serializeTree", () => {
     // A deeper stack than the shared fixture's (10bb) is needed for a
     // full-pot raise to have room to exist rather than collapsing into allin.
     const deepTree = buildStreetTree(7.5, 40, "flop");
-    const deepSolution = runCfr(deepTree, heroRange, villainRange, buildEquityTable(heroRange, villainRange, BOARD), 300);
+    const deepSolution = runCfr(deepTree, heroRange, villainRange, buildEquityTable(heroRange, villainRange, BOARD), { maxIterations: 300 });
     const deepSerialized = serializeTree(deepTree, deepSolution);
     if (deepSerialized.type !== "decision") throw new Error("expected decision");
     const betChild = deepSerialized.actions.find((a) => a.action === "bet")!.child;

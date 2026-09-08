@@ -3,6 +3,7 @@ import type { EquityTable } from "./terminalEquity";
 import { equityVsRange } from "./terminalEquity";
 import { totalPot } from "./potState";
 import type { DecisionNode, PostflopTreeNode } from "./treeBuilder";
+import { computeExploitability } from "./exploitability";
 
 interface CfrNodeData {
   /** [comboIndex][actionIndex], CFR+ regret (floored at 0 after every update). */
@@ -17,6 +18,23 @@ export interface CfrSolution {
   getAverageStrategy(node: DecisionNode): number[][];
 }
 
+/** See the Phase B-2 plan doc for the reasoning behind these defaults — revisit once real wide-range (100bb, 130-190 combo/side) telemetry is collected. */
+export const DEFAULT_MAX_CFR_ITERATIONS = 20000;
+/** Percent of pot. Loose end of TexasSolver's cited 0.275-0.5% range — this phase targets UX (not maximal precision). */
+export const DEFAULT_TARGET_EXPLOITABILITY_PERCENT = 0.5;
+
+const DEFAULT_EXPLOITABILITY_CHECK_START_INTERVAL = 100;
+const EXPLOITABILITY_CHECK_INTERVAL_CEILING = 2000;
+
+export interface CfrRunOptions {
+  /** Hard safety cap — CFR always stops here even if the target was never reached. */
+  maxIterations: number;
+  /** Stop early once a periodic exploitability check reads at or below this (% of pot). Omit to disable early stopping entirely and always run exactly maxIterations. */
+  targetExploitabilityPercent?: number;
+  /** Iteration count of the first periodic exploitability check; the gap doubles after that, capped at EXPLOITABILITY_CHECK_INTERVAL_CEILING. Default 100. */
+  checkIntervalIterations?: number;
+}
+
 /**
  * Range-vector CFR+: instead of one regret table per literal information-set
  * string, hero's and villain's entire ranges are tracked as reach-probability
@@ -29,9 +47,10 @@ export function runCfr(
   heroRange: ComboRange,
   villainRange: ComboRange,
   equityTable: EquityTable,
-  iterations: number,
-  onProgress?: (done: number, total: number) => void,
+  options: CfrRunOptions,
+  onProgress?: (done: number, total: number, exploitabilityPercent?: number) => void,
 ): CfrSolution {
+  const { maxIterations, targetExploitabilityPercent, checkIntervalIterations } = options;
   const heroCombos = heroRange.map((c) => c.cards);
   const villainCombos = villainRange.map((c) => c.cards);
   const initialReachP1 = heroRange.map((c) => c.weight);
@@ -141,22 +160,41 @@ export function runCfr(
       : { utilP1: nonActingUtil, utilP2: actingUtil };
   }
 
-  const progressInterval = Math.max(1, Math.floor(iterations / 50));
-  for (let t = 1; t <= iterations; t++) {
-    traverse(tree, initialReachP1, initialReachP2, t);
-    if (onProgress && (t % progressInterval === 0 || t === iterations)) onProgress(t, iterations);
+  function getAverageStrategy(node: DecisionNode): number[][] {
+    const data = cfrData.get(node);
+    if (!data) throw new Error("getAverageStrategy: node was not part of the solved tree");
+    return data.stratSum.map((row) => {
+      const sum = row.reduce((s, x) => s + x, 0);
+      if (sum <= 0) return row.map(() => 1 / row.length);
+      return row.map((x) => x / sum);
+    });
   }
 
-  return {
-    iterations,
-    getAverageStrategy(node: DecisionNode): number[][] {
-      const data = cfrData.get(node);
-      if (!data) throw new Error("getAverageStrategy: node was not part of the solved tree");
-      return data.stratSum.map((row) => {
-        const sum = row.reduce((s, x) => s + x, 0);
-        if (sum <= 0) return row.map(() => 1 / row.length);
-        return row.map((x) => x / sum);
-      });
-    },
-  };
+  const progressInterval = Math.max(1, Math.floor(maxIterations / 50));
+  let nextCheck = checkIntervalIterations ?? DEFAULT_EXPLOITABILITY_CHECK_START_INTERVAL;
+  for (let t = 1; t <= maxIterations; t++) {
+    traverse(tree, initialReachP1, initialReachP2, t);
+
+    if (targetExploitabilityPercent !== undefined && t >= nextCheck) {
+      const snapshot: CfrSolution = { iterations: t, getAverageStrategy };
+      const { percentOfPot } = computeExploitability(
+        tree,
+        snapshot,
+        heroRange,
+        villainRange,
+        equityTable,
+        tree.state.startPot,
+      );
+      nextCheck = t + Math.min(nextCheck, EXPLOITABILITY_CHECK_INTERVAL_CEILING);
+      onProgress?.(t, maxIterations, percentOfPot);
+      if (percentOfPot <= targetExploitabilityPercent) {
+        return { iterations: t, getAverageStrategy };
+      }
+      continue;
+    }
+
+    if (onProgress && (t % progressInterval === 0 || t === maxIterations)) onProgress(t, maxIterations);
+  }
+
+  return { iterations: maxIterations, getAverageStrategy };
 }

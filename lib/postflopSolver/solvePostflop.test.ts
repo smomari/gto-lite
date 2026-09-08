@@ -27,7 +27,7 @@ describe("solvePostflopStreet", () => {
       villainActionWeight: (hf) => hf.call,
       startPot: 7.5,
       effectiveStackBb: 10,
-      iterations: 200,
+      maxIterations: 200,
     });
 
     expect(result.heroRange.length).toBeGreaterThan(0);
@@ -57,7 +57,7 @@ describe("solvePostflopStreet", () => {
         villainActionWeight: (hf) => hf.call,
         startPot: 7.5,
         effectiveStackBb: 10,
-        iterations: 50,
+        maxIterations: 50,
       }),
     ).toThrow();
   });
@@ -78,7 +78,7 @@ describe("solvePostflopStreet", () => {
       ],
       startPot: 12.4,
       effectiveStackBb: 20,
-      iterations: 100,
+      maxIterations: 100,
     });
 
     expect(result.heroRange).toEqual([
