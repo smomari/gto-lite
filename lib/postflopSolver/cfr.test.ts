@@ -110,9 +110,10 @@ describe("runCfr", () => {
   });
 
   it("stops early once exploitability target is hit", () => {
-    // exploitability.test.ts observed this same fixture at ~0.56% by 800
-    // iterations, well under a loose 1% target — 5000 gives a wide margin
-    // against flakiness while still proving real early-stop behavior.
+    // exploitability.test.ts observed this same fixture (under DCFR) at
+    // ~0.52% by 800 iterations, well under a loose 1% target — 5000 gives a
+    // wide margin against flakiness while still proving real early-stop
+    // behavior.
     const solution = runCfr(tree, heroRange, villainRange, table, {
       maxIterations: 20000,
       targetExploitabilityPercent: 1,
