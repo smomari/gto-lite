@@ -5,8 +5,10 @@ import { ALL_HANDS } from "@/lib/handRange/handList";
 import { seatIndex } from "@/lib/actionTree/seatOrder";
 import { solvePushFold } from "@/lib/nashSolver/pushFoldSolver";
 import { generateOpeningScenario, generateFacingRaiseScenario } from "@/lib/heuristicRanges/generateScenario";
+import { loadRfiExport } from "@/lib/preflopSolver/loadRfiExport";
 import type { PotState } from "./potState";
 import { shouldUseNash } from "./classify";
+import { RFI_EXPORT_STACK_BB } from "./constants";
 
 export interface SolvedNode {
   hands: HandFrequency[];
@@ -40,6 +42,11 @@ export function solveActiveSeat(
 ): SolvedNode {
   const hasOpener = potState.raiseDepth >= 1;
   const remainingStackBb = effectiveStackBb - (potState.committed[activeSeat] ?? 0);
+
+  if (!hasOpener && effectiveStackBb === RFI_EXPORT_STACK_BB) {
+    const positionData = loadRfiExport().positions[activeSeat];
+    if (positionData) return { source: "solver-export", hands: positionData.hands };
+  }
 
   if (shouldUseNash(effectiveStackBb, remainingStackBb, potState.potBb, hasOpener)) {
     const result = solvePushFold(matrix, { effectiveStackBb: remainingStackBb });

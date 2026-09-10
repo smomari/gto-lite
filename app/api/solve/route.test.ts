@@ -20,6 +20,17 @@ describe("POST /api/solve", () => {
     expect(body.availableActions.fold).toBe(true);
     expect(body.availableActions.call).toBeNull();
     expect(body.potBb).toBe(2.5);
+    expect(body.source).toBe("heuristic-approx"); // solver-export only covers SB (see Phase C-1 plan doc)
+  });
+
+  it("returns solver-export data for SB's opening spot, the one genuinely 2-player-correct RFI position", async () => {
+    const actionPath = ["UTG", "UTG1", "LJ", "HJ", "CO", "BTN"].map((actor) => ({ actor, action: "fold" }));
+    const res = await POST(makeRequest({ effectiveStackBb: 100, actionPath }));
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.heroPosition).toBe("SB");
+    expect(body.source).toBe("solver-export");
+    expect(body.hands).toHaveLength(169);
   });
 
   it("rejects an out-of-range effective stack", async () => {
@@ -74,5 +85,6 @@ describe("POST /api/solve", () => {
     const bbNode = body.actionPath.find((n: { actor: string }) => n.actor === "BB");
     expect(bbNode.label).toBe("3bet");
     expect(bbNode.sizeBb).toBe(8.4); // 2.8 * 3 (IP reactive)
+    expect(body.source).toBe("heuristic-approx"); // facing a 3-bet, outside solver-export's RFI-only coverage
   });
 });
