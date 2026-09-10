@@ -18,8 +18,30 @@ describe("solveActiveSeat", () => {
     expect(aa.allin).toBeGreaterThan(0.9);
   });
 
-  it("routes a deep-stack opening spot to the heuristic engine and produces raise-only frequencies", () => {
+  it("routes a 100bb opening spot to the heuristic engine and produces raise-only frequencies (non-SB — solver-export only covers SB, see Phase C-1 plan doc)", () => {
     const result = solveActiveSeat(matrix, "BTN", initialPotState(), 100);
+    expect(result.source).toBe("heuristic-approx");
+    for (const h of result.hands) {
+      expect(h.call).toBe(0);
+      expect(h.allin ?? 0).toBe(0);
+      expect(h.fold + h.raise).toBeCloseTo(1, 6);
+    }
+  });
+
+  it("routes SB's 100bb opening spot to the Phase C-1 solver-export data (the one genuinely 2-player-correct RFI spot)", () => {
+    const result = solveActiveSeat(matrix, "SB", initialPotState(), 100);
+    expect(result.source).toBe("solver-export");
+    for (const h of result.hands) {
+      expect(h.call).toBe(0);
+      expect(h.allin ?? 0).toBe(0);
+      expect(h.fold + h.raise).toBeCloseTo(1, 6);
+    }
+    const aa = result.hands.find((h) => h.hand === "AA")!;
+    expect(aa.raise).toBeGreaterThan(0.9);
+  });
+
+  it("falls back to the heuristic engine for SB's opening spot at a stack depth the solver-export data doesn't cover", () => {
+    const result = solveActiveSeat(matrix, "SB", initialPotState(), 99);
     expect(result.source).toBe("heuristic-approx");
     for (const h of result.hands) {
       expect(h.call).toBe(0);

@@ -64,7 +64,7 @@ export function comboVsComboRunoutEquity(
   return (wins + ties * 0.5) / runouts.length;
 }
 
-function comboKey(cards: [string, string]): string {
+export function comboKey(cards: [string, string]): string {
   return [...cards].sort().join("");
 }
 

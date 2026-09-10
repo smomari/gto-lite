@@ -6,6 +6,9 @@ export const BB_ANTE_BB = 1;
 export const STACK_MIN_BB = 1;
 export const STACK_MAX_BB = 100;
 
+/** Stack depth the Phase C-1 preflop RFI solver-export data was generated at — see data/preflop/rfi-100bb.json. */
+export const RFI_EXPORT_STACK_BB = 100;
+
 /** Always route to the Nash push/fold solver at or under this effective stack. */
 export const NASH_FLAT_STACK_THRESHOLD_BB = 25;
 /** Route to Nash when facing a raise and remaining-stack/pot is at or under this ratio. */
