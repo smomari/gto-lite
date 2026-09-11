@@ -3,6 +3,7 @@ import type { ComboRange } from "./types";
 import { buildEquityTable } from "./terminalEquity";
 import { buildStreetTree } from "./treeBuilder";
 import { runCfr } from "./cfr";
+import { computeCheckdownEquities } from "./checkdownEquity";
 import { serializeCombos, serializeTree } from "./serialize";
 
 const BOARD = ["Kh", "7s", "2d"];
@@ -84,6 +85,36 @@ describe("serializeTree", () => {
     expect(callChild.type).toBe("terminal-showdown");
     if (callChild.type !== "terminal-showdown") return;
     expect(callChild.committed.P1).toBe(callChild.committed.P2);
+  });
+
+  it("omits checkdownEquity when no checkdown map is passed", () => {
+    const checkChild = serialized.type === "decision" ? serialized.actions.find((a) => a.action === "check")!.child : null;
+    if (!checkChild || checkChild.type !== "decision") throw new Error("expected P2 decision after check");
+    const callChild = checkChild.actions.find((a) => a.action === "check")!.child;
+    if (callChild.type !== "terminal-showdown") throw new Error("expected terminal-showdown");
+    expect(callChild.checkdownEquity).toBeUndefined();
+  });
+
+  it("attaches checkdownEquity to terminal-showdown nodes (and only those) when a checkdown map is passed", () => {
+    const checkdown = computeCheckdownEquities(tree, solution, heroRange, villainRange, table);
+    const withCheckdown = serializeTree(tree, solution, checkdown);
+    if (withCheckdown.type !== "decision") throw new Error("expected decision");
+
+    const checkChild = withCheckdown.actions.find((a) => a.action === "check")!.child;
+    if (checkChild.type !== "decision") throw new Error("expected P2 decision after check");
+    const callChild = checkChild.actions.find((a) => a.action === "check")!.child;
+    if (callChild.type !== "terminal-showdown") throw new Error("expected terminal-showdown");
+    expect(callChild.checkdownEquity).toBeDefined();
+    expect(callChild.checkdownEquity!.heroEquityPercent + callChild.checkdownEquity!.villainEquityPercent).toBeCloseTo(
+      100,
+      6,
+    );
+
+    const betChild = checkChild.actions.find((a) => a.action === "bet")!.child;
+    if (betChild.type !== "decision") throw new Error("expected P1 facing-bet decision");
+    const fold = betChild.actions.find((a) => a.action === "fold")!.child;
+    expect(fold.type).toBe("terminal-fold");
+    expect((fold as { checkdownEquity?: unknown }).checkdownEquity).toBeUndefined();
   });
 });
 

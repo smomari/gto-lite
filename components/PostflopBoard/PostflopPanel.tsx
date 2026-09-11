@@ -1,14 +1,17 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { BoardPicker } from "./BoardPicker";
 import { PostflopActionBar } from "./PostflopActionBar";
 import { PostflopRangeGrid } from "@/components/PostflopStrategy/PostflopRangeGrid";
 import { SolveProgress } from "@/components/PostflopStrategy/SolveProgress";
 import { ExploitabilityBadge } from "@/components/PostflopStrategy/ExploitabilityBadge";
+import { CheckdownEquityNote } from "./CheckdownEquityNote";
+import { AverageNextCardEv, type PreciseAvgState } from "./AverageNextCardEv";
 import { solvePostflopInWorker } from "@/lib/postflopSolver/worker/workerClient";
 import { narrowRangeAlongPath, type TreePathStep } from "@/lib/postflopSolver/rangeNarrowing";
 import { DEFAULT_MAX_CFR_ITERATIONS, DEFAULT_TARGET_EXPLOITABILITY_PERCENT } from "@/lib/postflopSolver/cfr";
+import { DEFAULT_PRECISE_SAMPLE_COUNT, sampleNextCards } from "@/lib/postflopSolver/nextCardSampling";
 import type {
   ActionWeightKey,
   PostflopResultMessage,
@@ -79,8 +82,21 @@ function idleStage(boardLength: number, effectiveStackAtStart: number): StreetSt
 
 export function PostflopPanel(props: PostflopPanelProps) {
   const [streets, setStreets] = useState<StreetStage[]>([idleStage(3, props.effectiveStackBb)]);
+  const [preciseAvgByStage, setPreciseAvgByStage] = useState<Record<number, PreciseAvgState>>({});
+  const preciseAbortRef = useRef<AbortController | null>(null);
+
+  function clearPreciseAvgFrom(stageIndex: number) {
+    setPreciseAvgByStage((prev) => {
+      const next = { ...prev };
+      for (const key of Object.keys(next)) {
+        if (Number(key) >= stageIndex) delete next[Number(key)];
+      }
+      return next;
+    });
+  }
 
   function handleNavigate(stageIndex: number, action: SerializedDecisionAction) {
+    clearPreciseAvgFrom(stageIndex);
     setStreets((prev) => {
       const stage = prev[stageIndex];
       if (stage.currentNode?.type !== "decision") return prev;
@@ -109,6 +125,7 @@ export function PostflopPanel(props: PostflopPanelProps) {
   }
 
   function handleResetStreet(stageIndex: number) {
+    clearPreciseAvgFrom(stageIndex);
     setStreets((prev) => {
       const stage = prev[stageIndex];
       if (stage.state.kind !== "done") return prev;
@@ -117,6 +134,7 @@ export function PostflopPanel(props: PostflopPanelProps) {
   }
 
   function handlePickDifferentBoard(stageIndex: number) {
+    clearPreciseAvgFrom(stageIndex);
     setStreets((prev) => [
       ...prev.slice(0, stageIndex),
       { ...prev[stageIndex], board: [], state: { kind: "idle" }, currentNode: null, path: [] },
@@ -195,6 +213,59 @@ export function PostflopPanel(props: PostflopPanelProps) {
       });
   }
 
+  async function handleComputePreciseAverageEv(stageIndex: number) {
+    const stage = streets[stageIndex];
+    if (stage.state.kind !== "done" || stage.currentNode?.type !== "terminal-showdown") return;
+    const terminal = stage.currentNode;
+
+    const controller = new AbortController();
+    preciseAbortRef.current = controller;
+
+    const cards = sampleNextCards(stage.board, DEFAULT_PRECISE_SAMPLE_COUNT);
+    const heroNarrowed = narrowRangeAlongPath(stage.state.result.heroRange, "P1", stage.path);
+    const villainNarrowed = narrowRangeAlongPath(stage.state.result.villainRange, "P2", stage.path);
+    const samples: { card: string; heroEvBb: number; villainEvBb: number }[] = [];
+
+    for (let i = 0; i < cards.length; i++) {
+      setPreciseAvgByStage((prev) => ({ ...prev, [stageIndex]: { kind: "solving", sampleIndex: i, sampleCount: cards.length } }));
+      const request: PostflopSolveRequest = {
+        kind: "combos",
+        board: [...stage.board, cards[i]],
+        heroRange: heroNarrowed,
+        villainRange: villainNarrowed,
+        startPot: terminal.potBb,
+        effectiveStackBb: stage.effectiveStackAtStart - terminal.committed.P1,
+        maxIterations: DEFAULT_MAX_CFR_ITERATIONS,
+        targetExploitabilityPercent: DEFAULT_TARGET_EXPLOITABILITY_PERCENT,
+      };
+      try {
+        const result = await solvePostflopInWorker(request, { signal: controller.signal });
+        if (!result.exploitability) throw new Error("missing exploitability on sample result");
+        samples.push({
+          card: cards[i],
+          heroEvBb: result.exploitability.p1ActualBb,
+          villainEvBb: result.exploitability.p2ActualBb,
+        });
+      } catch (err) {
+        if (err instanceof DOMException && err.name === "AbortError") {
+          setPreciseAvgByStage((prev) => ({ ...prev, [stageIndex]: { kind: "idle" } }));
+          return;
+        }
+        const message = err instanceof Error ? err.message : String(err);
+        setPreciseAvgByStage((prev) => ({ ...prev, [stageIndex]: { kind: "error", message } }));
+        return;
+      }
+    }
+
+    const avgHeroEvBb = samples.reduce((s, x) => s + x.heroEvBb, 0) / samples.length;
+    const avgVillainEvBb = samples.reduce((s, x) => s + x.villainEvBb, 0) / samples.length;
+    setPreciseAvgByStage((prev) => ({ ...prev, [stageIndex]: { kind: "done", samples, avgHeroEvBb, avgVillainEvBb } }));
+  }
+
+  function handleCancelPreciseAverageEv() {
+    preciseAbortRef.current?.abort();
+  }
+
   return (
     <div className="flex flex-col gap-4 rounded-lg border border-zinc-300 p-4 dark:border-zinc-700">
       <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
@@ -269,6 +340,25 @@ export function PostflopPanel(props: PostflopPanelProps) {
                     return `Street ends — pot ${potBb.toFixed(1)}bb, ${nextStreetLabel.toLowerCase()} card coming next.`;
                   }}
                 />
+                {currentNode.type === "terminal-showdown" &&
+                  hasNextStreet(stage.board.length) &&
+                  currentNode.checkdownEquity && (
+                    <>
+                      <CheckdownEquityNote
+                        equity={currentNode.checkdownEquity}
+                        heroLabel={props.heroLabel}
+                        villainLabel={props.villainLabel}
+                      />
+                      <AverageNextCardEv
+                        state={preciseAvgByStage[i] ?? { kind: "idle" }}
+                        heroLabel={props.heroLabel}
+                        villainLabel={props.villainLabel}
+                        sampleCount={DEFAULT_PRECISE_SAMPLE_COUNT}
+                        onCompute={() => handleComputePreciseAverageEv(i)}
+                        onCancel={handleCancelPreciseAverageEv}
+                      />
+                    </>
+                  )}
                 {currentNode.type === "decision" && (
                   <PostflopRangeGrid
                     range={currentNode.actor === "P1" ? solveState.result.heroRange : solveState.result.villainRange}

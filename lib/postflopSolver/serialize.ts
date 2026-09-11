@@ -1,5 +1,6 @@
 import type { SerializedCombo, SerializedTreeNode } from "@/types/postflopSolver";
 import type { CfrSolution } from "./cfr";
+import type { CheckdownEquitySummary } from "./checkdownEquity";
 import { totalPot, type PostflopActionType, type PostflopPlayer, type PostflopPotState } from "./potState";
 import type { PostflopTreeNode } from "./treeBuilder";
 import type { ComboRange } from "./types";
@@ -28,7 +29,11 @@ function actionLabel(action: PostflopActionType, actor: PostflopPlayer, childSta
  * postMessage-safe object with the average strategy materialized directly
  * onto each decision node.
  */
-export function serializeTree(node: PostflopTreeNode, solution: CfrSolution): SerializedTreeNode {
+export function serializeTree(
+  node: PostflopTreeNode,
+  solution: CfrSolution,
+  checkdown?: Map<PostflopTreeNode, CheckdownEquitySummary>,
+): SerializedTreeNode {
   if (node.type === "terminal-fold") {
     return {
       type: "terminal-fold",
@@ -38,7 +43,12 @@ export function serializeTree(node: PostflopTreeNode, solution: CfrSolution): Se
     };
   }
   if (node.type === "terminal-showdown") {
-    return { type: "terminal-showdown", potBb: totalPot(node.state), committed: { ...node.state.committed } };
+    return {
+      type: "terminal-showdown",
+      potBb: totalPot(node.state),
+      committed: { ...node.state.committed },
+      checkdownEquity: checkdown?.get(node),
+    };
   }
 
   return {
@@ -50,7 +60,7 @@ export function serializeTree(node: PostflopTreeNode, solution: CfrSolution): Se
     actions: node.actions.map(({ action, child }) => ({
       action,
       label: actionLabel(action, node.actor, child.state),
-      child: serializeTree(child, solution),
+      child: serializeTree(child, solution, checkdown),
     })),
   };
 }
