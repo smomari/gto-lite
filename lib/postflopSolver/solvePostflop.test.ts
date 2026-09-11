@@ -3,6 +3,7 @@ import { ALL_HANDS } from "@/lib/handRange/handList";
 import type { HandFrequency } from "@/types/rangeData";
 import { solvePostflopStreet } from "./solvePostflop";
 import type { DecisionNode } from "./treeBuilder";
+import { computeCheckdownEquities } from "./checkdownEquity";
 
 /** A narrow, small HandFrequency[] so the resulting ComboRange stays tiny and the test stays fast. */
 function narrowHands(includedHands: string[]): HandFrequency[] {
@@ -42,6 +43,20 @@ describe("solvePostflopStreet", () => {
     expect(strategy).toHaveLength(result.heroRange.length);
     for (const row of strategy) {
       expect(row.reduce((s, x) => s + x, 0)).toBeCloseTo(1, 6);
+    }
+
+    // equityTable is populated and reusable by checkdownEquity.ts without
+    // any further equity computation — full end-to-end pipeline check.
+    expect(result.equityTable.size).toBeGreaterThan(0);
+    const checkdown = computeCheckdownEquities(
+      result.tree,
+      result.solution,
+      result.heroRange,
+      result.villainRange,
+      result.equityTable,
+    );
+    for (const summary of checkdown.values()) {
+      expect(summary.heroEquityPercent + summary.villainEquityPercent).toBeCloseTo(100, 3);
     }
   });
 

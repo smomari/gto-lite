@@ -1,7 +1,7 @@
 import type { HandFrequency } from "@/types/rangeData";
 import type { BoardCards, ComboRange } from "./types";
 import { expandToCombos, filterBlockedCombos } from "./combos";
-import { buildEquityTable } from "./terminalEquity";
+import { buildEquityTable, type EquityTable } from "./terminalEquity";
 import { streetForBoardLength } from "./betAbstraction";
 import { buildStreetTree, type PostflopTreeNode } from "./treeBuilder";
 import { runCfr, type CfrSolution } from "./cfr";
@@ -41,6 +41,8 @@ export interface PostflopSolveResult {
   villainRange: ComboRange;
   solution: CfrSolution;
   exploitability: ExploitabilityResult;
+  /** The board-fixed equity table this solve was run against — reused by checkdownEquity.ts to report per-node showdown averages without recomputing anything. */
+  equityTable: EquityTable;
 }
 
 export type PostflopSolvePhase = "equity" | "cfr";
@@ -84,5 +86,5 @@ export function solvePostflopStreet(
   );
   const exploitability = computeExploitability(tree, solution, heroRange, villainRange, equityTable, input.startPot);
 
-  return { tree, heroRange, villainRange, solution, exploitability };
+  return { tree, heroRange, villainRange, solution, exploitability, equityTable };
 }

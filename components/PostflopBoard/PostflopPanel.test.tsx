@@ -1,8 +1,14 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { PostflopPanel } from "./PostflopPanel";
-import type { PostflopResultMessage, PostflopSolveRequest, SerializedTreeNode } from "@/types/postflopSolver";
+import type {
+  CheckdownEquitySummary,
+  PostflopResultMessage,
+  PostflopSolveRequest,
+  SerializedTreeNode,
+} from "@/types/postflopSolver";
 import type { HandFrequency } from "@/types/rangeData";
+import { DEFAULT_PRECISE_SAMPLE_COUNT, sampleNextCards } from "@/lib/postflopSolver/nextCardSampling";
 
 const { solvePostflopInWorker } = vi.hoisted(() => ({ solvePostflopInWorker: vi.fn() }));
 vi.mock("@/lib/postflopSolver/worker/workerClient", () => ({ solvePostflopInWorker }));
@@ -11,6 +17,40 @@ const HANDS: HandFrequency[] = [{ hand: "AA", fold: 0, call: 1, raise: 0 }];
 
 function checkCheckFlopResult(committed: { P1: number; P2: number }): PostflopResultMessage {
   const terminal: SerializedTreeNode = { type: "terminal-showdown", potBb: 7.5, committed };
+  const p2Node: SerializedTreeNode = {
+    type: "decision",
+    actor: "P2",
+    potBb: 7.5,
+    currentBetToCall: 0,
+    actions: [{ action: "check", label: "Check", child: terminal }],
+    strategy: [[1]],
+  };
+  const tree: SerializedTreeNode = {
+    type: "decision",
+    actor: "P1",
+    potBb: 7.5,
+    currentBetToCall: 0,
+    actions: [{ action: "check", label: "Check", child: p2Node }],
+    strategy: [[1]],
+  };
+  return {
+    type: "result",
+    tree,
+    heroRange: [{ cards: ["Ah", "Kd"], weight: 1 }],
+    villainRange: [{ cards: ["7c", "2c"], weight: 1 }],
+    iterations: 100,
+  };
+}
+
+function makeCheckdownEquity(overrides: Partial<CheckdownEquitySummary> = {}): CheckdownEquitySummary {
+  return { heroEquityPercent: 55, villainEquityPercent: 45, heroEvBb: 0.75, villainEvBb: -0.75, ...overrides };
+}
+
+function checkCheckFlopResultWithCheckdown(
+  committed: { P1: number; P2: number },
+  checkdownEquity: CheckdownEquitySummary,
+): PostflopResultMessage {
+  const terminal: SerializedTreeNode = { type: "terminal-showdown", potBb: 7.5, committed, checkdownEquity };
   const p2Node: SerializedTreeNode = {
     type: "decision",
     actor: "P2",
@@ -373,5 +413,109 @@ describe("PostflopPanel", () => {
     expect(stages).toHaveLength(2);
     expect(within(stages[1]).getByText(/All-in — hand is already decided/)).toBeInTheDocument();
     expect(screen.queryByText(/isn't implemented yet/)).not.toBeInTheDocument();
+  });
+
+  function sampleResult(heroEvBb: number, villainEvBb: number): PostflopResultMessage {
+    const tree: SerializedTreeNode = { type: "terminal-showdown", potBb: 7.5, committed: { P1: 0, P2: 0 } };
+    return {
+      type: "result",
+      tree,
+      heroRange: [{ cards: ["Ah", "Kd"], weight: 1 }],
+      villainRange: [{ cards: ["7c", "2c"], weight: 1 }],
+      iterations: 50,
+      exploitability: {
+        bb: 0,
+        percentOfPot: 0,
+        p1BestResponseBb: heroEvBb,
+        p2BestResponseBb: villainEvBb,
+        p1ActualBb: heroEvBb,
+        p2ActualBb: villainEvBb,
+      },
+    };
+  }
+
+  async function reachFlopCheckCheckWithCheckdown() {
+    solvePostflopInWorker.mockResolvedValueOnce(
+      checkCheckFlopResultWithCheckdown({ P1: 0, P2: 0 }, makeCheckdownEquity()),
+    );
+    render(<PostflopPanel {...baseProps(20)} />);
+
+    pickFlopBoard();
+    await screen.findByRole("button", { name: "Check" });
+    fireEvent.click(screen.getByRole("button", { name: "Check" }));
+    fireEvent.click(screen.getByRole("button", { name: "Check" }));
+    await screen.findByText(/Checkdown avg EV/);
+  }
+
+  it("shows the checkdown equity note and a compute-precise-average button at a terminal-showdown with a next street", async () => {
+    await reachFlopCheckCheckWithCheckdown();
+    expect(screen.getByText(/Checkdown avg EV.*BTN 55\.0% \/ \+0\.75bb.*BB 45\.0% \/ -0\.75bb/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Compute precise average EV/ })).toBeInTheDocument();
+  });
+
+  it("clicking compute-precise-average solves DEFAULT_PRECISE_SAMPLE_COUNT sampled turn cards as combos requests and averages the result", async () => {
+    await reachFlopCheckCheckWithCheckdown();
+
+    const expectedCards = sampleNextCards(["As", "Kd", "Qh"], DEFAULT_PRECISE_SAMPLE_COUNT);
+    for (let i = 0; i < expectedCards.length; i++) {
+      solvePostflopInWorker.mockResolvedValueOnce(sampleResult(1 + i, -(1 + i)));
+    }
+
+    fireEvent.click(screen.getByRole("button", { name: /Compute precise average EV/ }));
+
+    await waitFor(() => expect(screen.getByText(/Average:/)).toBeInTheDocument());
+
+    // 1 flop call + N sample calls, all kind:"combos" for the samples, boards = flop + sampled card.
+    expect(solvePostflopInWorker).toHaveBeenCalledTimes(1 + expectedCards.length);
+    for (let i = 0; i < expectedCards.length; i++) {
+      const req = solvePostflopInWorker.mock.calls[1 + i][0] as PostflopSolveRequest;
+      expect(req.kind).toBe("combos");
+      if (req.kind === "combos") expect(req.board).toEqual(["As", "Kd", "Qh", expectedCards[i]]);
+    }
+
+    const avgHero = expectedCards.reduce((s, _c, i) => s + (1 + i), 0) / expectedCards.length;
+    expect(screen.getByText(new RegExp(`Average:.*BTN \\+${avgHero.toFixed(2)}bb`))).toBeInTheDocument();
+  });
+
+  it("cancelling a precise-average computation mid-flight aborts and returns to the idle button", async () => {
+    await reachFlopCheckCheckWithCheckdown();
+
+    let rejectFirst: (err: unknown) => void = () => {};
+    solvePostflopInWorker.mockImplementationOnce(
+      (_req: PostflopSolveRequest, options?: { signal?: AbortSignal }) =>
+        new Promise((_resolve, reject) => {
+          rejectFirst = reject;
+          options?.signal?.addEventListener("abort", () => reject(new DOMException("Aborted", "AbortError")));
+        }),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /Compute precise average EV/ }));
+    await screen.findByRole("button", { name: "Cancel" });
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    void rejectFirst; // silence unused-var lint if the abort listener path is what actually rejects
+
+    await waitFor(() => expect(screen.getByRole("button", { name: /Compute precise average EV/ })).toBeInTheDocument());
+  });
+
+  it("picking a different turn card clears a completed precise-average result for that stage", async () => {
+    await reachFlopCheckCheckWithCheckdown();
+    const expectedCards = sampleNextCards(["As", "Kd", "Qh"], DEFAULT_PRECISE_SAMPLE_COUNT);
+    for (let i = 0; i < expectedCards.length; i++) solvePostflopInWorker.mockResolvedValueOnce(sampleResult(1, -1));
+    fireEvent.click(screen.getByRole("button", { name: /Compute precise average EV/ }));
+    await waitFor(() => expect(screen.getByText(/Average:/)).toBeInTheDocument());
+
+    solvePostflopInWorker.mockResolvedValueOnce(turnResult());
+    fireEvent.click(screen.getByRole("button", { name: "7h" }));
+    fireEvent.click(screen.getByRole("button", { name: "Solve turn" }));
+    await screen.findByRole("button", { name: "Pick a different turn card" });
+
+    fireEvent.click(screen.getByRole("button", { name: "Pick a different turn card" }));
+    solvePostflopInWorker.mockResolvedValueOnce(
+      checkCheckFlopResultWithCheckdown({ P1: 0, P2: 0 }, makeCheckdownEquity()),
+    );
+    // Re-picking the flop stage's own checkdown note is still on-screen (stage 0);
+    // the new turn stage should be back to its idle board picker, not a stale "Average:" result.
+    const stages = screen.getAllByTestId("street-stage");
+    expect(within(stages[1]).queryByText(/Average:/)).not.toBeInTheDocument();
   });
 });

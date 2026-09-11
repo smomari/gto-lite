@@ -1,6 +1,9 @@
 import type { HandFrequency } from "./rangeData";
 import type { PostflopActionType, PostflopPlayer } from "@/lib/postflopSolver/potState";
 import type { ExploitabilityResult } from "@/lib/postflopSolver/exploitability";
+import type { CheckdownEquitySummary } from "@/lib/postflopSolver/checkdownEquity";
+
+export type { CheckdownEquitySummary };
 
 /** Which of a hand's fold/call/raise/allin frequencies defines a player's range entering the street. */
 export type ActionWeightKey = "fold" | "call" | "raise" | "allin";
@@ -57,6 +60,8 @@ export interface SerializedTerminalNode {
   winner?: PostflopPlayer;
   /** Chips each player committed this street — used to derive the next street's effective stack. */
   committed: { P1: number; P2: number };
+  /** Only present for terminal-showdown. The average showdown value if this line is checked down with no further betting — see checkdownEquity.ts. */
+  checkdownEquity?: CheckdownEquitySummary;
 }
 
 export type SerializedTreeNode = SerializedDecisionNode | SerializedTerminalNode;

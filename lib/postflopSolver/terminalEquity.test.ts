@@ -3,10 +3,26 @@ import {
   comboVsComboRunoutEquity,
   buildEquityTable,
   equityVsRange,
+  FULL_DECK,
+  remainingDeck,
 } from "./terminalEquity";
 import type { ComboRange } from "./types";
 
 const BOARD = ["Th", "9s", "2d"]; // dry, disconnected
+
+describe("FULL_DECK / remainingDeck", () => {
+  it("FULL_DECK has all 52 cards, each unique", () => {
+    expect(FULL_DECK).toHaveLength(52);
+    expect(new Set(FULL_DECK).size).toBe(52);
+  });
+
+  it("remainingDeck excludes exactly the used cards", () => {
+    const used = ["Kh", "7s", "2d"];
+    const remaining = remainingDeck(used);
+    expect(remaining).toHaveLength(49);
+    for (const card of used) expect(remaining).not.toContain(card);
+  });
+});
 
 describe("comboVsComboRunoutEquity", () => {
   it("is exactly symmetric (exact enumeration, no Monte Carlo variance)", () => {

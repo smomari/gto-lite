@@ -7,6 +7,7 @@ import type {
 import type { HandFrequency } from "@/types/rangeData";
 import { solvePostflopStreet, type PostflopSolveInput } from "../solvePostflop";
 import { serializeCombos, serializeTree } from "../serialize";
+import { computeCheckdownEquities } from "../checkdownEquity";
 
 // Runs entirely client-side in a Worker: no Node `fs`, no equity-matrix file,
 // nothing from lib/equity/loadEquityMatrix.ts — only the pure postflop CFR
@@ -54,9 +55,17 @@ self.onmessage = (event: MessageEvent<PostflopSolveInMessage>) => {
       },
     );
 
+    const checkdown = computeCheckdownEquities(
+      result.tree,
+      result.solution,
+      result.heroRange,
+      result.villainRange,
+      result.equityTable,
+    );
+
     const message: PostflopWorkerOutMessage = {
       type: "result",
-      tree: serializeTree(result.tree, result.solution),
+      tree: serializeTree(result.tree, result.solution, checkdown),
       heroRange: serializeCombos(result.heroRange),
       villainRange: serializeCombos(result.villainRange),
       iterations: result.solution.iterations,
