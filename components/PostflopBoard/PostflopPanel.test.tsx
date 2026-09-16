@@ -243,6 +243,17 @@ describe("PostflopPanel", () => {
     expect(within(stages[0]).getByText(/Pick the 3 flop cards/)).toBeInTheDocument();
   });
 
+  it("once a board is confirmed, the picked cards stay visible next to the street header", () => {
+    solvePostflopInWorker.mockReturnValueOnce(new Promise(() => {})); // never resolves — only the "solving" state matters here
+    render(<PostflopPanel {...baseProps(20)} />);
+
+    pickFlopBoard();
+
+    const stage = screen.getAllByTestId("street-stage")[0];
+    const cardChips = within(stage).getAllByTitle(/^(As|Kd|Qh)$/);
+    expect(cardChips.map((el) => el.getAttribute("data-card")).sort()).toEqual(["As", "Kd", "Qh"]);
+  });
+
   it("reaching a check-check terminal-showdown (stack still behind) appends an idle Turn stage", async () => {
     solvePostflopInWorker.mockResolvedValueOnce(checkCheckFlopResult({ P1: 0, P2: 0 }));
     render(<PostflopPanel {...baseProps(20)} />);

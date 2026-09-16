@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { CardChip } from "./CardChip";
 
 const RANKS = ["A", "K", "Q", "J", "T", "9", "8", "7", "6", "5", "4", "3", "2"];
 const SUITS = ["s", "h", "d", "c"];
@@ -33,9 +34,17 @@ export function BoardPicker({ count, excludedCards = [], title, confirmLabel, on
       <p className="text-sm text-zinc-500 dark:text-zinc-400">
         {title} ({selected.length}/{count}).
       </p>
+
+      <div data-testid="card-preview-strip" className="flex gap-1.5">
+        {Array.from({ length: count }, (_, i) => (
+          <CardChip key={i} card={selected[i]} size="md" />
+        ))}
+      </div>
+
+      {/* One row per suit (suit-outer, rank-inner) so same-suit cards line up, unlike an alphabetical rank-major list. */}
       <div className="grid gap-1" style={{ gridTemplateColumns: "repeat(13, minmax(0, 1fr))" }}>
-        {RANKS.flatMap((rank) =>
-          SUITS.map((suit) => {
+        {SUITS.flatMap((suit) =>
+          RANKS.map((rank) => {
             const card = `${rank}${suit}`;
             const isExcluded = excluded.has(card);
             const isSelected = selected.includes(card);
@@ -43,22 +52,20 @@ export function BoardPicker({ count, excludedCards = [], title, confirmLabel, on
               <button
                 key={card}
                 type="button"
+                aria-label={card}
                 disabled={isExcluded || (!isSelected && selected.length >= count)}
                 onClick={() => toggleCard(card)}
-                className={`rounded px-1 py-1.5 text-xs font-medium disabled:opacity-30 ${
-                  isExcluded
-                    ? "bg-zinc-300 dark:bg-zinc-900"
-                    : isSelected
-                      ? "bg-emerald-500 text-white"
-                      : "bg-zinc-100 text-zinc-700 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
-                }`}
+                className={`rounded p-0.5 transition disabled:opacity-30 ${
+                  isSelected ? "ring-2 ring-emerald-500" : ""
+                } ${isExcluded ? "grayscale" : "hover:brightness-95 dark:hover:brightness-125"}`}
               >
-                {card}
+                <CardChip card={card} size="sm" />
               </button>
             );
           }),
         )}
       </div>
+
       <button
         type="button"
         disabled={selected.length !== count}
