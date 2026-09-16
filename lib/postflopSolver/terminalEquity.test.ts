@@ -1,12 +1,14 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   comboVsComboRunoutEquity,
   buildEquityTable,
   equityVsRange,
+  equityAt,
   FULL_DECK,
   remainingDeck,
 } from "./terminalEquity";
 import type { ComboRange } from "./types";
+import * as handEval from "./handEval";
 
 const BOARD = ["Th", "9s", "2d"]; // dry, disconnected
 
@@ -74,7 +76,7 @@ describe("buildEquityTable / equityVsRange", () => {
     const villainRange: ComboRange = [{ cards: ["Tc", "3h"], weight: 1 }];
     const table = buildEquityTable(heroRange, villainRange, BOARD);
     const direct = comboVsComboRunoutEquity(["As", "Kd"], ["Tc", "3h"], BOARD);
-    expect(equityVsRange(table, ["As", "Kd"], villainRange)).toBeCloseTo(direct, 10);
+    expect(equityVsRange(table, "P1", 0, villainRange.map((c) => c.weight))).toBeCloseTo(direct, 10);
   });
 
   it("weights a two-combo range by their relative weights", () => {
@@ -86,7 +88,7 @@ describe("buildEquityTable / equityVsRange", () => {
     const vsTopPair = comboVsComboRunoutEquity(["As", "Kd"], ["Tc", "3h"], BOARD);
     const vsAir = comboVsComboRunoutEquity(["As", "Kd"], ["4c", "5d"], BOARD);
     const expected = (vsTopPair * 1 + vsAir * 3) / 4;
-    expect(equityVsRange(table, ["As", "Kd"], villainRange)).toBeCloseTo(expected, 10);
+    expect(equityVsRange(table, "P1", 0, villainRange.map((c) => c.weight))).toBeCloseTo(expected, 10);
   });
 
   it("card-removal correction: fully excludes (not just zero-weights) a villain combo that shares hero's own card", () => {
@@ -100,12 +102,54 @@ describe("buildEquityTable / equityVsRange", () => {
     ];
     const table = buildEquityTable(heroRange, villainRange, BOARD);
     const onlyValidCombo = comboVsComboRunoutEquity(["As", "Kd"], ["Tc", "3h"], BOARD);
-    expect(equityVsRange(table, ["As", "Kd"], villainRange)).toBeCloseTo(onlyValidCombo, 10);
+    expect(equityVsRange(table, "P1", 0, villainRange.map((c) => c.weight))).toBeCloseTo(onlyValidCombo, 10);
   });
 
   it("returns a neutral 0.5 when the villain range is entirely empty/blocked", () => {
     const villainRange: ComboRange = [{ cards: ["As", "Qh"], weight: 1 }]; // fully blocked
     const table = buildEquityTable(heroRange, villainRange, BOARD);
-    expect(equityVsRange(table, ["As", "Kd"], villainRange)).toBe(0.5);
+    expect(equityVsRange(table, "P1", 0, villainRange.map((c) => c.weight))).toBe(0.5);
+  });
+
+  it("the precompute-then-compare algorithm matches the naive per-pair reference for every unblocked pair in a multi-combo range", () => {
+    const hRange: ComboRange = [
+      { cards: ["As", "Kd"], weight: 1 },
+      { cards: ["Qs", "Qh"], weight: 1 },
+    ];
+    const vRange: ComboRange = [
+      { cards: ["Tc", "3h"], weight: 1 },
+      { cards: ["4c", "5d"], weight: 1 },
+      { cards: ["8c", "8d"], weight: 1 },
+    ];
+    const table = buildEquityTable(hRange, vRange, BOARD);
+    for (let i = 0; i < hRange.length; i++) {
+      for (let j = 0; j < vRange.length; j++) {
+        if (hRange[i].cards.some((c) => vRange[j].cards.includes(c))) continue; // card-blocked, skip
+        const direct = comboVsComboRunoutEquity(hRange[i].cards, vRange[j].cards, BOARD);
+        expect(equityAt(table, i, j)).toBeCloseTo(direct, 10);
+      }
+    }
+  });
+
+  it("regression guard: builds the table with O(combos) hand evaluations, not O(comboPairs)", () => {
+    const spy = vi.spyOn(handEval, "handRank");
+    spy.mockClear();
+    const hRange: ComboRange = [
+      { cards: ["As", "Kd"], weight: 1 },
+      { cards: ["Qs", "Qh"], weight: 1 },
+      { cards: ["Jc", "Jd"], weight: 1 },
+    ];
+    const vRange: ComboRange = [
+      { cards: ["Tc", "3h"], weight: 1 },
+      { cards: ["4c", "5d"], weight: 1 },
+      { cards: ["8c", "8d"], weight: 1 },
+    ];
+    buildEquityTable(hRange, vRange, BOARD);
+    // A naive per-pair algorithm (comboVsComboRunoutEquity per pair) would call
+    // handRank roughly 2 * 9 pairs * 990 runouts ≈ 17,820 times. The
+    // precompute-then-compare algorithm should call it only ~(3+3) combos *
+    // 990 runouts = 5,940 times — well under the naive pair-count lower bound.
+    expect(spy.mock.calls.length).toBeLessThan(9 * 990);
+    spy.mockRestore();
   });
 });

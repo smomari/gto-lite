@@ -134,13 +134,11 @@ export function runCfr(
 
     if (node.type === "terminal-showdown") {
       const pot = totalPot(node.state);
-      const villainWeighted: ComboRange = villainCombos.map((cards, i) => ({ cards, weight: reachP2[i] }));
-      const heroWeighted: ComboRange = heroCombos.map((cards, i) => ({ cards, weight: reachP1[i] }));
       const utilP1 = heroCombos.map(
-        (cards) => equityVsRange(equityTable, cards, villainWeighted) * pot - node.state.committed.P1,
+        (_, i) => equityVsRange(equityTable, "P1", i, reachP2) * pot - node.state.committed.P1,
       );
       const utilP2 = villainCombos.map(
-        (cards) => equityVsRange(equityTable, cards, heroWeighted) * pot - node.state.committed.P2,
+        (_, i) => equityVsRange(equityTable, "P2", i, reachP1) * pot - node.state.committed.P2,
       );
       return { utilP1, utilP2 };
     }
