@@ -50,11 +50,8 @@ export function computeCheckdownEquities(
 
     if (node.type === "terminal-showdown") {
       const pot = totalPot(node.state);
-      const villainWeighted: ComboRange = villainCombos.map((cards, i) => ({ cards, weight: reachP2[i] }));
-      const heroWeighted: ComboRange = heroCombos.map((cards, i) => ({ cards, weight: reachP1[i] }));
-
-      const heroEquities = heroCombos.map((cards) => equityVsRange(equityTable, cards, villainWeighted));
-      const villainEquities = villainCombos.map((cards) => equityVsRange(equityTable, cards, heroWeighted));
+      const heroEquities = heroCombos.map((_, i) => equityVsRange(equityTable, "P1", i, reachP2));
+      const villainEquities = villainCombos.map((_, i) => equityVsRange(equityTable, "P2", i, reachP1));
 
       const heroEquity = weightedAverage(heroEquities, reachP1);
       const villainEquity = weightedAverage(villainEquities, reachP2);

@@ -47,7 +47,7 @@ describe("solvePostflopStreet", () => {
 
     // equityTable is populated and reusable by checkdownEquity.ts without
     // any further equity computation — full end-to-end pipeline check.
-    expect(result.equityTable.size).toBeGreaterThan(0);
+    expect(result.equityTable.heroCount * result.equityTable.villainCount).toBeGreaterThan(0);
     const checkdown = computeCheckdownEquities(
       result.tree,
       result.solution,

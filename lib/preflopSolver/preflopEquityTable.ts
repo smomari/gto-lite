@@ -1,6 +1,5 @@
 import type { ComboRange } from "@/lib/postflopSolver/types";
 import type { EquityTable } from "@/lib/postflopSolver/terminalEquity";
-import { comboKey } from "@/lib/postflopSolver/terminalEquity";
 import { canonicalHandOf } from "@/lib/postflopSolver/canonicalHand";
 import type { EquityMatrix } from "@/lib/equity/loadEquityMatrix";
 import { equityOf } from "@/lib/equity/loadEquityMatrix";
@@ -11,9 +10,7 @@ import { equityOf } from "@/lib/equity/loadEquityMatrix";
  * board-based runout enumeration — O(1) lookups, no Monte Carlo, no board.
  *
  * Unlike buildEquityTable, this fills EVERY hero/villain pair unconditionally
- * (no card-removal skip): terminalEquity.ts's lookupEquity throws on a
- * missing key rather than falling back to computing on the fly, so the table
- * must be exhaustive. That's safe here because heroRange/villainRange are
+ * (no card-removal skip): that's safe here because heroRange/villainRange are
  * expected to come from disjoint suit pools (see canonicalRange.ts), so no
  * pair is ever actually card-blocked in the first place.
  */
@@ -22,13 +19,18 @@ export function buildPreflopEquityTable(
   villainRange: ComboRange,
   matrix: EquityMatrix,
 ): EquityTable {
-  const table: EquityTable = new Map();
-  for (const h of heroRange) {
-    for (const v of villainRange) {
-      const key = `${comboKey(h.cards)}|${comboKey(v.cards)}`;
-      if (table.has(key)) continue;
-      table.set(key, equityOf(matrix, canonicalHandOf(h.cards), canonicalHandOf(v.cards)));
+  const heroCount = heroRange.length;
+  const villainCount = villainRange.length;
+  const heroEquity = new Float64Array(heroCount * villainCount);
+  const villainEquity = new Float64Array(villainCount * heroCount);
+
+  for (let i = 0; i < heroCount; i++) {
+    const heroHand = canonicalHandOf(heroRange[i].cards);
+    for (let j = 0; j < villainCount; j++) {
+      const equity = equityOf(matrix, heroHand, canonicalHandOf(villainRange[j].cards));
+      heroEquity[i * villainCount + j] = equity;
+      villainEquity[j * heroCount + i] = 1 - equity;
     }
   }
-  return table;
+  return { heroCount, villainCount, heroEquity, villainEquity };
 }

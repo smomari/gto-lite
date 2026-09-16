@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ComboRange } from "./types";
-import type { EquityTable } from "./terminalEquity";
+import { equityTableFromEntries } from "./terminalEquity";
 import { initialPostflopPotState } from "./potState";
 import type { DecisionNode, PostflopTreeNode } from "./treeBuilder";
 import type { CfrSolution } from "./cfr";
@@ -20,10 +20,10 @@ describe("computeCheckdownEquities", () => {
     const state = initialPostflopPotState(10);
     const showdown: PostflopTreeNode = { type: "terminal-showdown", state };
 
-    const table: EquityTable = new Map([[tableKey(hero, villain), 0.7]]);
     const solution: CfrSolution = { iterations: 1, getAverageStrategy: () => [[1]] };
     const heroRange: ComboRange = [{ cards: hero, weight: 1 }];
     const villainRange: ComboRange = [{ cards: villain, weight: 1 }];
+    const table = equityTableFromEntries(heroRange, villainRange, new Map([[tableKey(hero, villain), 0.7]]));
 
     const summaries = computeCheckdownEquities(showdown, solution, heroRange, villainRange, table);
     const summary = summaries.get(showdown)!;
@@ -41,7 +41,8 @@ describe("computeCheckdownEquities", () => {
     const heroRange: ComboRange = [{ cards: ["As", "Ks"], weight: 1 }];
     const villainRange: ComboRange = [{ cards: ["Qh", "Qd"], weight: 1 }];
 
-    const summaries = computeCheckdownEquities(fold, solution, heroRange, villainRange, new Map());
+    const table = equityTableFromEntries(heroRange, villainRange, new Map());
+    const summaries = computeCheckdownEquities(fold, solution, heroRange, villainRange, table);
     expect(summaries.has(fold)).toBe(false);
     expect(summaries.size).toBe(0);
   });
@@ -67,10 +68,6 @@ describe("computeCheckdownEquities", () => {
       ],
     };
 
-    const table: EquityTable = new Map([
-      [tableKey(nuts, villain), 0.95],
-      [tableKey(air, villain), 0.05],
-    ]);
     // combo 0 (nuts) always checks (action index 1), combo 1 (air) always folds (action index 0).
     const solution: CfrSolution = {
       iterations: 1,
@@ -84,6 +81,14 @@ describe("computeCheckdownEquities", () => {
       { cards: air, weight: 1 },
     ];
     const villainRange: ComboRange = [{ cards: villain, weight: 1 }];
+    const table = equityTableFromEntries(
+      heroRange,
+      villainRange,
+      new Map([
+        [tableKey(nuts, villain), 0.95],
+        [tableKey(air, villain), 0.05],
+      ]),
+    );
 
     const summaries = computeCheckdownEquities(root, solution, heroRange, villainRange, table);
     const summary = summaries.get(showdownTerminal)!;
@@ -106,7 +111,7 @@ describe("computeCheckdownEquities", () => {
     const villainCards: [string, string] = ["Qh", "Qd"];
     const heroRange: ComboRange = [{ cards: heroCards, weight: 0 }];
     const villainRange: ComboRange = [{ cards: villainCards, weight: 1 }];
-    const table: EquityTable = new Map([[tableKey(heroCards, villainCards), 0.6]]);
+    const table = equityTableFromEntries(heroRange, villainRange, new Map([[tableKey(heroCards, villainCards), 0.6]]));
 
     expect(() => computeCheckdownEquities(root, solution, heroRange, villainRange, table)).not.toThrow();
   });
