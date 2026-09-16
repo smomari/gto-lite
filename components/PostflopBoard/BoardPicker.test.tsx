@@ -46,4 +46,23 @@ describe("BoardPicker", () => {
     fireEvent.click(excludedButton);
     expect(screen.getByText("Pick the turn card (0/1).")).toBeInTheDocument();
   });
+
+  it("the preview strip fills as cards are picked and empties again when a pick is undone", () => {
+    render(<BoardPicker count={2} title="Pick the 2 cards" confirmLabel="Solve" onConfirm={() => {}} />);
+    const previewSlots = () => screen.getByTestId("card-preview-strip").querySelectorAll("[data-card]");
+
+    expect(previewSlots()).toHaveLength(0); // nothing picked yet, both slots are empty placeholders
+
+    fireEvent.click(screen.getByRole("button", { name: "As" }));
+    expect(previewSlots()).toHaveLength(1);
+    expect(previewSlots()[0]).toHaveAttribute("data-card", "As");
+
+    fireEvent.click(screen.getByRole("button", { name: "Kd" }));
+    expect(previewSlots()).toHaveLength(2);
+
+    // Re-clicking an already-picked card toggles it back off.
+    fireEvent.click(screen.getByRole("button", { name: "As" }));
+    expect(previewSlots()).toHaveLength(1);
+    expect(previewSlots()[0]).toHaveAttribute("data-card", "Kd");
+  });
 });

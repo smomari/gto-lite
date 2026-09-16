@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import { BoardPicker } from "./BoardPicker";
+import { CardChip } from "./CardChip";
 import { PostflopActionBar } from "./PostflopActionBar";
 import { PostflopRangeGrid } from "@/components/PostflopStrategy/PostflopRangeGrid";
 import { SolveProgress } from "@/components/PostflopStrategy/SolveProgress";
@@ -284,9 +285,18 @@ export function PostflopPanel(props: PostflopPanelProps) {
             data-street={stage.streetLabel}
             className="flex flex-col gap-3 border-t border-zinc-200 pt-3 first:border-t-0 first:pt-0 dark:border-zinc-800"
           >
-            <h3 className="text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-              {stage.streetLabel}
-            </h3>
+            <div className="flex items-center gap-2">
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                {stage.streetLabel}
+              </h3>
+              {solveState.kind !== "idle" && (
+                <div className="flex gap-1">
+                  {stage.board.map((card) => (
+                    <CardChip key={card} card={card} size="md" />
+                  ))}
+                </div>
+              )}
+            </div>
 
             {solveState.kind === "idle" && (
               <BoardPicker

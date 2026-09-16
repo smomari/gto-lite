@@ -1,4 +1,5 @@
 import { MAX_PRECISE_SAMPLE_COUNT } from "@/lib/postflopSolver/nextCardSampling";
+import { CardChip } from "./CardChip";
 
 export type PreciseAvgState =
   | { kind: "idle" }
@@ -62,7 +63,9 @@ export function AverageNextCardEv({ state, heroLabel, villainLabel, sampleCount,
             <tbody>
               {state.samples.map((s) => (
                 <tr key={s.card}>
-                  <td className="pr-3">{s.card}</td>
+                  <td className="pr-3">
+                    <CardChip card={s.card} size="sm" />
+                  </td>
                   <td className="pr-3">
                     {heroLabel} {formatBb(s.heroEvBb)}
                   </td>
