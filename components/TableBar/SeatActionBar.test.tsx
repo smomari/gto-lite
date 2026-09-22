@@ -79,4 +79,43 @@ describe("SeatActionBar", () => {
     coBoxes[0].querySelector("button")?.click();
     expect(onRevisit).toHaveBeenCalledWith(4);
   });
+
+  it("the seat row is non-wrapping and horizontally scrollable, never stacking to a new row", () => {
+    const { container } = render(
+      <SeatActionBar
+        stackBb={100}
+        actionPath={[]}
+        activeSeat="UTG"
+        availableActions={computeAvailableActions("UTG", initialPotState(), 100)}
+        loading={false}
+        onAction={noop}
+        onRevisit={noop}
+        onQuickAction={noop}
+      />,
+    );
+    const row = container.firstElementChild as HTMLElement;
+    expect(row.className).toContain("flex-nowrap");
+    expect(row.className).toContain("overflow-x-auto");
+    expect(row.className).not.toContain("flex-wrap");
+  });
+
+  it("renders `trailing` as the last element in the same row", () => {
+    render(
+      <SeatActionBar
+        stackBb={100}
+        actionPath={[]}
+        activeSeat="UTG"
+        availableActions={computeAvailableActions("UTG", initialPotState(), 100)}
+        loading={false}
+        onAction={noop}
+        onRevisit={noop}
+        onQuickAction={noop}
+        trailing={<div data-testid="trailing-marker">board</div>}
+      />,
+    );
+    const boxes = screen.getAllByTestId("seat-box");
+    const trailing = screen.getByTestId("trailing-marker");
+    // The trailing marker comes after every seat box in document order.
+    expect(boxes[boxes.length - 1].compareDocumentPosition(trailing) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
 });

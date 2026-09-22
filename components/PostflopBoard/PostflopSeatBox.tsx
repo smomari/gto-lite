@@ -1,4 +1,5 @@
 import type { SerializedDecisionAction } from "@/types/postflopSolver";
+import { readableTextColor } from "@/components/PostflopStrategy/postflopColorLegend";
 
 type PostflopSeatBoxProps =
   | {
@@ -12,6 +13,8 @@ type PostflopSeatBoxProps =
       potBb: number;
       currentBetToCall: number;
       actions: SerializedDecisionAction[];
+      /** Colors per action instance, index-aligned to `actions` (see `buildActionColorScale`). */
+      actionColors: string[];
       onNavigate: (action: SerializedDecisionAction) => void;
     };
 
@@ -52,7 +55,8 @@ export function PostflopSeatBox(props: PostflopSeatBoxProps) {
               key={i}
               type="button"
               onClick={() => props.onNavigate(a)}
-              className="rounded bg-zinc-100 px-2 py-1 text-left text-xs font-medium text-zinc-700 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
+              className="rounded px-2 py-1 text-left text-xs font-medium transition hover:brightness-95 dark:hover:brightness-110"
+              style={{ backgroundColor: props.actionColors[i], color: readableTextColor(props.actionColors[i]) }}
             >
               {a.label}
             </button>

@@ -112,7 +112,7 @@ export function SeatBox(props: SeatBoxProps) {
       data-testid="seat-box"
       data-kind={props.kind}
       data-position={position}
-      className={`flex min-w-[130px] flex-col gap-1.5 rounded-lg border p-2.5 ${
+      className={`flex shrink-0 min-w-[130px] flex-col gap-1.5 rounded-lg border p-2.5 ${
         isActive
           ? "border-emerald-500 ring-1 ring-emerald-500"
           : isFolded

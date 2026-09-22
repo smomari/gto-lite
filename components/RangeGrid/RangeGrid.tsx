@@ -11,10 +11,10 @@ export function RangeGrid({ scenario }: RangeGridProps) {
   const byHand = new Map(scenario.hands.map((h) => [h.hand, h]));
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex h-full min-h-0 flex-col gap-2">
       <div
-        className="grid gap-[2px]"
-        style={{ gridTemplateColumns: "repeat(13, minmax(0, 1fr))" }}
+        className="grid flex-1 min-h-0 gap-[2px]"
+        style={{ gridTemplateColumns: "repeat(13, minmax(0, 1fr))", gridTemplateRows: "repeat(13, minmax(0, 1fr))" }}
       >
         {HAND_MATRIX.flatMap((row, i) =>
           row.map((hand, j) => (

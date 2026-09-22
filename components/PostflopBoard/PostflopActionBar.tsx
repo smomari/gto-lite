@@ -1,5 +1,6 @@
 import type { PostflopPlayer } from "@/lib/postflopSolver/potState";
 import type { SerializedDecisionAction, SerializedTreeNode } from "@/types/postflopSolver";
+import { buildActionColorScale } from "@/components/PostflopStrategy/postflopColorLegend";
 import { PostflopSeatBox } from "./PostflopSeatBox";
 
 interface PostflopHistoryEntry {
@@ -44,6 +45,7 @@ export function PostflopActionBar({
             potBb={node.potBb}
             currentBetToCall={node.currentBetToCall}
             actions={node.actions}
+            actionColors={buildActionColorScale(node.actions)}
             onNavigate={onNavigate}
           />
         )}
