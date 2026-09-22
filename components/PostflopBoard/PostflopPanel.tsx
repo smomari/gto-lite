@@ -1,10 +1,14 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { BoardPicker } from "./BoardPicker";
 import { CardChip } from "./CardChip";
+import { PastStreetSummary } from "./PastStreetSummary";
 import { PostflopActionBar } from "./PostflopActionBar";
 import { PostflopRangeGrid } from "@/components/PostflopStrategy/PostflopRangeGrid";
+import { BetSizeFilterBar } from "@/components/PostflopStrategy/BetSizeFilterBar";
+import { SuitedComboBreakdown } from "@/components/PostflopStrategy/SuitedComboBreakdown";
+import { buildActionColorScale } from "@/components/PostflopStrategy/postflopColorLegend";
 import { SolveProgress } from "@/components/PostflopStrategy/SolveProgress";
 import { ExploitabilityBadge } from "@/components/PostflopStrategy/ExploitabilityBadge";
 import { CheckdownEquityNote } from "./CheckdownEquityNote";
@@ -32,6 +36,8 @@ interface PostflopPanelProps {
   villainActionKey: ActionWeightKey;
   startPot: number;
   effectiveStackBb: number;
+  /** Called whenever the confirmed board(s) change, so a caller can surface them outside this panel (e.g. next to the seat action row). */
+  onBoardSummaryChange?: (streets: { streetLabel: StreetLabel; board: string[] }[]) => void;
 }
 
 type SolveState =
@@ -40,7 +46,7 @@ type SolveState =
   | { kind: "done"; result: PostflopResultMessage }
   | { kind: "error"; message: string };
 
-type StreetLabel = "Flop" | "Turn" | "River";
+export type StreetLabel = "Flop" | "Turn" | "River";
 
 /**
  * One street's worth of state: board picking, solving, and tree navigation.
@@ -85,6 +91,16 @@ export function PostflopPanel(props: PostflopPanelProps) {
   const [streets, setStreets] = useState<StreetStage[]>([idleStage(3, props.effectiveStackBb)]);
   const [preciseAvgByStage, setPreciseAvgByStage] = useState<Record<number, PreciseAvgState>>({});
   const preciseAbortRef = useRef<AbortController | null>(null);
+  const [selectedHand, setSelectedHand] = useState<string | null>(null);
+  const [isolatedActionIndex, setIsolatedActionIndex] = useState<number | null>(null);
+  const [expandedPastStage, setExpandedPastStage] = useState<number | null>(null);
+
+  useEffect(() => {
+    props.onBoardSummaryChange?.(
+      streets.filter((s) => s.board.length > 0).map((s) => ({ streetLabel: s.streetLabel, board: s.board })),
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- onBoardSummaryChange is expected to be a stable setState reference, not re-run-worthy on its own
+  }, [streets]);
 
   function clearPreciseAvgFrom(stageIndex: number) {
     setPreciseAvgByStage((prev) => {
@@ -96,8 +112,15 @@ export function PostflopPanel(props: PostflopPanelProps) {
     });
   }
 
+  /** The grid's selection/isolation state only ever applies to the current (last) street — clear it any time the current stage's decision context changes. */
+  function resetGridSelection() {
+    setSelectedHand(null);
+    setIsolatedActionIndex(null);
+  }
+
   function handleNavigate(stageIndex: number, action: SerializedDecisionAction) {
     clearPreciseAvgFrom(stageIndex);
+    resetGridSelection();
     setStreets((prev) => {
       const stage = prev[stageIndex];
       if (stage.currentNode?.type !== "decision") return prev;
@@ -127,6 +150,8 @@ export function PostflopPanel(props: PostflopPanelProps) {
 
   function handleResetStreet(stageIndex: number) {
     clearPreciseAvgFrom(stageIndex);
+    resetGridSelection();
+    setExpandedPastStage(null);
     setStreets((prev) => {
       const stage = prev[stageIndex];
       if (stage.state.kind !== "done") return prev;
@@ -136,6 +161,8 @@ export function PostflopPanel(props: PostflopPanelProps) {
 
   function handlePickDifferentBoard(stageIndex: number) {
     clearPreciseAvgFrom(stageIndex);
+    resetGridSelection();
+    setExpandedPastStage(null);
     setStreets((prev) => [
       ...prev.slice(0, stageIndex),
       { ...prev[stageIndex], board: [], state: { kind: "idle" }, currentNode: null, path: [] },
@@ -143,6 +170,7 @@ export function PostflopPanel(props: PostflopPanelProps) {
   }
 
   function handleBoardConfirm(stageIndex: number, cards: string[]) {
+    resetGridSelection();
     const fullBoard = stageIndex === 0 ? cards : [...streets[stageIndex - 1].board, ...cards];
 
     let request: PostflopSolveRequest;
@@ -267,23 +295,161 @@ export function PostflopPanel(props: PostflopPanelProps) {
     preciseAbortRef.current?.abort();
   }
 
+  /**
+   * The "done" state's content — identical whether it's the live current
+   * street or an expanded past one, since a past stage is (by
+   * PostflopPanel's own invariant: a next stage is only ever pushed once the
+   * previous one reaches a terminal-showdown) always a resolved
+   * terminal-showdown, never a decision node — so the 2-column grid branch
+   * below simply never fires for past stages, no separate "past" variant needed.
+   */
+  function renderDoneContent(
+    stage: StreetStage,
+    i: number,
+    solveState: Extract<SolveState, { kind: "done" }>,
+    currentNode: SerializedTreeNode,
+  ) {
+    const isFlop = stage.streetLabel === "Flop";
+    return (
+      <>
+        {solveState.result.exploitability && <ExploitabilityBadge exploitability={solveState.result.exploitability} />}
+        <PostflopActionBar
+          node={currentNode}
+          history={stage.path.map((step) => ({
+            actor: step.node.actor,
+            label: step.node.actions[step.actionIndex].label,
+          }))}
+          heroLabel={props.heroLabel}
+          villainLabel={props.villainLabel}
+          onNavigate={(action) => handleNavigate(i, action)}
+          terminalShowdownMessage={(potBb) => {
+            const committed = currentNode.type === "terminal-showdown" ? currentNode.committed : null;
+            const stackLeft = committed ? stage.effectiveStackAtStart - committed.P1 : null;
+
+            if (stackLeft !== null && stackLeft <= 0) {
+              return `All-in — hand is already decided, pot ${potBb.toFixed(1)}bb runs out to showdown automatically.`;
+            }
+            if (!hasNextStreet(stage.board.length)) {
+              return `Showdown — pot ${potBb.toFixed(1)}bb. Hand complete.`;
+            }
+            const nextStreetLabel = streetLabelForBoardLength(stage.board.length + 1);
+            return `Street ends — pot ${potBb.toFixed(1)}bb, ${nextStreetLabel.toLowerCase()} card coming next.`;
+          }}
+        />
+        {currentNode.type === "terminal-showdown" && hasNextStreet(stage.board.length) && currentNode.checkdownEquity && (
+          <>
+            <CheckdownEquityNote
+              equity={currentNode.checkdownEquity}
+              heroLabel={props.heroLabel}
+              villainLabel={props.villainLabel}
+            />
+            <AverageNextCardEv
+              state={preciseAvgByStage[i] ?? { kind: "idle" }}
+              heroLabel={props.heroLabel}
+              villainLabel={props.villainLabel}
+              sampleCount={DEFAULT_PRECISE_SAMPLE_COUNT}
+              onCompute={() => handleComputePreciseAverageEv(i)}
+              onCancel={handleCancelPreciseAverageEv}
+            />
+          </>
+        )}
+        {currentNode.type === "decision" &&
+          (() => {
+            const decisionNode = currentNode;
+            const actionColors = buildActionColorScale(decisionNode.actions);
+            const range = decisionNode.actor === "P1" ? solveState.result.heroRange : solveState.result.villainRange;
+            return (
+              <div className="grid flex-1 min-h-0 grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
+                <div className="flex min-h-0 flex-col gap-2">
+                  <BetSizeFilterBar
+                    node={decisionNode}
+                    range={range}
+                    colors={actionColors}
+                    isolatedActionIndex={isolatedActionIndex}
+                    onIsolateChange={setIsolatedActionIndex}
+                  />
+                  <div className="min-h-0 flex-1">
+                    <PostflopRangeGrid
+                      range={range}
+                      node={decisionNode}
+                      colors={actionColors}
+                      isolatedActionIndex={isolatedActionIndex}
+                      selectedHand={selectedHand}
+                      onSelectHand={setSelectedHand}
+                    />
+                  </div>
+                </div>
+                <div className="flex min-h-0 flex-col gap-3 overflow-y-auto border-l border-zinc-200 pl-4 dark:border-zinc-800">
+                  <SuitedComboBreakdown
+                    selectedHand={selectedHand}
+                    node={decisionNode}
+                    range={range}
+                    board={stage.board}
+                    colors={actionColors}
+                    heroLabel={props.heroLabel}
+                    villainLabel={props.villainLabel}
+                  />
+                </div>
+              </div>
+            );
+          })()}
+        <div className="flex gap-3">
+          <button
+            type="button"
+            onClick={() => handleResetStreet(i)}
+            className="text-xs text-zinc-500 underline hover:text-zinc-900 dark:hover:text-zinc-100"
+          >
+            Reset to start of street
+          </button>
+          <button
+            type="button"
+            onClick={() => handlePickDifferentBoard(i)}
+            className="text-xs text-zinc-500 underline hover:text-zinc-900 dark:hover:text-zinc-100"
+          >
+            {isFlop ? "Pick a different board" : `Pick a different ${stage.streetLabel.toLowerCase()} card`}
+          </button>
+        </div>
+      </>
+    );
+  }
+
   return (
-    <div className="flex flex-col gap-4 rounded-lg border border-zinc-300 p-4 dark:border-zinc-700">
-      <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+    <div className="flex flex-1 min-h-0 flex-col gap-2 overflow-hidden rounded-lg border border-zinc-300 p-4 dark:border-zinc-700">
+      <h2 className="text-xs font-semibold text-zinc-900 dark:text-zinc-100">
         Postflop solver ({props.heroLabel} vs {props.villainLabel}) — Phase 1, experimental
       </h2>
 
       {streets.map((stage, i) => {
+        const isLast = i === streets.length - 1;
         const solveState = stage.state;
         const currentNode = stage.currentNode;
         const isFlop = stage.streetLabel === "Flop";
+
+        if (!isLast) {
+          // Invariant: a stage is only ever non-last once its own action reached
+          // a terminal-showdown (see handleNavigate) — always resolved by now.
+          if (solveState.kind !== "done" || !currentNode) return null;
+          return (
+            <PastStreetSummary
+              key={i}
+              streetLabel={stage.streetLabel}
+              board={stage.board}
+              potBb={currentNode.potBb}
+              actionLabels={stage.path.map((step) => step.node.actions[step.actionIndex].label)}
+              expanded={expandedPastStage === i}
+              onToggleExpand={() => setExpandedPastStage(expandedPastStage === i ? null : i)}
+            >
+              {renderDoneContent(stage, i, solveState, currentNode)}
+            </PastStreetSummary>
+          );
+        }
 
         return (
           <div
             key={i}
             data-testid="street-stage"
             data-street={stage.streetLabel}
-            className="flex flex-col gap-3 border-t border-zinc-200 pt-3 first:border-t-0 first:pt-0 dark:border-zinc-800"
+            className="flex flex-1 min-h-0 flex-col gap-2 overflow-y-auto border-t border-zinc-200 pt-2 first:border-t-0 first:pt-0 dark:border-zinc-800"
           >
             <div className="flex items-center gap-2">
               <h3 className="text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
@@ -322,77 +488,7 @@ export function PostflopPanel(props: PostflopPanelProps) {
               <p className="text-sm text-red-600 dark:text-red-400">Error: {solveState.message}</p>
             )}
 
-            {solveState.kind === "done" && currentNode && (
-              <>
-                {solveState.result.exploitability && (
-                  <ExploitabilityBadge exploitability={solveState.result.exploitability} />
-                )}
-                <PostflopActionBar
-                  node={currentNode}
-                  history={stage.path.map((step) => ({
-                    actor: step.node.actor,
-                    label: step.node.actions[step.actionIndex].label,
-                  }))}
-                  heroLabel={props.heroLabel}
-                  villainLabel={props.villainLabel}
-                  onNavigate={(action) => handleNavigate(i, action)}
-                  terminalShowdownMessage={(potBb) => {
-                    const committed = currentNode.type === "terminal-showdown" ? currentNode.committed : null;
-                    const stackLeft = committed ? stage.effectiveStackAtStart - committed.P1 : null;
-
-                    if (stackLeft !== null && stackLeft <= 0) {
-                      return `All-in — hand is already decided, pot ${potBb.toFixed(1)}bb runs out to showdown automatically.`;
-                    }
-                    if (!hasNextStreet(stage.board.length)) {
-                      return `Showdown — pot ${potBb.toFixed(1)}bb. Hand complete.`;
-                    }
-                    const nextStreetLabel = streetLabelForBoardLength(stage.board.length + 1);
-                    return `Street ends — pot ${potBb.toFixed(1)}bb, ${nextStreetLabel.toLowerCase()} card coming next.`;
-                  }}
-                />
-                {currentNode.type === "terminal-showdown" &&
-                  hasNextStreet(stage.board.length) &&
-                  currentNode.checkdownEquity && (
-                    <>
-                      <CheckdownEquityNote
-                        equity={currentNode.checkdownEquity}
-                        heroLabel={props.heroLabel}
-                        villainLabel={props.villainLabel}
-                      />
-                      <AverageNextCardEv
-                        state={preciseAvgByStage[i] ?? { kind: "idle" }}
-                        heroLabel={props.heroLabel}
-                        villainLabel={props.villainLabel}
-                        sampleCount={DEFAULT_PRECISE_SAMPLE_COUNT}
-                        onCompute={() => handleComputePreciseAverageEv(i)}
-                        onCancel={handleCancelPreciseAverageEv}
-                      />
-                    </>
-                  )}
-                {currentNode.type === "decision" && (
-                  <PostflopRangeGrid
-                    range={currentNode.actor === "P1" ? solveState.result.heroRange : solveState.result.villainRange}
-                    node={currentNode}
-                  />
-                )}
-                <div className="flex gap-3">
-                  <button
-                    type="button"
-                    onClick={() => handleResetStreet(i)}
-                    className="text-xs text-zinc-500 underline hover:text-zinc-900 dark:hover:text-zinc-100"
-                  >
-                    Reset to start of street
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handlePickDifferentBoard(i)}
-                    className="text-xs text-zinc-500 underline hover:text-zinc-900 dark:hover:text-zinc-100"
-                  >
-                    {isFlop ? "Pick a different board" : `Pick a different ${stage.streetLabel.toLowerCase()} card`}
-                  </button>
-                </div>
-              </>
-            )}
+            {solveState.kind === "done" && currentNode && renderDoneContent(stage, i, solveState, currentNode)}
           </div>
         );
       })}

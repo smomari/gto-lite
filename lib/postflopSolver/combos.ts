@@ -66,3 +66,15 @@ export function filterBlockedCombos(range: ComboRange, blockedCards: string[]): 
 
 /** Total combo count across ALL_HANDS, for sanity checks (should be 1326 = C(52,2)). */
 export const TOTAL_PREFLOP_COMBOS = ALL_HANDS.reduce((sum, h) => sum + h.combos, 0);
+
+/** Order-independent identity for a physical 2-card combo, e.g. ["Kc","Ac"] and ["Ac","Kc"] both key to "AcKc". */
+export function comboKey(cards: [string, string]): string {
+  return [...cards].sort().join("");
+}
+
+/** Maps each combo's identity to its index in a solved range array, for looking up its strategy row (`node.strategy[index]`) by concrete cards. */
+export function buildComboIndex(range: { cards: [string, string] }[]): Map<string, number> {
+  const map = new Map<string, number>();
+  range.forEach((c, i) => map.set(comboKey(c.cards), i));
+  return map;
+}

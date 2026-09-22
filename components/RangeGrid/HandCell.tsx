@@ -29,7 +29,7 @@ export function HandCell({ hand, frequency }: HandCellProps) {
 
   return (
     <div
-      className="relative aspect-square w-full overflow-hidden rounded-[2px] border border-black/10 dark:border-white/10"
+      className="relative h-full w-full overflow-hidden rounded-[2px] border border-black/10 dark:border-white/10"
       title={tooltip}
       data-hand={hand}
       data-testid="hand-cell"

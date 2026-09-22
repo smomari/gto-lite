@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { ALL_HANDS } from "@/lib/handRange/handList";
 import type { HandFrequency } from "@/types/rangeData";
-import { enumerateCombos, expandToCombos, filterBlockedCombos, TOTAL_PREFLOP_COMBOS } from "./combos";
+import { buildComboIndex, comboKey, enumerateCombos, expandToCombos, filterBlockedCombos, TOTAL_PREFLOP_COMBOS } from "./combos";
 
 describe("enumerateCombos", () => {
   it("gives a pair 6 combos, all same rank different suits", () => {
@@ -93,5 +93,32 @@ describe("filterBlockedCombos", () => {
   it("keeps every combo when nothing is blocked", () => {
     const range = [{ cards: ["Ah", "Kd"] as [string, string], weight: 1 }];
     expect(filterBlockedCombos(range, [])).toEqual(range);
+  });
+});
+
+describe("comboKey", () => {
+  it("is order-independent", () => {
+    expect(comboKey(["Ac", "Kc"])).toBe(comboKey(["Kc", "Ac"]));
+  });
+
+  it("differs for different combos", () => {
+    expect(comboKey(["Ac", "Kc"])).not.toBe(comboKey(["Ad", "Kd"]));
+  });
+});
+
+describe("buildComboIndex", () => {
+  it("maps each combo's key to its position in the range array", () => {
+    const range = [
+      { cards: ["Ac", "Kc"] as [string, string] },
+      { cards: ["Ad", "Kd"] as [string, string] },
+    ];
+    const index = buildComboIndex(range);
+    expect(index.get(comboKey(["Ac", "Kc"]))).toBe(0);
+    expect(index.get(comboKey(["Kd", "Ad"]))).toBe(1); // order-independent lookup too
+  });
+
+  it("returns undefined for a combo not present in the range", () => {
+    const index = buildComboIndex([{ cards: ["Ac", "Kc"] as [string, string] }]);
+    expect(index.get(comboKey(["Ah", "Kh"]))).toBeUndefined();
   });
 });

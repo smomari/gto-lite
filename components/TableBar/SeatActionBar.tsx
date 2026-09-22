@@ -12,6 +12,8 @@ interface SeatActionBarProps {
   onAction: (action: ActionType) => void;
   onRevisit: (globalIndex: number) => void;
   onQuickAction: (target: Position, action: ActionType) => void;
+  /** Rendered as the last element in the same horizontally-scrolling row (e.g. the confirmed postflop board strip). */
+  trailing?: React.ReactNode;
 }
 
 export function SeatActionBar({
@@ -23,11 +25,12 @@ export function SeatActionBar({
   onAction,
   onRevisit,
   onQuickAction,
+  trailing,
 }: SeatActionBarProps) {
   const pendingSeats = activeSeat ? computeRoundActingOrder(actionPath, activeSeat, stackBb).slice(1) : [];
 
   return (
-    <div className="flex flex-wrap gap-2">
+    <div className="flex flex-nowrap items-start gap-2 overflow-x-auto pb-1">
       {actionPath.map((entry, globalIndex) => (
         <SeatBox
           key={`h-${globalIndex}`}
@@ -61,6 +64,8 @@ export function SeatActionBar({
           onQuickAction={(action) => onQuickAction(position, action)}
         />
       ))}
+
+      {trailing}
     </div>
   );
 }
