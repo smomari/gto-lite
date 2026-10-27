@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ComboRange } from "./types";
-import { equityTableFromEntries } from "./terminalEquity";
+import { equityTableFromEntries } from "./equityTableTestUtils";
 import { initialPostflopPotState } from "./potState";
 import type { DecisionNode, PostflopTreeNode } from "./treeBuilder";
 import type { CfrSolution } from "./cfr";

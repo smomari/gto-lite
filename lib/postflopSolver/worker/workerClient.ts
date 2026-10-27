@@ -1,12 +1,13 @@
 import type {
   PostflopResultMessage,
   PostflopSolveInMessage,
+  PostflopSolvePhase,
   PostflopSolveRequest,
   PostflopWorkerOutMessage,
 } from "@/types/postflopSolver";
 
 export interface SolvePostflopOptions {
-  onProgress?: (phase: "equity" | "cfr", done: number, total: number, exploitabilityPercent?: number) => void;
+  onProgress?: (phase: PostflopSolvePhase, done: number, total: number, exploitabilityPercent?: number) => void;
   signal?: AbortSignal;
 }
 

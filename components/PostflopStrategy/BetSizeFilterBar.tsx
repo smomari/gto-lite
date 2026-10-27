@@ -1,3 +1,4 @@
+import { formatPercent } from "@/lib/format";
 import type { SerializedCombo, SerializedDecisionNode } from "@/types/postflopSolver";
 import { readableTextColor } from "./postflopColorLegend";
 
@@ -46,7 +47,7 @@ export function BetSizeFilterBar({ node, range, colors, isolatedActionIndex, onI
             }`}
             style={{ backgroundColor: colors[i], color: readableTextColor(colors[i]) }}
           >
-            {a.label} · {(frequencies[i] * 100).toFixed(1)}%
+            {a.label} · {formatPercent(frequencies[i])}
           </button>
         );
       })}

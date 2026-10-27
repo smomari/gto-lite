@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { PostflopPanel } from "./PostflopPanel";
 import type {
   CheckdownEquitySummary,
@@ -581,6 +581,80 @@ describe("PostflopPanel", () => {
     stages = screen.getAllByTestId("street-stage");
     expect(stages).toHaveLength(1); // the turn stage is dropped, flop is promoted back to live
     expect(within(stages[0]).getByText(/Pick the 3 flop cards/)).toBeInTheDocument();
+  });
+
+  /** A solvePostflopInWorker call whose progress/resolution the test drives by hand, ignoring abort like a late worker message would. */
+  function deferredSolve() {
+    const handle: {
+      signal?: AbortSignal;
+      progress: (phase: "equity" | "cfr", done: number, total: number) => void;
+      resolve: (result: PostflopResultMessage) => void;
+    } = { progress: () => {}, resolve: () => {} };
+    solvePostflopInWorker.mockImplementationOnce(
+      (_req: PostflopSolveRequest, options?: { signal?: AbortSignal; onProgress?: (p: "equity" | "cfr", d: number, t: number) => void }) =>
+        new Promise<PostflopResultMessage>((resolve) => {
+          handle.signal = options?.signal;
+          handle.progress = (phase, done, total) => options?.onProgress?.(phase, done, total);
+          handle.resolve = resolve;
+        }),
+    );
+    return handle;
+  }
+
+  async function startTurnSolveAfterFlopCheckCheck() {
+    solvePostflopInWorker.mockResolvedValueOnce(checkCheckFlopResult({ P1: 0, P2: 0 }));
+    const utils = render(<PostflopPanel {...baseProps(20)} />);
+    pickFlopBoard();
+    await screen.findByRole("button", { name: "Check" });
+    fireEvent.click(screen.getByRole("button", { name: "Check" }));
+    fireEvent.click(screen.getByRole("button", { name: "Check" }));
+
+    const turnSolve = deferredSolve();
+    fireEvent.click(screen.getByRole("button", { name: "7h" }));
+    fireEvent.click(screen.getByRole("button", { name: "Solve turn" }));
+    return { ...utils, turnSolve };
+  }
+
+  it("going back to the flop's board picker mid-turn-solve cancels the turn solve and ignores its late messages (regression)", async () => {
+    const { turnSolve } = await startTurnSolveAfterFlopCheckCheck();
+
+    const flopStage = screen.getAllByTestId("street-stage")[0];
+    fireEvent.click(within(flopStage).getByRole("button", { name: /Details/ }));
+    fireEvent.click(within(flopStage).getByRole("button", { name: "Pick a different board" }));
+    expect(turnSolve.signal?.aborted).toBe(true);
+
+    await act(async () => {
+      turnSolve.progress("cfr", 10, 100);
+      turnSolve.resolve(turnResult());
+    });
+
+    const stages = screen.getAllByTestId("street-stage");
+    expect(stages).toHaveLength(1);
+    expect(within(stages[0]).getByText(/Pick the 3 flop cards/)).toBeInTheDocument();
+  });
+
+  it("resetting the flop mid-turn-solve also cancels the turn solve (regression)", async () => {
+    const { turnSolve } = await startTurnSolveAfterFlopCheckCheck();
+
+    const flopStage = screen.getAllByTestId("street-stage")[0];
+    fireEvent.click(within(flopStage).getByRole("button", { name: /Details/ }));
+    fireEvent.click(within(flopStage).getByRole("button", { name: "Reset to start of street" }));
+    expect(turnSolve.signal?.aborted).toBe(true);
+
+    await act(async () => {
+      turnSolve.resolve(turnResult());
+    });
+
+    const stages = screen.getAllByTestId("street-stage");
+    expect(stages).toHaveLength(1);
+    expect(within(stages[0]).getByRole("button", { name: "Check" })).toBeInTheDocument();
+  });
+
+  it("unmounting the panel cancels an in-flight solve", async () => {
+    const { turnSolve, unmount } = await startTurnSolveAfterFlopCheckCheck();
+    expect(turnSolve.signal?.aborted).toBe(false);
+    unmount();
+    expect(turnSolve.signal?.aborted).toBe(true);
   });
 
   it("calls onBoardSummaryChange with each confirmed street's cumulative board as streets are solved", async () => {

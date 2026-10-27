@@ -1,13 +1,10 @@
 import type { CheckdownEquitySummary } from "@/types/postflopSolver";
+import { formatSignedBb } from "@/lib/format";
 
 interface CheckdownEquityNoteProps {
   equity: CheckdownEquitySummary;
   heroLabel: string;
   villainLabel: string;
-}
-
-function formatBb(bb: number): string {
-  return `${bb > 0 ? "+" : ""}${bb.toFixed(2)}bb`;
 }
 
 /**
@@ -21,8 +18,8 @@ export function CheckdownEquityNote({ equity, heroLabel, villainLabel }: Checkdo
   return (
     <p className="text-xs text-zinc-500 dark:text-zinc-400">
       Checkdown avg EV (all remaining runouts, assumes no further betting): {heroLabel}{" "}
-      {equity.heroEquityPercent.toFixed(1)}% / {formatBb(equity.heroEvBb)} · {villainLabel}{" "}
-      {equity.villainEquityPercent.toFixed(1)}% / {formatBb(equity.villainEvBb)}
+      {equity.heroEquityPercent.toFixed(1)}% / {formatSignedBb(equity.heroEvBb)} · {villainLabel}{" "}
+      {equity.villainEquityPercent.toFixed(1)}% / {formatSignedBb(equity.villainEvBb)}
     </p>
   );
 }

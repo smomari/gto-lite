@@ -5,6 +5,8 @@ import type { CheckdownEquitySummary } from "@/lib/postflopSolver/checkdownEquit
 
 export type { CheckdownEquitySummary };
 
+export type PostflopSolvePhase = "equity" | "cfr";
+
 /** Which of a hand's fold/call/raise/allin frequencies defines a player's range entering the street. */
 export type ActionWeightKey = "fold" | "call" | "raise" | "allin";
 
@@ -83,7 +85,7 @@ export interface PostflopResultMessage {
 
 export interface PostflopProgressMessage {
   type: "progress";
-  phase: "equity" | "cfr";
+  phase: PostflopSolvePhase;
   done: number;
   total: number;
   exploitabilityPercent?: number;

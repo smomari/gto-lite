@@ -1,4 +1,5 @@
 import { MAX_PRECISE_SAMPLE_COUNT } from "@/lib/postflopSolver/nextCardSampling";
+import { formatSignedBb } from "@/lib/format";
 import { CardChip } from "./CardChip";
 
 export type PreciseAvgState =
@@ -19,10 +20,6 @@ interface AverageNextCardEvProps {
   sampleCount: number;
   onCompute: () => void;
   onCancel: () => void;
-}
-
-function formatBb(bb: number): string {
-  return `${bb >= 0 ? "+" : ""}${bb.toFixed(2)}bb`;
 }
 
 /**
@@ -67,17 +64,17 @@ export function AverageNextCardEv({ state, heroLabel, villainLabel, sampleCount,
                     <CardChip card={s.card} size="sm" />
                   </td>
                   <td className="pr-3">
-                    {heroLabel} {formatBb(s.heroEvBb)}
+                    {heroLabel} {formatSignedBb(s.heroEvBb)}
                   </td>
                   <td>
-                    {villainLabel} {formatBb(s.villainEvBb)}
+                    {villainLabel} {formatSignedBb(s.villainEvBb)}
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
           <p className="font-medium text-zinc-700 dark:text-zinc-300">
-            Average: {heroLabel} {formatBb(state.avgHeroEvBb)} · {villainLabel} {formatBb(state.avgVillainEvBb)}
+            Average: {heroLabel} {formatSignedBb(state.avgHeroEvBb)} · {villainLabel} {formatSignedBb(state.avgVillainEvBb)}
           </p>
           <p>
             Unlike the checkdown value above, this reflects a real re-solved equilibrium (with further betting) on

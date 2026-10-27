@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { ALL_HANDS } from "@/lib/handRange/handList";
+import { ALL_HANDS, TOTAL_COMBOS } from "@/lib/handRange/handList";
+import { comboKey } from "@/lib/cards";
 import type { HandFrequency } from "@/types/rangeData";
-import { buildComboIndex, comboKey, enumerateCombos, expandToCombos, filterBlockedCombos, TOTAL_PREFLOP_COMBOS } from "./combos";
+import { buildComboIndex, enumerateCombos, expandToCombos, filterBlockedCombos } from "./combos";
 
 describe("enumerateCombos", () => {
   it("gives a pair 6 combos, all same rank different suits", () => {
@@ -28,7 +29,7 @@ describe("enumerateCombos", () => {
 
   it("enumerating every canonical hand sums to 1326 combos total", () => {
     const total = ALL_HANDS.reduce((sum, h) => sum + enumerateCombos(h.hand).length, 0);
-    expect(total).toBe(TOTAL_PREFLOP_COMBOS);
+    expect(total).toBe(TOTAL_COMBOS);
     expect(total).toBe(1326);
   });
 });
@@ -93,16 +94,6 @@ describe("filterBlockedCombos", () => {
   it("keeps every combo when nothing is blocked", () => {
     const range = [{ cards: ["Ah", "Kd"] as [string, string], weight: 1 }];
     expect(filterBlockedCombos(range, [])).toEqual(range);
-  });
-});
-
-describe("comboKey", () => {
-  it("is order-independent", () => {
-    expect(comboKey(["Ac", "Kc"])).toBe(comboKey(["Kc", "Ac"]));
-  });
-
-  it("differs for different combos", () => {
-    expect(comboKey(["Ac", "Kc"])).not.toBe(comboKey(["Ad", "Kd"]));
   });
 });
 

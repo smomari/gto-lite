@@ -10,9 +10,6 @@ export const POSTFLOP_ACTION_COLORS: Record<PostflopActionType, string> = {
   allin: "#7f1d1d",
 };
 
-/** Stacking order for the color bar, most aggressive action on top (mirrors the preflop grid). */
-export const POSTFLOP_ACTION_ORDER: PostflopActionType[] = ["allin", "raise", "bet", "call", "check", "fold"];
-
 /**
  * Light -> dark ramps sampled by bet-size / raise-size position within a
  * node's own bet/raise instances (smallest first — `betAbstraction.ts`'s

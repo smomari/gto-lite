@@ -1,7 +1,8 @@
 import { CardChip } from "./CardChip";
+import type { StreetLabel } from "./streetLabel";
 
 interface PastStreetSummaryProps {
-  streetLabel: "Flop" | "Turn" | "River";
+  streetLabel: StreetLabel;
   board: string[];
   potBb: number;
   actionLabels: string[];

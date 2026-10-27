@@ -1,12 +1,10 @@
-import { ALL_HANDS } from "@/lib/handRange/handList";
+import { HAND_BY_LABEL, TOTAL_COMBOS } from "@/lib/handRange/handList";
 import type { HandFrequency } from "@/types/rangeData";
+import { formatPercent } from "@/lib/format";
 import { ACTION_COLORS, ACTION_LABELS } from "@/components/RangeGrid/colorLegend";
 
-const TOTAL_COMBOS = ALL_HANDS.reduce((sum, h) => sum + h.combos, 0);
-
 function comboWeighted(hands: HandFrequency[], key: keyof typeof ACTION_COLORS): number {
-  const byHand = new Map(ALL_HANDS.map((h) => [h.hand, h.combos]));
-  return hands.reduce((sum, h) => sum + (h[key] ?? 0) * (byHand.get(h.hand) ?? 0), 0);
+  return hands.reduce((sum, h) => sum + (h[key] ?? 0) * (HAND_BY_LABEL.get(h.hand)?.combos ?? 0), 0);
 }
 
 export function ActionSummaryTiles({ hands }: { hands: HandFrequency[] }) {
@@ -34,7 +32,7 @@ export function ActionSummaryTiles({ hands }: { hands: HandFrequency[] }) {
           </div>
           <div className="mt-1 flex items-baseline justify-between">
             <span className="text-2xl font-semibold text-zinc-900 dark:text-zinc-100">
-              {((combos[key] / TOTAL_COMBOS) * 100).toFixed(1)}%
+              {formatPercent(combos[key] / TOTAL_COMBOS)}
             </span>
             <span className="text-xs text-zinc-500 dark:text-zinc-400">{combos[key].toFixed(1)} combos</span>
           </div>

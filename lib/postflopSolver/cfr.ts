@@ -1,9 +1,8 @@
 import type { ComboRange } from "./types";
 import type { EquityTable } from "./terminalEquity";
-import { equityVsRange } from "./terminalEquity";
-import { totalPot } from "./potState";
 import type { DecisionNode, PostflopTreeNode } from "./treeBuilder";
-import { computeExploitability } from "./exploitability";
+import { computeExploitability, type ExploitabilityResult } from "./exploitability";
+import { narrowReach, rangeAverageActionProbs, terminalUtilities } from "./treeMath";
 
 interface CfrNodeData {
   /**
@@ -29,6 +28,8 @@ export interface CfrSolution {
   iterations: number;
   /** [comboIndex][actionIndex], normalized. `combos`/`actionLabels` on the node itself give you what each index means. */
   getAverageStrategy(node: DecisionNode): number[][];
+  /** Set only when the early-stop check measured it at exactly `iterations` — i.e. it already describes this final strategy, so callers needn't recompute it. */
+  finalExploitability?: ExploitabilityResult;
 }
 
 /**
@@ -124,23 +125,11 @@ export function runCfr(
     negativeDiscount: number,
     stratWeight: number,
   ): { utilP1: number[]; utilP2: number[] } {
-    if (node.type === "terminal-fold") {
-      const pot = totalPot(node.state);
-      const p1Wins = node.winner === "P1";
-      const utilP1 = heroCombos.map(() => (p1Wins ? pot - node.state.committed.P1 : -node.state.committed.P1));
-      const utilP2 = villainCombos.map(() => (!p1Wins ? pot - node.state.committed.P2 : -node.state.committed.P2));
-      return { utilP1, utilP2 };
-    }
-
-    if (node.type === "terminal-showdown") {
-      const pot = totalPot(node.state);
-      const utilP1 = heroCombos.map(
-        (_, i) => equityVsRange(equityTable, "P1", i, reachP2) * pot - node.state.committed.P1,
-      );
-      const utilP2 = villainCombos.map(
-        (_, i) => equityVsRange(equityTable, "P2", i, reachP1) * pot - node.state.committed.P2,
-      );
-      return { utilP1, utilP2 };
+    if (node.type !== "decision") {
+      return {
+        utilP1: terminalUtilities(node, "P1", heroCombos.length, reachP2, equityTable),
+        utilP2: terminalUtilities(node, "P2", villainCombos.length, reachP1, equityTable),
+      };
     }
 
     // Decision node.
@@ -153,8 +142,8 @@ export function runCfr(
     const strategy = actingCombos.map((_, c) => regretMatchingStrategy(data.regret[c], numActions));
 
     const childResults = node.actions.map((edge, a) => {
-      const childReachP1 = isP1Acting ? reachP1.map((r, c) => r * strategy[c][a]) : reachP1;
-      const childReachP2 = isP1Acting ? reachP2 : reachP2.map((r, c) => r * strategy[c][a]);
+      const childReachP1 = isP1Acting ? narrowReach(reachP1, strategy, a) : reachP1;
+      const childReachP2 = isP1Acting ? reachP2 : narrowReach(reachP2, strategy, a);
       return traverse(edge.child, childReachP1, childReachP2, positiveDiscount, negativeDiscount, stratWeight);
     });
 
@@ -167,17 +156,7 @@ export function runCfr(
       return v;
     });
 
-    // Non-acting player's utility uses the acting player's RANGE-AVERAGE action
-    // probabilities (the non-actor can't see the actor's specific combo).
-    const totalActingReach = actingReach.reduce((s, r) => s + r, 0);
-    const avgActionProb = new Array(numActions).fill(1 / numActions);
-    if (totalActingReach > 0) {
-      for (let a = 0; a < numActions; a++) {
-        let weighted = 0;
-        for (let c = 0; c < actingCombos.length; c++) weighted += actingReach[c] * strategy[c][a];
-        avgActionProb[a] = weighted / totalActingReach;
-      }
-    }
+    const avgActionProb = rangeAverageActionProbs(actingReach, strategy, numActions);
     const nonActingCombos = isP1Acting ? villainCombos : heroCombos;
     const nonActingUtil = nonActingCombos.map((_, c) => {
       let v = 0;
@@ -233,7 +212,7 @@ export function runCfr(
 
     if (targetExploitabilityPercent !== undefined && t >= nextCheck) {
       const snapshot: CfrSolution = { iterations: t, getAverageStrategy };
-      const { percentOfPot } = computeExploitability(
+      const exploitability = computeExploitability(
         tree,
         snapshot,
         heroRange,
@@ -242,9 +221,9 @@ export function runCfr(
         tree.state.startPot,
       );
       nextCheck = t + Math.min(nextCheck, EXPLOITABILITY_CHECK_INTERVAL_CEILING);
-      onProgress?.(t, maxIterations, percentOfPot);
-      if (percentOfPot <= targetExploitabilityPercent) {
-        return { iterations: t, getAverageStrategy };
+      onProgress?.(t, maxIterations, exploitability.percentOfPot);
+      if (exploitability.percentOfPot <= targetExploitabilityPercent) {
+        return { iterations: t, getAverageStrategy, finalExploitability: exploitability };
       }
       continue;
     }

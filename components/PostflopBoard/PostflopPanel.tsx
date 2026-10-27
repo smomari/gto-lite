@@ -20,12 +20,14 @@ import { DEFAULT_PRECISE_SAMPLE_COUNT, sampleNextCards } from "@/lib/postflopSol
 import type {
   ActionWeightKey,
   PostflopResultMessage,
+  PostflopSolvePhase,
   PostflopSolveRequest,
   SerializedDecisionAction,
   SerializedTerminalNode,
   SerializedTreeNode,
 } from "@/types/postflopSolver";
 import type { HandFrequency } from "@/types/rangeData";
+import { hasNextStreet, streetLabelForBoardLength, type StreetBoardSummary, type StreetLabel } from "./streetLabel";
 
 interface PostflopPanelProps {
   heroLabel: string;
@@ -37,16 +39,14 @@ interface PostflopPanelProps {
   startPot: number;
   effectiveStackBb: number;
   /** Called whenever the confirmed board(s) change, so a caller can surface them outside this panel (e.g. next to the seat action row). */
-  onBoardSummaryChange?: (streets: { streetLabel: StreetLabel; board: string[] }[]) => void;
+  onBoardSummaryChange?: (streets: StreetBoardSummary[]) => void;
 }
 
 type SolveState =
   | { kind: "idle" }
-  | { kind: "solving"; phase: "equity" | "cfr"; done: number; total: number; exploitabilityPercent?: number }
+  | { kind: "solving"; phase: PostflopSolvePhase; done: number; total: number; exploitabilityPercent?: number }
   | { kind: "done"; result: PostflopResultMessage }
   | { kind: "error"; message: string };
-
-export type StreetLabel = "Flop" | "Turn" | "River";
 
 /**
  * One street's worth of state: board picking, solving, and tree navigation.
@@ -64,18 +64,6 @@ interface StreetStage {
   effectiveStackAtStart: number;
 }
 
-function streetLabelForBoardLength(boardLength: number): StreetLabel {
-  if (boardLength === 3) return "Flop";
-  if (boardLength === 4) return "Turn";
-  if (boardLength === 5) return "River";
-  throw new Error(`streetLabelForBoardLength: unexpected board length ${boardLength}`);
-}
-
-/** The river (5-card board) is the last street — nothing more to deal after it. */
-function hasNextStreet(boardLength: number): boolean {
-  return boardLength < 5;
-}
-
 function idleStage(boardLength: number, effectiveStackAtStart: number): StreetStage {
   return {
     streetLabel: streetLabelForBoardLength(boardLength),
@@ -90,7 +78,8 @@ function idleStage(boardLength: number, effectiveStackAtStart: number): StreetSt
 export function PostflopPanel(props: PostflopPanelProps) {
   const [streets, setStreets] = useState<StreetStage[]>([idleStage(3, props.effectiveStackBb)]);
   const [preciseAvgByStage, setPreciseAvgByStage] = useState<Record<number, PreciseAvgState>>({});
-  const preciseAbortRef = useRef<AbortController | null>(null);
+  const preciseAbortRef = useRef<{ stageIndex: number; controller: AbortController } | null>(null);
+  const solveAbortRef = useRef(new Map<number, AbortController>());
   const [selectedHand, setSelectedHand] = useState<string | null>(null);
   const [isolatedActionIndex, setIsolatedActionIndex] = useState<number | null>(null);
   const [expandedPastStage, setExpandedPastStage] = useState<number | null>(null);
@@ -101,6 +90,29 @@ export function PostflopPanel(props: PostflopPanelProps) {
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps -- onBoardSummaryChange is expected to be a stable setState reference, not re-run-worthy on its own
   }, [streets]);
+
+  useEffect(() => {
+    const solves = solveAbortRef.current;
+    return () => {
+      for (const controller of solves.values()) controller.abort();
+      solves.clear();
+      preciseAbortRef.current?.controller.abort();
+    };
+  }, []);
+
+  /** In-flight solves write back by stage index, so any stage at or after a truncation point must be cancelled before its slot is reused or removed. */
+  function abortSolvesFrom(stageIndex: number) {
+    for (const [index, controller] of solveAbortRef.current) {
+      if (index >= stageIndex) {
+        controller.abort();
+        solveAbortRef.current.delete(index);
+      }
+    }
+    if (preciseAbortRef.current && preciseAbortRef.current.stageIndex >= stageIndex) {
+      preciseAbortRef.current.controller.abort();
+      preciseAbortRef.current = null;
+    }
+  }
 
   function clearPreciseAvgFrom(stageIndex: number) {
     setPreciseAvgByStage((prev) => {
@@ -119,6 +131,7 @@ export function PostflopPanel(props: PostflopPanelProps) {
   }
 
   function handleNavigate(stageIndex: number, action: SerializedDecisionAction) {
+    abortSolvesFrom(stageIndex);
     clearPreciseAvgFrom(stageIndex);
     resetGridSelection();
     setStreets((prev) => {
@@ -149,6 +162,7 @@ export function PostflopPanel(props: PostflopPanelProps) {
   }
 
   function handleResetStreet(stageIndex: number) {
+    abortSolvesFrom(stageIndex);
     clearPreciseAvgFrom(stageIndex);
     resetGridSelection();
     setExpandedPastStage(null);
@@ -160,6 +174,7 @@ export function PostflopPanel(props: PostflopPanelProps) {
   }
 
   function handlePickDifferentBoard(stageIndex: number) {
+    abortSolvesFrom(stageIndex);
     clearPreciseAvgFrom(stageIndex);
     resetGridSelection();
     setExpandedPastStage(null);
@@ -217,15 +232,27 @@ export function PostflopPanel(props: PostflopPanelProps) {
       return next;
     });
 
+    abortSolvesFrom(stageIndex);
+    const controller = new AbortController();
+    solveAbortRef.current.set(stageIndex, controller);
+    const finish = () => {
+      if (solveAbortRef.current.get(stageIndex) === controller) solveAbortRef.current.delete(stageIndex);
+    };
+
     solvePostflopInWorker(request, {
-      onProgress: (phase, done, total, exploitabilityPercent) =>
+      signal: controller.signal,
+      onProgress: (phase, done, total, exploitabilityPercent) => {
+        if (controller.signal.aborted) return;
         setStreets((prev) => {
           const next = [...prev];
           next[stageIndex] = { ...next[stageIndex], state: { kind: "solving", phase, done, total, exploitabilityPercent } };
           return next;
-        }),
+        });
+      },
     })
       .then((result) => {
+        if (controller.signal.aborted) return;
+        finish();
         setStreets((prev) => {
           const next = [...prev];
           next[stageIndex] = { ...next[stageIndex], state: { kind: "done", result }, currentNode: result.tree };
@@ -233,6 +260,8 @@ export function PostflopPanel(props: PostflopPanelProps) {
         });
       })
       .catch((err) => {
+        if (controller.signal.aborted) return;
+        finish();
         const message = err instanceof Error ? err.message : String(err);
         setStreets((prev) => {
           const next = [...prev];
@@ -248,7 +277,7 @@ export function PostflopPanel(props: PostflopPanelProps) {
     const terminal = stage.currentNode;
 
     const controller = new AbortController();
-    preciseAbortRef.current = controller;
+    preciseAbortRef.current = { stageIndex, controller };
 
     const cards = sampleNextCards(stage.board, DEFAULT_PRECISE_SAMPLE_COUNT);
     const heroNarrowed = narrowRangeAlongPath(stage.state.result.heroRange, "P1", stage.path);
@@ -292,7 +321,7 @@ export function PostflopPanel(props: PostflopPanelProps) {
   }
 
   function handleCancelPreciseAverageEv() {
-    preciseAbortRef.current?.abort();
+    preciseAbortRef.current?.controller.abort();
   }
 
   /**

@@ -1,8 +1,6 @@
-import { ALL_HANDS } from "@/lib/handRange/handList";
+import { ALL_HANDS, TOTAL_COMBOS } from "@/lib/handRange/handList";
 import type { EquityMatrix } from "./loadEquityMatrix";
 import { equityOf } from "./loadEquityMatrix";
-
-const TOTAL_COMBOS = ALL_HANDS.reduce((sum, h) => sum + h.combos, 0);
 
 /**
  * Combo-weighted equity of `hand` against a uniformly random opponent hand,

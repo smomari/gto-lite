@@ -1,5 +1,29 @@
 import { describe, expect, it } from "vitest";
-import { computeRoundActingOrder, previewQuickAction } from "./preview";
+import { buildFoldPrefixPath, computeRoundActingOrder, previewQuickAction } from "./preview";
+
+describe("buildFoldPrefixPath", () => {
+  it("appends a fold for every seat before the target in the current round", () => {
+    expect(buildFoldPrefixPath([], "UTG", "HJ", 100)).toEqual([
+      { actor: "UTG", action: "fold" },
+      { actor: "UTG1", action: "fold" },
+      { actor: "LJ", action: "fold" },
+    ]);
+  });
+
+  it("keeps the existing path in front of the folds", () => {
+    const actionPath = [{ actor: "UTG" as const, action: "raise" as const }];
+    expect(buildFoldPrefixPath(actionPath, "UTG1", "LJ", 100)).toEqual([
+      { actor: "UTG", action: "raise" },
+      { actor: "UTG1", action: "fold" },
+    ]);
+  });
+
+  it("returns null when the target is the active seat or not ahead of it", () => {
+    expect(buildFoldPrefixPath([], "UTG", "UTG", 100)).toBeNull();
+    const actionPath = [{ actor: "UTG" as const, action: "raise" as const }];
+    expect(buildFoldPrefixPath(actionPath, "UTG1", "UTG", 100)).toBeNull();
+  });
+});
 
 describe("computeRoundActingOrder", () => {
   it("returns the full table order in round 1, starting with the active seat", () => {

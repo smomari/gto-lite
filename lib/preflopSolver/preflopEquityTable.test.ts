@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { loadEquityMatrix, equityOf } from "@/lib/equity/loadEquityMatrix";
 import { canonicalHandOf } from "@/lib/postflopSolver/canonicalHand";
-import { equityAt } from "@/lib/postflopSolver/terminalEquity";
+import { equityAt } from "@/lib/postflopSolver/equityTableTestUtils";
 import { canonicalRfiRange, HERO_SUITS, VILLAIN_SUITS } from "./canonicalRange";
 import { buildPreflopEquityTable } from "./preflopEquityTable";
 

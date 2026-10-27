@@ -69,19 +69,7 @@ export function applyPostflopAction(
         lastActor: actor,
       };
 
-    case "bet": {
-      if (betToBb === undefined) {
-        throw new Error("applyPostflopAction: betToBb is required for a bet or raise action");
-      }
-      return {
-        ...state,
-        committed: { ...state.committed, [actor]: betToBb },
-        currentBetToCall: betToBb,
-        lastAggressor: actor,
-        lastActor: actor,
-      };
-    }
-
+    case "bet":
     case "raise": {
       if (betToBb === undefined) {
         throw new Error("applyPostflopAction: betToBb is required for a bet or raise action");
@@ -92,7 +80,7 @@ export function applyPostflopAction(
         currentBetToCall: betToBb,
         lastAggressor: actor,
         lastActor: actor,
-        raiseCount: state.raiseCount + 1,
+        raiseCount: action === "raise" ? state.raiseCount + 1 : state.raiseCount,
       };
     }
 

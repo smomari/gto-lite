@@ -1,4 +1,5 @@
 import type { HandFrequency } from "@/types/rangeData";
+import type { PostflopSolvePhase } from "@/types/postflopSolver";
 import type { BoardCards, ComboRange } from "./types";
 import { expandToCombos, filterBlockedCombos } from "./combos";
 import { buildEquityTable, type EquityTable } from "./terminalEquity";
@@ -45,8 +46,6 @@ export interface PostflopSolveResult {
   equityTable: EquityTable;
 }
 
-export type PostflopSolvePhase = "equity" | "cfr";
-
 /**
  * Top-level Phase 1 orchestrator for one street: `kind: "canonical"` expands
  * preflop-shaped `HandFrequency[]` into combos (the flop's own starting
@@ -84,7 +83,9 @@ export function solvePostflopStreet(
     { maxIterations: input.maxIterations, targetExploitabilityPercent: input.targetExploitabilityPercent },
     (done, total, exploitabilityPercent) => onProgress?.("cfr", done, total, exploitabilityPercent),
   );
-  const exploitability = computeExploitability(tree, solution, heroRange, villainRange, equityTable, input.startPot);
+  const exploitability =
+    solution.finalExploitability ??
+    computeExploitability(tree, solution, heroRange, villainRange, equityTable, input.startPot);
 
   return { tree, heroRange, villainRange, solution, exploitability, equityTable };
 }
