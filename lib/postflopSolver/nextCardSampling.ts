@@ -1,4 +1,4 @@
-import { remainingDeck } from "./terminalEquity";
+import { remainingDeck } from "@/lib/cards";
 
 export const DEFAULT_PRECISE_SAMPLE_COUNT = 3;
 export const MAX_PRECISE_SAMPLE_COUNT = 5;

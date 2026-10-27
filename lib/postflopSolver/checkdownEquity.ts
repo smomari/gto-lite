@@ -4,22 +4,13 @@ import { equityVsRange } from "./terminalEquity";
 import { totalPot } from "./potState";
 import type { PostflopTreeNode } from "./treeBuilder";
 import type { CfrSolution } from "./cfr";
+import { narrowReach, weightedAverage } from "./treeMath";
 
 export interface CheckdownEquitySummary {
   heroEquityPercent: number;
   villainEquityPercent: number;
   heroEvBb: number;
   villainEvBb: number;
-}
-
-function weightedAverage(values: number[], weights: number[]): number {
-  let weighted = 0;
-  let totalWeight = 0;
-  for (let i = 0; i < values.length; i++) {
-    weighted += values[i] * weights[i];
-    totalWeight += weights[i];
-  }
-  return totalWeight > 0 ? weighted / totalWeight : 0;
 }
 
 /**
@@ -71,8 +62,8 @@ export function computeCheckdownEquities(
     const strategy = solution.getAverageStrategy(node);
 
     node.actions.forEach((edge, a) => {
-      const childReachP1 = isP1Acting ? reachP1.map((r, c) => r * strategy[c][a]) : reachP1;
-      const childReachP2 = isP1Acting ? reachP2 : reachP2.map((r, c) => r * strategy[c][a]);
+      const childReachP1 = isP1Acting ? narrowReach(reachP1, strategy, a) : reachP1;
+      const childReachP2 = isP1Acting ? reachP2 : narrowReach(reachP2, strategy, a);
       walk(edge.child, childReachP1, childReachP2);
     });
   }

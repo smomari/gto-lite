@@ -1,4 +1,4 @@
-import { RANKS } from "./handList";
+import { RANKS } from "@/lib/cards";
 
 /**
  * 13x13 grid of hand labels following the standard convention:

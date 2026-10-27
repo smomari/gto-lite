@@ -1,10 +1,9 @@
-import { ALL_HANDS } from "@/lib/handRange/handList";
+import { ALL_HANDS, TOTAL_COMBOS } from "@/lib/handRange/handList";
 import type { EquityMatrix } from "@/lib/equity/loadEquityMatrix";
 import { equityOf } from "@/lib/equity/loadEquityMatrix";
+import { BB_ANTE_BB, BIG_BLIND_BB, SMALL_BLIND_BB } from "@/lib/solveEngine/constants";
 
 export type FrequencyMap = Map<string, number>;
-
-const TOTAL_COMBOS = ALL_HANDS.reduce((sum, h) => sum + h.combos, 0);
 
 function weightedEquityVsRange(
   matrix: EquityMatrix,
@@ -80,9 +79,9 @@ export function solvePushFold(
 ): PushFoldResult {
   const {
     effectiveStackBb: S,
-    smallBlind = 0.5,
-    bigBlind = 1,
-    bbAnte = 1,
+    smallBlind = SMALL_BLIND_BB,
+    bigBlind = BIG_BLIND_BB,
+    bbAnte = BB_ANTE_BB,
     maxIterations = 2000,
   } = params;
   const deadMoney = smallBlind + bigBlind + bbAnte;

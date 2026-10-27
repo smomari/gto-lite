@@ -1,3 +1,5 @@
+import { formatPercent } from "@/lib/format";
+
 interface PostflopHandCellProps {
   hand: string;
   /** Average strategy for this hand at this node, index-aligned to the node's actions (not keyed by action type — two "bet" entries at different sizes get separate slots). */
@@ -14,10 +16,6 @@ interface PostflopHandCellProps {
   onClick: () => void;
 }
 
-function pct(v: number): string {
-  return `${(v * 100).toFixed(1)}%`;
-}
-
 export function PostflopHandCell({
   hand,
   actionFrequencies,
@@ -31,14 +29,14 @@ export function PostflopHandCell({
   // actionFrequencies/actionLabels/colors come in least-aggressive-first
   // order (fold, check, call, bet(s), raise(s), allin — treeBuilder.ts's
   // push order); reversed so the most aggressive action's segment renders
-  // on top, mirroring the previous fixed POSTFLOP_ACTION_ORDER convention.
+  // on top, matching the preflop grid.
   const segments = actionFrequencies
     .map((value, i) => ({ label: actionLabels[i], value, color: colors[i] }))
     .filter((s) => s.value > 0)
     .reverse();
 
   const tooltipLines = actionFrequencies
-    .map((v, i) => (v > 0 ? `${actionLabels[i]} ${pct(v)}` : null))
+    .map((v, i) => (v > 0 ? `${actionLabels[i]} ${formatPercent(v)}` : null))
     .filter((line): line is string => line !== null);
   const tooltip = inRange ? [hand, ...tooltipLines].join("\n") : `${hand}\nNot in range`;
 

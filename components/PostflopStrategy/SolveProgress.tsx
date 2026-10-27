@@ -1,5 +1,7 @@
+import type { PostflopSolvePhase } from "@/types/postflopSolver";
+
 interface SolveProgressProps {
-  phase: "equity" | "cfr";
+  phase: PostflopSolvePhase;
   done: number;
   total: number;
   /** Latest periodic exploitability reading during the CFR phase (% of pot). Undefined until the first check fires. */

@@ -1,9 +1,5 @@
 import { CardChip } from "@/components/PostflopBoard/CardChip";
-
-export interface StreetBoardSummary {
-  streetLabel: "Flop" | "Turn" | "River";
-  board: string[];
-}
+import type { StreetBoardSummary } from "@/components/PostflopBoard/streetLabel";
 
 interface PostflopBoardStripProps {
   streets: StreetBoardSummary[];

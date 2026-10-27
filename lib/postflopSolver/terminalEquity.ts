@@ -1,10 +1,7 @@
+import { FULL_DECK, remainingDeck } from "@/lib/cards";
 import { compareHands, handRank } from "./handEval";
 import type { ComboRange } from "./types";
 import type { PostflopPlayer } from "./potState";
-
-const RANKS = ["A", "K", "Q", "J", "T", "9", "8", "7", "6", "5", "4", "3", "2"];
-const SUITS = ["s", "h", "d", "c"];
-export const FULL_DECK = RANKS.flatMap((r) => SUITS.map((s) => `${r}${s}`));
 
 const CARD_INDEX: Record<string, number> = Object.fromEntries(FULL_DECK.map((c, i) => [c, i]));
 const DECK_SIZE = FULL_DECK.length; // 52
@@ -18,11 +15,6 @@ function pairIndex(a: string, b: string): number {
   const lo = Math.min(ia, ib);
   const hi = Math.max(ia, ib);
   return lo * DECK_SIZE - (lo * (lo + 1)) / 2 + (hi - lo - 1);
-}
-
-export function remainingDeck(used: string[]): string[] {
-  const usedSet = new Set(used);
-  return FULL_DECK.filter((c) => !usedSet.has(c));
 }
 
 /** Every `count`-card combination of `deck`, in stable index order. */
@@ -82,10 +74,6 @@ export function comboVsComboRunoutEquity(
   }
 
   return (wins + ties * 0.5) / runouts.length;
-}
-
-export function comboKey(cards: [string, string]): string {
-  return [...cards].sort().join("");
 }
 
 function shareCard(a: [string, string], b: [string, string]): boolean {
@@ -252,46 +240,4 @@ export function equityVsRange(
     totalWeight += w;
   }
   return totalWeight > 0 ? weighted / totalWeight : 0.5;
-}
-
-/** Direct hero-perspective lookup by range index — mainly for tests. */
-export function equityAt(table: EquityTable, heroIdx: number, villainIdx: number): number {
-  return table.heroEquity[heroIdx * table.villainCount + villainIdx];
-}
-
-/**
- * Test helper: builds an `EquityTable` from the old `"heroKey|villainKey" ->
- * equity` string-map fixture shape tests used before the flat-array rewrite,
- * so synthetic small-table tests barely need to change. Only entries for
- * pairs that are actually present (in either direction) get filled; anything
- * else is left as a blocked (NaN) pair.
- */
-export function equityTableFromEntries(
-  heroRange: ComboRange,
-  villainRange: ComboRange,
-  entries: Map<string, number>,
-): EquityTable {
-  const heroCount = heroRange.length;
-  const villainCount = villainRange.length;
-  const heroEquity = new Float64Array(heroCount * villainCount).fill(NaN);
-  const villainEquity = new Float64Array(villainCount * heroCount).fill(NaN);
-
-  for (let i = 0; i < heroCount; i++) {
-    for (let j = 0; j < villainCount; j++) {
-      const h = heroRange[i];
-      const v = villainRange[j];
-      const key = `${comboKey(h.cards)}|${comboKey(v.cards)}`;
-      const reverseKey = `${comboKey(v.cards)}|${comboKey(h.cards)}`;
-      let equity = entries.get(key);
-      if (equity === undefined) {
-        const reverse = entries.get(reverseKey);
-        if (reverse !== undefined) equity = 1 - reverse;
-      }
-      if (equity !== undefined) {
-        heroEquity[i * villainCount + j] = equity;
-        villainEquity[j * heroCount + i] = 1 - equity;
-      }
-    }
-  }
-  return { heroCount, villainCount, heroEquity, villainEquity };
 }

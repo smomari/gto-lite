@@ -1,4 +1,5 @@
 import type { HandFrequency } from "@/types/rangeData";
+import { formatPercent } from "@/lib/format";
 import { ACTION_COLORS } from "./colorLegend";
 
 interface HandCellProps {
@@ -7,10 +8,6 @@ interface HandCellProps {
 }
 
 const FALLBACK: Omit<HandFrequency, "hand"> = { fold: 1, call: 0, raise: 0 };
-
-function pct(v: number): string {
-  return `${(v * 100).toFixed(1)}%`;
-}
 
 export function HandCell({ hand, frequency }: HandCellProps) {
   const freq = frequency ?? { hand, ...FALLBACK };
@@ -23,8 +20,8 @@ export function HandCell({ hand, frequency }: HandCellProps) {
     { key: "fold", value: freq.fold, color: ACTION_COLORS.fold },
   ].filter((s) => s.value > 0);
 
-  const tooltip = `${hand}\nFold ${pct(freq.fold)} / Call ${pct(freq.call)} / Raise ${pct(freq.raise)}${
-    allin ? ` / All-in ${pct(allin)}` : ""
+  const tooltip = `${hand}\nFold ${formatPercent(freq.fold)} / Call ${formatPercent(freq.call)} / Raise ${formatPercent(freq.raise)}${
+    allin ? ` / All-in ${formatPercent(allin)}` : ""
   }`;
 
   return (

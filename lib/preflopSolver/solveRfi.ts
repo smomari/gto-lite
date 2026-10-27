@@ -42,7 +42,9 @@ export function solveRfi(
   const equityTable = buildPreflopEquityTable(heroRange, villainRange, matrix);
   const { tree, openSizeBb, threeBetSizeBb } = buildRfiTree(openerSeat, effectiveStackBb);
   const solution = runCfr(tree, heroRange, villainRange, equityTable, cfrOptions, onProgress);
-  const exploitability = computeExploitability(tree, solution, heroRange, villainRange, equityTable, tree.state.startPot);
+  const exploitability =
+    solution.finalExploitability ??
+    computeExploitability(tree, solution, heroRange, villainRange, equityTable, tree.state.startPot);
   return {
     openSizeBb,
     threeBetSizeBb,

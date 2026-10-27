@@ -1,7 +1,5 @@
 import type { CanonicalHand } from "@/lib/handRange/handList";
-
-export type Suit = "s" | "h" | "d" | "c";
-export const SUITS: Suit[] = ["s", "h", "d", "c"];
+import { SUITS, type Suit } from "@/lib/cards";
 
 type UsedSuits = Map<string, Set<Suit>>;
 

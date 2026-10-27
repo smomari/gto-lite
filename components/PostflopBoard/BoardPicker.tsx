@@ -1,10 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import { RANKS, SUITS } from "@/lib/cards";
 import { CardChip } from "./CardChip";
-
-const RANKS = ["A", "K", "Q", "J", "T", "9", "8", "7", "6", "5", "4", "3", "2"];
-const SUITS = ["s", "h", "d", "c"];
 
 interface BoardPickerProps {
   /** How many cards the caller needs picked (3 for the flop, 1 for the turn). */

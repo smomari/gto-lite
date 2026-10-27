@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ALL_HANDS, getCombos } from "./handList";
+import { ALL_HANDS, HAND_BY_LABEL, TOTAL_COMBOS } from "./handList";
 
 describe("ALL_HANDS", () => {
   it("has exactly 169 unique hands", () => {
@@ -8,8 +8,7 @@ describe("ALL_HANDS", () => {
   });
 
   it("combo counts sum to 1326 (C(52,2))", () => {
-    const total = ALL_HANDS.reduce((sum, h) => sum + h.combos, 0);
-    expect(total).toBe(1326);
+    expect(TOTAL_COMBOS).toBe(1326);
   });
 
   it("has 13 pairs, 78 suited, 78 offsuit", () => {
@@ -21,8 +20,8 @@ describe("ALL_HANDS", () => {
   });
 
   it("assigns correct combo counts per hand type", () => {
-    expect(getCombos("AA")).toBe(6);
-    expect(getCombos("AKs")).toBe(4);
-    expect(getCombos("AKo")).toBe(12);
+    expect(HAND_BY_LABEL.get("AA")?.combos).toBe(6);
+    expect(HAND_BY_LABEL.get("AKs")?.combos).toBe(4);
+    expect(HAND_BY_LABEL.get("AKo")?.combos).toBe(12);
   });
 });

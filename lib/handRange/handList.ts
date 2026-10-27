@@ -1,20 +1,5 @@
-export const RANKS = [
-  "A",
-  "K",
-  "Q",
-  "J",
-  "T",
-  "9",
-  "8",
-  "7",
-  "6",
-  "5",
-  "4",
-  "3",
-  "2",
-] as const;
+import { RANKS, type Rank } from "@/lib/cards";
 
-export type Rank = (typeof RANKS)[number];
 export type HandType = "pair" | "suited" | "offsuit";
 
 export interface CanonicalHand {
@@ -81,8 +66,5 @@ export const HAND_BY_LABEL: ReadonlyMap<string, CanonicalHand> = new Map(
   ALL_HANDS.map((h) => [h.hand, h]),
 );
 
-export function getCombos(hand: string): number {
-  const found = HAND_BY_LABEL.get(hand);
-  if (!found) throw new Error(`Unknown hand label: ${hand}`);
-  return found.combos;
-}
+/** 1326 = C(52,2). */
+export const TOTAL_COMBOS = ALL_HANDS.reduce((sum, h) => sum + h.combos, 0);

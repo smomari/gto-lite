@@ -3,6 +3,7 @@ import type { ComboRange } from "./types";
 import { buildEquityTable } from "./terminalEquity";
 import { buildStreetTree, type DecisionNode, type PostflopTreeNode } from "./treeBuilder";
 import { runCfr } from "./cfr";
+import { computeExploitability } from "./exploitability";
 
 const BOARD = ["Kh", "7s", "2d"];
 
@@ -121,12 +122,28 @@ describe("runCfr", () => {
     expect(solution.iterations).toBeLessThan(5000);
   });
 
-  it("hits the max-iteration cap when the target is unreachable", () => {
+  it("an early stop hands back the exploitability it measured, identical to recomputing it for the final strategy", () => {
+    const solution = runCfr(tree, heroRange, villainRange, table, {
+      maxIterations: 20000,
+      targetExploitabilityPercent: 1,
+    });
+    expect(solution.finalExploitability).toBeDefined();
+    expect(solution.finalExploitability).toEqual(
+      computeExploitability(tree, solution, heroRange, villainRange, table, START_POT),
+    );
+  });
+
+  it("hits the max-iteration cap when the target is unreachable, without a (stale) final exploitability", () => {
     const solution = runCfr(tree, heroRange, villainRange, table, {
       maxIterations: 500,
       targetExploitabilityPercent: 0.0001,
     });
     expect(solution.iterations).toBe(500);
+    expect(solution.finalExploitability).toBeUndefined();
+  });
+
+  it("leaves finalExploitability unset when no target is given", () => {
+    expect(solution.finalExploitability).toBeUndefined();
   });
 
   it("onProgress only reports exploitability when a target is set", () => {

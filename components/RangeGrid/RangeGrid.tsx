@@ -1,38 +1,20 @@
-import { HAND_MATRIX } from "@/lib/handRange/matrix";
 import type { RangeScenario } from "@/types/rangeData";
 import { HandCell } from "./HandCell";
+import { HandMatrixGrid, type HandMatrixLegendItem } from "./HandMatrixGrid";
 import { ACTION_COLORS, ACTION_LABELS } from "./colorLegend";
 
 interface RangeGridProps {
   scenario: RangeScenario;
 }
 
+const LEGEND: HandMatrixLegendItem[] = (Object.keys(ACTION_LABELS) as Array<keyof typeof ACTION_LABELS>).map((key) => ({
+  key,
+  label: ACTION_LABELS[key],
+  color: ACTION_COLORS[key],
+}));
+
 export function RangeGrid({ scenario }: RangeGridProps) {
   const byHand = new Map(scenario.hands.map((h) => [h.hand, h]));
 
-  return (
-    <div className="flex h-full min-h-0 flex-col gap-2">
-      <div
-        className="grid flex-1 min-h-0 gap-[2px]"
-        style={{ gridTemplateColumns: "repeat(13, minmax(0, 1fr))", gridTemplateRows: "repeat(13, minmax(0, 1fr))" }}
-      >
-        {HAND_MATRIX.flatMap((row, i) =>
-          row.map((hand, j) => (
-            <HandCell key={`${i}-${j}`} hand={hand} frequency={byHand.get(hand)} />
-          )),
-        )}
-      </div>
-      <div className="flex flex-wrap gap-4 text-sm text-zinc-700 dark:text-zinc-300">
-        {(Object.keys(ACTION_LABELS) as Array<keyof typeof ACTION_LABELS>).map((key) => (
-          <div key={key} className="flex items-center gap-1.5">
-            <span
-              className="inline-block h-3 w-3 rounded-sm"
-              style={{ backgroundColor: ACTION_COLORS[key] }}
-            />
-            <span>{ACTION_LABELS[key]}</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
+  return <HandMatrixGrid renderCell={(hand) => <HandCell hand={hand} frequency={byHand.get(hand)} />} legend={LEGEND} />;
 }

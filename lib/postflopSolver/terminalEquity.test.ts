@@ -1,12 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
-import {
-  comboVsComboRunoutEquity,
-  buildEquityTable,
-  equityVsRange,
-  equityAt,
-  FULL_DECK,
-  remainingDeck,
-} from "./terminalEquity";
+import { FULL_DECK, remainingDeck } from "@/lib/cards";
+import { comboVsComboRunoutEquity, buildEquityTable, equityVsRange } from "./terminalEquity";
+import { equityAt } from "./equityTableTestUtils";
 import type { ComboRange } from "./types";
 import * as handEval from "./handEval";
 

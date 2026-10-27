@@ -16,7 +16,6 @@ export interface HandFrequency {
   call: number;
   raise: number;
   allin?: number;
-  raiseSize?: string;
 }
 
 export type RangeSource = "nash-shove-fold" | "heuristic-approx" | "solver-export";

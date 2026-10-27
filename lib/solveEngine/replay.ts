@@ -1,9 +1,8 @@
 import type { ActionNode, ActionType, Position } from "@/types/rangeData";
+import type { HandResolvedReason } from "@/types/solveApi";
 import { computeAvailableActions } from "./actionSizing";
 import { initialPotState, applyAction, type PotState } from "./potState";
-import { computeNextActor, type HandResolvedReason } from "./rotation";
-
-export type { HandResolvedReason };
+import { computeNextActor } from "./rotation";
 
 export type ReplayResult =
   | { status: "active"; activeSeat: Position; potState: PotState; canonicalActionPath: ActionNode[] }
@@ -21,10 +20,9 @@ function labelForRaiseDepth(depth: number): string {
   return RAISE_DEPTH_LABEL[depth] ?? `${depth + 1}bet`;
 }
 
-function canonicalLabel(action: ActionType, state: PotState, raiseDepthBefore: number): string {
+function canonicalLabel(action: ActionType, state: PotState): string {
   if (action === "fold") return "fold";
   if (action === "call") return "call";
-  if (action === "allin" && state.raiseDepth === raiseDepthBefore) return "allin"; // all-in call, not a raise
   if (action === "allin") return "allin";
   return labelForRaiseDepth(state.raiseDepth);
 }
@@ -69,13 +67,12 @@ export function replayActionPath(
       }
     }
 
-    const raiseDepthBefore = state.raiseDepth;
     state = applyAction(state, node.actor, action, { effectiveStackBb, raiseToBb });
 
     canonicalActionPath.push({
       actor: node.actor,
       action,
-      label: canonicalLabel(action, state, raiseDepthBefore),
+      label: canonicalLabel(action, state),
       sizeBb: action === "fold" ? undefined : state.committed[node.actor],
     });
   }

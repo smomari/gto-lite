@@ -38,6 +38,23 @@ export function computeRoundActingOrder(
 }
 
 /**
+ * `actionPath` extended with a fold from every seat between `activeSeat` and
+ * `target` (exclusive), so `target` becomes the next actor. Null when
+ * `target` isn't strictly after `activeSeat` in the current round's order.
+ */
+export function buildFoldPrefixPath(
+  actionPath: Pick<ActionNode, "actor" | "action">[],
+  activeSeat: Position,
+  target: Position,
+  effectiveStackBb: number,
+): Pick<ActionNode, "actor" | "action">[] | null {
+  const order = computeRoundActingOrder(actionPath, activeSeat, effectiveStackBb);
+  const targetIdx = order.indexOf(target);
+  if (targetIdx <= 0) return null;
+  return [...actionPath, ...order.slice(0, targetIdx).map((actor) => ({ actor, action: "fold" as const }))];
+}
+
+/**
  * Client-safe (no equity matrix / Node deps — only replay.ts + actionSizing.ts,
  * both pure pot-ledger math). For a not-yet-reached `target` seat, computes what
  * its real Fold/Call/Raise/Allin options would be if every seat from
@@ -54,15 +71,10 @@ export function previewQuickAction(
   target: Position,
   effectiveStackBb: number,
 ): AvailableActions | null {
-  const order = computeRoundActingOrder(actionPath, activeSeat, effectiveStackBb);
-  const targetIdx = order.indexOf(target);
-  if (targetIdx <= 0) return null;
+  const prefixPath = buildFoldPrefixPath(actionPath, activeSeat, target, effectiveStackBb);
+  if (!prefixPath) return null;
 
-  const prefixFolds = order.slice(0, targetIdx).map((actor) => ({
-    actor,
-    action: "fold" as const,
-  }));
-  const result = replayActionPath([...actionPath, ...prefixFolds], effectiveStackBb);
+  const result = replayActionPath(prefixPath, effectiveStackBb);
   if (result.status !== "active" || result.activeSeat !== target) return null;
 
   return computeAvailableActions(target, result.potState, effectiveStackBb);

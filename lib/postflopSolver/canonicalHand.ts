@@ -1,4 +1,4 @@
-import { RANKS, type Rank } from "@/lib/handRange/handList";
+import { RANKS, type Rank } from "@/lib/cards";
 
 /** Maps a concrete combo's two cards to its 169-canonical-hand label, e.g. ["As","6s"] -> "A6s". */
 export function canonicalHandOf(cards: [string, string]): string {

@@ -1,5 +1,5 @@
 import { ALL_HANDS, type CanonicalHand } from "@/lib/handRange/handList";
-import { SUITS } from "@/lib/equity/assignCards";
+import { SUITS } from "@/lib/cards";
 import type { ComboRange } from "@/lib/postflopSolver/types";
 
 /**

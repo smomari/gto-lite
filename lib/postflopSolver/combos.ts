@@ -1,5 +1,5 @@
-import { ALL_HANDS, HAND_BY_LABEL } from "@/lib/handRange/handList";
-import { SUITS } from "@/lib/equity/assignCards";
+import { HAND_BY_LABEL } from "@/lib/handRange/handList";
+import { SUITS, comboKey } from "@/lib/cards";
 import type { HandFrequency } from "@/types/rangeData";
 import type { ComboRange } from "./types";
 
@@ -62,14 +62,6 @@ export function expandToCombos(
 export function filterBlockedCombos(range: ComboRange, blockedCards: string[]): ComboRange {
   const blocked = new Set(blockedCards);
   return range.filter(({ cards: [c1, c2] }) => !blocked.has(c1) && !blocked.has(c2));
-}
-
-/** Total combo count across ALL_HANDS, for sanity checks (should be 1326 = C(52,2)). */
-export const TOTAL_PREFLOP_COMBOS = ALL_HANDS.reduce((sum, h) => sum + h.combos, 0);
-
-/** Order-independent identity for a physical 2-card combo, e.g. ["Kc","Ac"] and ["Ac","Kc"] both key to "AcKc". */
-export function comboKey(cards: [string, string]): string {
-  return [...cards].sort().join("");
 }
 
 /** Maps each combo's identity to its index in a solved range array, for looking up its strategy row (`node.strategy[index]`) by concrete cards. */

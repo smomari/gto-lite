@@ -1,14 +1,13 @@
 import type { HandFrequency, Position, RangeSource } from "@/types/rangeData";
 import type { EquityMatrix } from "@/lib/equity/loadEquityMatrix";
-import { computePercentileRanking } from "@/lib/equity/handStrength";
 import { ALL_HANDS } from "@/lib/handRange/handList";
 import { seatIndex } from "@/lib/actionTree/seatOrder";
-import { solvePushFold } from "@/lib/nashSolver/pushFoldSolver";
 import { generateOpeningScenario, generateFacingRaiseScenario } from "@/lib/heuristicRanges/generateScenario";
 import { loadRfiExport } from "@/lib/preflopSolver/loadRfiExport";
 import type { PotState } from "./potState";
 import { shouldUseNash } from "./classify";
 import { RFI_EXPORT_STACK_BB } from "./constants";
+import { getPercentileRanking, getPushFoldResult } from "./solveCache";
 
 export interface SolvedNode {
   hands: HandFrequency[];
@@ -49,14 +48,14 @@ export function solveActiveSeat(
   }
 
   if (shouldUseNash(effectiveStackBb, remainingStackBb, potState.potBb, hasOpener)) {
-    const result = solvePushFold(matrix, { effectiveStackBb: remainingStackBb });
+    const result = getPushFoldResult(matrix, remainingStackBb);
     return {
       source: "nash-shove-fold",
       hands: hasOpener ? callFrequencyToHands(result.callFrequency) : shoveFrequencyToHands(result.shoveFrequency),
     };
   }
 
-  const ranking = computePercentileRanking(matrix);
+  const ranking = getPercentileRanking(matrix);
   if (!hasOpener) {
     return { source: "heuristic-approx", hands: generateOpeningScenario(ranking, seatIndex(activeSeat)) };
   }

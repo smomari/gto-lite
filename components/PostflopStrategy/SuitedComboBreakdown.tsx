@@ -1,5 +1,7 @@
 import { CardChip } from "@/components/PostflopBoard/CardChip";
-import { buildComboIndex, comboKey, enumerateCombos, filterBlockedCombos } from "@/lib/postflopSolver/combos";
+import { comboKey } from "@/lib/cards";
+import { buildComboIndex, enumerateCombos, filterBlockedCombos } from "@/lib/postflopSolver/combos";
+import { formatPercent } from "@/lib/format";
 import type { SerializedCombo, SerializedDecisionNode } from "@/types/postflopSolver";
 
 interface SuitedComboBreakdownProps {
@@ -12,10 +14,6 @@ interface SuitedComboBreakdownProps {
   colors: string[];
   heroLabel: string;
   villainLabel: string;
-}
-
-function pct(v: number): string {
-  return `${(v * 100).toFixed(1)}%`;
 }
 
 /**
@@ -81,7 +79,7 @@ export function SuitedComboBreakdown({ selectedHand, node, range, board, colors,
                     if (value <= 0) return null;
                     return (
                       <span key={a.label}>
-                        {a.label} {pct(value)}
+                        {a.label} {formatPercent(value)}
                       </span>
                     );
                   })}

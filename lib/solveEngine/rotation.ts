@@ -1,8 +1,7 @@
 import type { Position } from "@/types/rangeData";
+import type { HandResolvedReason } from "@/types/solveApi";
 import { SEAT_ORDER, seatIndex } from "@/lib/actionTree/seatOrder";
 import type { PotState } from "./potState";
-
-export type HandResolvedReason = "uncontested" | "action-closed";
 
 export type NextActorResult =
   | { type: "active"; seat: Position }
