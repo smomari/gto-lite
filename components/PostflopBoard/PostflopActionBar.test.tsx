@@ -69,7 +69,7 @@ describe("PostflopActionBar", () => {
     expect(boxes[1].querySelector("button")).toBeNull();
   });
 
-  it("terminal node: renders the plain-text message and zero active box", () => {
+  it("terminal node: only the history boxes, no active box", () => {
     render(
       <PostflopActionBar
         node={{ type: "terminal-fold", potBb: 12, winner: "P2", committed: { P1: 0, P2: 0 } }}
@@ -80,39 +80,23 @@ describe("PostflopActionBar", () => {
       />,
     );
 
-    expect(
-      screen.getAllByTestId("postflop-seat-box").filter((b) => b.getAttribute("data-kind") === "active"),
-    ).toHaveLength(0);
-    expect(screen.getByText(/wins uncontested/)).toBeInTheDocument();
+    const boxes = screen.getAllByTestId("postflop-seat-box");
+    expect(boxes.map((b) => b.getAttribute("data-kind"))).toEqual(["history"]);
   });
 
-  it("terminal-showdown: shows the default 'runs out to the river' message when no override is given", () => {
-    render(
+  it("renders the boxes unwrapped, so they become direct children of whatever row it is placed in", () => {
+    const { container } = render(
       <PostflopActionBar
-        node={terminalShowdown}
-        history={[]}
+        node={decisionNode("P2", [{ action: "check", label: "Check", child: terminalShowdown }])}
+        history={[{ actor: "P1", label: "Check" }]}
         heroLabel="BTN"
         villainLabel="BB"
         onNavigate={noop}
       />,
     );
-
-    expect(screen.getByText(/runs out to the river/)).toBeInTheDocument();
-  });
-
-  it("terminal-showdown: uses terminalShowdownMessage when given, instead of the default", () => {
-    render(
-      <PostflopActionBar
-        node={terminalShowdown}
-        history={[]}
-        heroLabel="BTN"
-        villainLabel="BB"
-        onNavigate={noop}
-        terminalShowdownMessage={(potBb) => `Custom message, pot ${potBb.toFixed(1)}bb`}
-      />,
-    );
-
-    expect(screen.getByText("Custom message, pot 10.0bb")).toBeInTheDocument();
-    expect(screen.queryByText(/runs out to the river/)).not.toBeInTheDocument();
+    expect([...container.children].map((el) => el.getAttribute("data-testid"))).toEqual([
+      "postflop-seat-box",
+      "postflop-seat-box",
+    ]);
   });
 });

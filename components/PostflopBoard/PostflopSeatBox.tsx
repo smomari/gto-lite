@@ -26,7 +26,7 @@ export function PostflopSeatBox(props: PostflopSeatBoxProps) {
       data-testid="postflop-seat-box"
       data-kind={props.kind}
       data-seat={props.seatLabel}
-      className={`flex min-w-[150px] flex-col gap-1.5 rounded-lg border p-2.5 ${
+      className={`flex shrink-0 min-w-[130px] flex-col gap-1.5 rounded-lg border p-2.5 ${
         isActive
           ? "border-emerald-500 ring-1 ring-emerald-500"
           : "border-zinc-300 dark:border-zinc-700"
@@ -49,7 +49,7 @@ export function PostflopSeatBox(props: PostflopSeatBoxProps) {
       )}
 
       {props.kind === "active" && (
-        <div className="flex flex-wrap gap-1">
+        <div className="flex flex-nowrap gap-1">
           {props.actions.map((a, i) => (
             <button
               key={i}

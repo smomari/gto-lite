@@ -28,10 +28,12 @@ export function solvePostflopInWorker(
     }
 
     const worker = new Worker(new URL("./postflopWorker.ts", import.meta.url));
+    const helpers = startShowdownHelpers();
     let settled = false;
 
     function cleanup() {
       worker.terminate();
+      for (const helper of helpers.workers) helper.terminate();
       options?.signal?.removeEventListener("abort", onAbort);
     }
 
@@ -69,6 +71,31 @@ export function solvePostflopInWorker(
     };
 
     const inMessage: PostflopSolveInMessage = { type: "solve", request };
-    worker.postMessage(inMessage);
+    worker.postMessage(inMessage, helpers.solverPorts);
   });
+}
+
+/** Leaves one core for the page and one for the solver worker itself, which also computes a slice. */
+const MAX_SHOWDOWN_HELPERS = 5;
+
+/**
+ * Helper workers that share the showdown batch with the solver worker. They
+ * need SharedArrayBuffer, which browsers only allow on a cross-origin isolated
+ * page (COOP/COEP headers in next.config.ts) — otherwise none, and the solver
+ * runs on its own thread as before. Started here on the main thread (not from
+ * inside the solver worker) and wired to it by MessageChannel.
+ */
+function startShowdownHelpers(): { workers: Worker[]; solverPorts: MessagePort[] } {
+  if (typeof SharedArrayBuffer === "undefined" || !globalThis.crossOriginIsolated) return { workers: [], solverPorts: [] };
+  const count = Math.max(0, Math.min((navigator.hardwareConcurrency || 4) - 2, MAX_SHOWDOWN_HELPERS));
+  const workers: Worker[] = [];
+  const solverPorts: MessagePort[] = [];
+  for (let i = 0; i < count; i++) {
+    const helper = new Worker(new URL("./showdownHelperWorker.ts", import.meta.url));
+    const channel = new MessageChannel();
+    helper.postMessage(null, [channel.port1]);
+    workers.push(helper);
+    solverPorts.push(channel.port2);
+  }
+  return { workers, solverPorts };
 }

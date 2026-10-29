@@ -1,10 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { BoardPicker } from "./BoardPicker";
 import { CardChip } from "./CardChip";
-import { PastStreetSummary } from "./PastStreetSummary";
+import { StreetBox } from "./StreetBox";
 import { PostflopActionBar } from "./PostflopActionBar";
+import { PostflopTerminalMessage } from "./PostflopTerminalMessage";
 import { PostflopRangeGrid } from "@/components/PostflopStrategy/PostflopRangeGrid";
 import { BetSizeFilterBar } from "@/components/PostflopStrategy/BetSizeFilterBar";
 import { SuitedComboBreakdown } from "@/components/PostflopStrategy/SuitedComboBreakdown";
@@ -27,7 +29,7 @@ import type {
   SerializedTreeNode,
 } from "@/types/postflopSolver";
 import type { HandFrequency } from "@/types/rangeData";
-import { hasNextStreet, streetLabelForBoardLength, type StreetBoardSummary, type StreetLabel } from "./streetLabel";
+import { hasNextStreet, streetLabelForBoardLength, type StreetLabel } from "./streetLabel";
 
 interface PostflopPanelProps {
   heroLabel: string;
@@ -38,8 +40,8 @@ interface PostflopPanelProps {
   villainActionKey: ActionWeightKey;
   startPot: number;
   effectiveStackBb: number;
-  /** Called whenever the confirmed board(s) change, so a caller can surface them outside this panel (e.g. next to the seat action row). */
-  onBoardSummaryChange?: (streets: StreetBoardSummary[]) => void;
+  /** Where each street's StreetBox is portaled — the end of the seat-bar row, so the whole hand reads as one timeline. */
+  streetBarSlot: HTMLElement | null;
 }
 
 type SolveState =
@@ -84,12 +86,12 @@ export function PostflopPanel(props: PostflopPanelProps) {
   const [isolatedActionIndex, setIsolatedActionIndex] = useState<number | null>(null);
   const [expandedPastStage, setExpandedPastStage] = useState<number | null>(null);
 
+  // Keep the newest timeline entry (a new street's box, or the seat now to act) in view.
+  const boxedStreetCount = streets.filter((s) => s.board.length > 0).length;
+  const liveNode = streets[streets.length - 1].currentNode;
   useEffect(() => {
-    props.onBoardSummaryChange?.(
-      streets.filter((s) => s.board.length > 0).map((s) => ({ streetLabel: s.streetLabel, board: s.board })),
-    );
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- onBoardSummaryChange is expected to be a stable setState reference, not re-run-worthy on its own
-  }, [streets]);
+    props.streetBarSlot?.lastElementChild?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }, [props.streetBarSlot, boxedStreetCount, liveNode]);
 
   useEffect(() => {
     const solves = solveAbortRef.current;
@@ -342,29 +344,24 @@ export function PostflopPanel(props: PostflopPanelProps) {
     return (
       <>
         {solveState.result.exploitability && <ExploitabilityBadge exploitability={solveState.result.exploitability} />}
-        <PostflopActionBar
-          node={currentNode}
-          history={stage.path.map((step) => ({
-            actor: step.node.actor,
-            label: step.node.actions[step.actionIndex].label,
-          }))}
-          heroLabel={props.heroLabel}
-          villainLabel={props.villainLabel}
-          onNavigate={(action) => handleNavigate(i, action)}
-          terminalShowdownMessage={(potBb) => {
-            const committed = currentNode.type === "terminal-showdown" ? currentNode.committed : null;
-            const stackLeft = committed ? stage.effectiveStackAtStart - committed.P1 : null;
-
-            if (stackLeft !== null && stackLeft <= 0) {
-              return `All-in — hand is already decided, pot ${potBb.toFixed(1)}bb runs out to showdown automatically.`;
-            }
-            if (!hasNextStreet(stage.board.length)) {
-              return `Showdown — pot ${potBb.toFixed(1)}bb. Hand complete.`;
-            }
-            const nextStreetLabel = streetLabelForBoardLength(stage.board.length + 1);
-            return `Street ends — pot ${potBb.toFixed(1)}bb, ${nextStreetLabel.toLowerCase()} card coming next.`;
-          }}
-        />
+        {currentNode.type !== "decision" && (
+          <PostflopTerminalMessage
+            node={currentNode}
+            heroLabel={props.heroLabel}
+            villainLabel={props.villainLabel}
+            showdownMessage={(potBb) => {
+              const stackLeft = stage.effectiveStackAtStart - currentNode.committed.P1;
+              if (currentNode.type === "terminal-showdown" && stackLeft <= 0) {
+                return `All-in — hand is already decided, pot ${potBb.toFixed(1)}bb runs out to showdown automatically.`;
+              }
+              if (!hasNextStreet(stage.board.length)) {
+                return `Showdown — pot ${potBb.toFixed(1)}bb. Hand complete.`;
+              }
+              const nextStreetLabel = streetLabelForBoardLength(stage.board.length + 1);
+              return `Street ends — pot ${potBb.toFixed(1)}bb, ${nextStreetLabel.toLowerCase()} card coming next.`;
+            }}
+          />
+        )}
         {currentNode.type === "terminal-showdown" && hasNextStreet(stage.board.length) && currentNode.checkdownEquity && (
           <>
             <CheckdownEquityNote
@@ -442,85 +439,113 @@ export function PostflopPanel(props: PostflopPanelProps) {
     );
   }
 
+  /** Pot entering street `i` — the previous street's closing (terminal-showdown) pot, or the preflop pot for the flop. */
+  function streetStartPot(i: number): number {
+    return i === 0 ? props.startPot : (streets[i - 1].currentNode?.potBb ?? props.startPot);
+  }
+
+  const liveIndex = streets.length - 1;
+  const live = streets[liveIndex];
+  const liveIsFlop = live.streetLabel === "Flop";
+
+  function renderPastStreetDetails(i: number) {
+    const stage = streets[i];
+    // Invariant: a stage is only ever non-last once its own action reached a
+    // terminal-showdown (see handleNavigate) — so a past stage is always done.
+    if (stage.state.kind !== "done" || !stage.currentNode) return null;
+    return (
+      <div
+        data-testid="past-street-details"
+        className="absolute inset-x-4 top-4 z-10 flex max-h-[80%] flex-col gap-2 overflow-y-auto rounded-lg border border-zinc-300 bg-white p-4 shadow-xl dark:border-zinc-700 dark:bg-zinc-950"
+      >
+        <div className="flex items-center gap-2">
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+            {stage.streetLabel}
+          </h3>
+          <div className="flex gap-0.5">
+            {stage.board.map((card) => (
+              <CardChip key={card} card={card} size="sm" />
+            ))}
+          </div>
+          <button
+            type="button"
+            aria-label="Close details"
+            onClick={() => setExpandedPastStage(null)}
+            className="ml-auto rounded px-2 text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
+          >
+            ✕
+          </button>
+        </div>
+        {renderDoneContent(stage, i, stage.state, stage.currentNode)}
+      </div>
+    );
+  }
+
+  // Each street's divider box, then its seat boxes — the same row as the
+  // preflop seats, so the whole hand reads left-to-right as one timeline.
+  const timeline = streets.map((stage, i) => {
+    if (stage.board.length === 0) return null;
+    const isLive = i === liveIndex;
+    return (
+      <Fragment key={i}>
+        <StreetBox
+          streetLabel={stage.streetLabel}
+          cards={stage.board.slice(i === 0 ? 0 : streets[i - 1].board.length)}
+          potBb={streetStartPot(i)}
+          status={isLive ? "live" : "past"}
+          selected={expandedPastStage === i}
+          onClick={() => setExpandedPastStage(expandedPastStage === i ? null : i)}
+        />
+        <PostflopActionBar
+          node={isLive ? stage.currentNode : null}
+          history={stage.path.map((step) => ({ actor: step.node.actor, label: step.node.actions[step.actionIndex].label }))}
+          heroLabel={props.heroLabel}
+          villainLabel={props.villainLabel}
+          onNavigate={(action) => handleNavigate(i, action)}
+        />
+      </Fragment>
+    );
+  });
+
   return (
-    <div className="flex flex-1 min-h-0 flex-col gap-2 overflow-hidden rounded-lg border border-zinc-300 p-4 dark:border-zinc-700">
+    <div className="relative flex flex-1 min-h-0 flex-col gap-2 overflow-hidden rounded-lg border border-zinc-300 p-4 dark:border-zinc-700">
+      {props.streetBarSlot && createPortal(timeline, props.streetBarSlot)}
+
       <h2 className="text-xs font-semibold text-zinc-900 dark:text-zinc-100">
         Postflop solver ({props.heroLabel} vs {props.villainLabel}) — Phase 1, experimental
       </h2>
 
-      {streets.map((stage, i) => {
-        const isLast = i === streets.length - 1;
-        const solveState = stage.state;
-        const currentNode = stage.currentNode;
-        const isFlop = stage.streetLabel === "Flop";
+      <div
+        data-testid="street-stage"
+        data-street={live.streetLabel}
+        className="flex flex-1 min-h-0 flex-col gap-2 overflow-y-auto"
+      >
+        {live.state.kind === "idle" && (
+          <BoardPicker
+            count={liveIsFlop ? 3 : 1}
+            excludedCards={liveIndex === 0 ? [] : streets[liveIndex - 1].board}
+            title={liveIsFlop ? "Pick the 3 flop cards" : `Pick the ${live.streetLabel.toLowerCase()} card`}
+            confirmLabel={`Solve ${live.streetLabel.toLowerCase()}`}
+            onConfirm={(cards) => handleBoardConfirm(liveIndex, cards)}
+          />
+        )}
 
-        if (!isLast) {
-          // Invariant: a stage is only ever non-last once its own action reached
-          // a terminal-showdown (see handleNavigate) — always resolved by now.
-          if (solveState.kind !== "done" || !currentNode) return null;
-          return (
-            <PastStreetSummary
-              key={i}
-              streetLabel={stage.streetLabel}
-              board={stage.board}
-              potBb={currentNode.potBb}
-              actionLabels={stage.path.map((step) => step.node.actions[step.actionIndex].label)}
-              expanded={expandedPastStage === i}
-              onToggleExpand={() => setExpandedPastStage(expandedPastStage === i ? null : i)}
-            >
-              {renderDoneContent(stage, i, solveState, currentNode)}
-            </PastStreetSummary>
-          );
-        }
+        {live.state.kind === "solving" && (
+          <SolveProgress
+            phase={live.state.phase}
+            done={live.state.done}
+            total={live.state.total}
+            exploitabilityPercent={live.state.exploitabilityPercent}
+            targetExploitabilityPercent={DEFAULT_TARGET_EXPLOITABILITY_PERCENT}
+          />
+        )}
 
-        return (
-          <div
-            key={i}
-            data-testid="street-stage"
-            data-street={stage.streetLabel}
-            className="flex flex-1 min-h-0 flex-col gap-2 overflow-y-auto border-t border-zinc-200 pt-2 first:border-t-0 first:pt-0 dark:border-zinc-800"
-          >
-            <div className="flex items-center gap-2">
-              <h3 className="text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-                {stage.streetLabel}
-              </h3>
-              {solveState.kind !== "idle" && (
-                <div className="flex gap-1">
-                  {stage.board.map((card) => (
-                    <CardChip key={card} card={card} size="md" />
-                  ))}
-                </div>
-              )}
-            </div>
+        {live.state.kind === "error" && <p className="text-sm text-red-600 dark:text-red-400">Error: {live.state.message}</p>}
 
-            {solveState.kind === "idle" && (
-              <BoardPicker
-                count={isFlop ? 3 : 1}
-                excludedCards={i === 0 ? [] : streets[i - 1].board}
-                title={isFlop ? "Pick the 3 flop cards" : `Pick the ${stage.streetLabel.toLowerCase()} card`}
-                confirmLabel={`Solve ${stage.streetLabel.toLowerCase()}`}
-                onConfirm={(cards) => handleBoardConfirm(i, cards)}
-              />
-            )}
+        {live.state.kind === "done" && live.currentNode && renderDoneContent(live, liveIndex, live.state, live.currentNode)}
+      </div>
 
-            {solveState.kind === "solving" && (
-              <SolveProgress
-                phase={solveState.phase}
-                done={solveState.done}
-                total={solveState.total}
-                exploitabilityPercent={solveState.exploitabilityPercent}
-                targetExploitabilityPercent={DEFAULT_TARGET_EXPLOITABILITY_PERCENT}
-              />
-            )}
-
-            {solveState.kind === "error" && (
-              <p className="text-sm text-red-600 dark:text-red-400">Error: {solveState.message}</p>
-            )}
-
-            {solveState.kind === "done" && currentNode && renderDoneContent(stage, i, solveState, currentNode)}
-          </div>
-        );
-      })}
+      {expandedPastStage !== null && expandedPastStage < liveIndex && renderPastStreetDetails(expandedPastStage)}
     </div>
   );
 }

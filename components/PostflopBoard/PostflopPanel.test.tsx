@@ -1,4 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
+import { useState, type ComponentProps } from "react";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { PostflopPanel } from "./PostflopPanel";
 import type {
@@ -223,6 +224,49 @@ function baseProps(effectiveStackBb: number) {
   };
 }
 
+/** Mirrors the page: a seat-bar slot the panel portals its street boxes into. */
+function Harness(props: Omit<ComponentProps<typeof PostflopPanel>, "streetBarSlot">) {
+  const [slot, setSlot] = useState<HTMLDivElement | null>(null);
+  return (
+    <>
+      <div data-testid="street-bar-slot" ref={setSlot} />
+      <PostflopPanel {...props} streetBarSlot={slot} />
+    </>
+  );
+}
+
+function renderPanel(effectiveStackBb: number) {
+  return render(<Harness {...baseProps(effectiveStackBb)} />);
+}
+
+function liveStage() {
+  return screen.getByTestId("street-stage");
+}
+
+/** [street, status] for every street box in the seat bar, in order. */
+function streetBoxSummary() {
+  return screen.queryAllByTestId("street-box").map((b) => [b.getAttribute("data-street"), b.getAttribute("data-status")]);
+}
+
+/** The seat-bar slot's entries in order: street boxes by label, seat boxes as "SEAT:label" (or "SEAT:active"). */
+function timeline() {
+  return [...screen.getByTestId("street-bar-slot").children].map((el) => {
+    const element = el as HTMLElement;
+    if (element.dataset.testid === "street-box") return element.dataset.street;
+    const seat = element.dataset.seat;
+    return element.dataset.kind === "active" ? `${seat}:active` : `${seat}:${element.textContent?.replace(seat ?? "", "")}`;
+  });
+}
+
+function streetBox(label: string) {
+  return screen.getAllByTestId("street-box").find((b) => b.getAttribute("data-street") === label)!;
+}
+
+function openStreetDetails(label: string) {
+  fireEvent.click(streetBox(label));
+  return screen.getByTestId("past-street-details");
+}
+
 function pickFlopBoard() {
   fireEvent.click(screen.getByRole("button", { name: "As" }));
   fireEvent.click(screen.getByRole("button", { name: "Kd" }));
@@ -235,49 +279,49 @@ beforeEach(() => {
 });
 
 describe("PostflopPanel", () => {
-  it("starts with a single Flop stage showing the 3-card board picker", () => {
-    render(<PostflopPanel {...baseProps(20)} />);
-    const stages = screen.getAllByTestId("street-stage");
-    expect(stages).toHaveLength(1);
-    expect(stages[0]).toHaveAttribute("data-street", "Flop");
-    expect(within(stages[0]).getByText(/Pick the 3 flop cards/)).toBeInTheDocument();
+  it("starts with a single live Flop stage showing the 3-card board picker, and no street boxes yet", () => {
+    renderPanel(20);
+    expect(screen.getAllByTestId("street-stage")).toHaveLength(1);
+    expect(liveStage()).toHaveAttribute("data-street", "Flop");
+    expect(within(liveStage()).getByText(/Pick the 3 flop cards/)).toBeInTheDocument();
+    expect(streetBoxSummary()).toEqual([]);
   });
 
-  it("once a board is confirmed, the picked cards stay visible next to the street header", () => {
+  it("once a board is confirmed, a live Flop box with the picked cards appears in the seat-bar slot, not in the panel", () => {
     solvePostflopInWorker.mockReturnValueOnce(new Promise(() => {})); // never resolves — only the "solving" state matters here
-    render(<PostflopPanel {...baseProps(20)} />);
+    renderPanel(20);
 
     pickFlopBoard();
 
-    const stage = screen.getAllByTestId("street-stage")[0];
-    const cardChips = within(stage).getAllByTitle(/^(As|Kd|Qh)$/);
+    expect(streetBoxSummary()).toEqual([["Flop", "live"]]);
+    const slot = screen.getByTestId("street-bar-slot");
+    const cardChips = within(slot).getAllByTitle(/^(As|Kd|Qh)$/);
     expect(cardChips.map((el) => el.getAttribute("data-card")).sort()).toEqual(["As", "Kd", "Qh"]);
+    expect(within(liveStage()).queryByTestId("street-box")).not.toBeInTheDocument();
   });
 
-  it("reaching a check-check terminal-showdown (stack still behind) appends an idle Turn stage", async () => {
+  it("reaching a check-check terminal-showdown (stack still behind) turns the flop into a past box and makes an idle Turn the live stage", async () => {
     solvePostflopInWorker.mockResolvedValueOnce(checkCheckFlopResult({ P1: 0, P2: 0 }));
-    render(<PostflopPanel {...baseProps(20)} />);
+    renderPanel(20);
 
     pickFlopBoard();
     await screen.findByRole("button", { name: "Check" }); // P1's active box rendered
     fireEvent.click(screen.getByRole("button", { name: "Check" })); // P1 checks
     fireEvent.click(screen.getByRole("button", { name: "Check" })); // P2 checks, closes street
 
-    const stages = screen.getAllByTestId("street-stage");
-    expect(stages).toHaveLength(2);
-    expect(stages[1]).toHaveAttribute("data-street", "Turn");
-    expect(within(stages[1]).getByText(/Pick the turn card/)).toBeInTheDocument();
+    expect(screen.getAllByTestId("street-stage")).toHaveLength(1);
+    expect(liveStage()).toHaveAttribute("data-street", "Turn");
+    expect(within(liveStage()).getByText(/Pick the turn card/)).toBeInTheDocument();
+    expect(streetBoxSummary()).toEqual([["Flop", "past"]]);
 
     const flopRequest = solvePostflopInWorker.mock.calls[0][0] as PostflopSolveRequest;
     expect(flopRequest.kind).toBe("canonical");
-    // The flop is now a past (collapsed) stage — expand it to see its terminal message.
-    fireEvent.click(within(stages[0]).getByRole("button", { name: /Details/ }));
-    expect(within(stages[0]).getByText(/turn card coming next/)).toBeInTheDocument();
+    expect(within(openStreetDetails("Flop")).getByText(/turn card coming next/)).toBeInTheDocument();
   });
 
   it("solving the turn sends a combos-kind request derived from the flop's path, and renders the turn's own action bar", async () => {
     solvePostflopInWorker.mockResolvedValueOnce(checkCheckFlopResult({ P1: 0, P2: 0 }));
-    render(<PostflopPanel {...baseProps(20)} />);
+    renderPanel(20);
 
     pickFlopBoard();
     await screen.findByRole("button", { name: "Check" });
@@ -297,13 +341,22 @@ describe("PostflopPanel", () => {
       expect(turnRequest.heroRange).toEqual([{ cards: ["Ah", "Kd"], weight: 1 }]);
     }
 
-    const stages = screen.getAllByTestId("street-stage");
-    expect(within(stages[1]).getByRole("button", { name: "Check" })).toBeInTheDocument();
+    // The turn's own to-act box sits in the seat bar right after the Turn box, not in the panel body.
+    expect(timeline()).toEqual(["Flop", "BTN:Check", "BB:Check", "Turn", "BTN:active"]);
+    expect(within(liveStage()).queryByTestId("postflop-seat-box")).not.toBeInTheDocument();
+    expect(streetBoxSummary()).toEqual([
+      ["Flop", "past"],
+      ["Turn", "live"],
+    ]);
+    // The turn box carries only the turn card, plus the pot entering the street.
+    const turnBox = streetBox("Turn");
+    expect([...turnBox.querySelectorAll("[data-card]")].map((el) => el.getAttribute("data-card"))).toEqual(["7h"]);
+    expect(within(turnBox).getByText("pot 7.5bb")).toBeInTheDocument();
   });
 
   it("'Pick a different turn card' resets only the turn stage, leaving the flop's result intact", async () => {
     solvePostflopInWorker.mockResolvedValueOnce(checkCheckFlopResult({ P1: 0, P2: 0 }));
-    render(<PostflopPanel {...baseProps(20)} />);
+    renderPanel(20);
 
     pickFlopBoard();
     await screen.findByRole("button", { name: "Check" });
@@ -317,30 +370,30 @@ describe("PostflopPanel", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Pick a different turn card" }));
 
-    const stages = screen.getAllByTestId("street-stage");
-    expect(stages).toHaveLength(2);
-    expect(within(stages[1]).getByText(/Pick the turn card/)).toBeInTheDocument();
-    // Flop stage is untouched — still shows its frozen history, not the board picker.
-    expect(within(stages[0]).queryByText(/Pick the 3 flop cards/)).not.toBeInTheDocument();
+    expect(liveStage()).toHaveAttribute("data-street", "Turn");
+    expect(within(liveStage()).getByText(/Pick the turn card/)).toBeInTheDocument();
+    // The flop is untouched — still a past box, not back at its board picker.
+    expect(streetBoxSummary()).toEqual([["Flop", "past"]]);
+    expect(screen.queryByText(/Pick the 3 flop cards/)).not.toBeInTheDocument();
   });
 
   it("an all-in-call terminal (no stack left) does not offer a turn stage", async () => {
     solvePostflopInWorker.mockResolvedValueOnce(allinCallFlopResult(10));
-    render(<PostflopPanel {...baseProps(10)} />);
+    renderPanel(10);
 
     pickFlopBoard();
     await screen.findByRole("button", { name: "Allin 10.0bb" });
     fireEvent.click(screen.getByRole("button", { name: "Allin 10.0bb" }));
     fireEvent.click(screen.getByRole("button", { name: "Call" }));
 
-    const stages = screen.getAllByTestId("street-stage");
-    expect(stages).toHaveLength(1);
+    expect(liveStage()).toHaveAttribute("data-street", "Flop");
+    expect(streetBoxSummary()).toEqual([["Flop", "live"]]);
     expect(screen.getByText(/All-in — hand is already decided/)).toBeInTheDocument();
   });
 
   async function reachTurnCheckCheck() {
     solvePostflopInWorker.mockResolvedValueOnce(checkCheckFlopResult({ P1: 0, P2: 0 }));
-    render(<PostflopPanel {...baseProps(20)} />);
+    renderPanel(20);
 
     pickFlopBoard();
     await screen.findByRole("button", { name: "Check" });
@@ -359,13 +412,13 @@ describe("PostflopPanel", () => {
     fireEvent.click(turnChecks[0]); // P1 checks the turn
     fireEvent.click(screen.getByRole("button", { name: "Check" })); // P2 checks, closes the street
 
-    const stages = screen.getAllByTestId("street-stage");
-    expect(stages).toHaveLength(3);
-    expect(stages[2]).toHaveAttribute("data-street", "River");
-    expect(within(stages[2]).getByText(/Pick the river card/)).toBeInTheDocument();
-    // The turn is now a past (collapsed) stage — expand it to see its terminal message.
-    fireEvent.click(within(stages[1]).getByRole("button", { name: /Details/ }));
-    expect(within(stages[1]).getByText(/river card coming next/)).toBeInTheDocument();
+    expect(liveStage()).toHaveAttribute("data-street", "River");
+    expect(within(liveStage()).getByText(/Pick the river card/)).toBeInTheDocument();
+    expect(streetBoxSummary()).toEqual([
+      ["Flop", "past"],
+      ["Turn", "past"],
+    ]);
+    expect(within(openStreetDetails("Turn")).getByText(/river card coming next/)).toBeInTheDocument();
   });
 
   it("solving the river sends a combos-kind request derived from the turn's path", async () => {
@@ -402,14 +455,18 @@ describe("PostflopPanel", () => {
     fireEvent.click(riverChecks[0]);
     fireEvent.click(screen.getByRole("button", { name: "Check" }));
 
-    const stages = screen.getAllByTestId("street-stage");
-    expect(stages).toHaveLength(3);
-    expect(within(stages[2]).getByText(/Showdown/)).toBeInTheDocument();
+    expect(liveStage()).toHaveAttribute("data-street", "River");
+    expect(within(liveStage()).getByText(/Showdown/)).toBeInTheDocument();
+    expect(streetBoxSummary()).toEqual([
+      ["Flop", "past"],
+      ["Turn", "past"],
+      ["River", "live"],
+    ]);
   });
 
   it("an all-in-call terminal on the turn (no stack left) does not offer a river stage (regression)", async () => {
     solvePostflopInWorker.mockResolvedValueOnce(checkCheckFlopResult({ P1: 0, P2: 0 }));
-    render(<PostflopPanel {...baseProps(20)} />);
+    renderPanel(20);
 
     pickFlopBoard();
     await screen.findByRole("button", { name: "Check" });
@@ -424,9 +481,12 @@ describe("PostflopPanel", () => {
     fireEvent.click(screen.getByRole("button", { name: "Allin 20.0bb" }));
     fireEvent.click(screen.getByRole("button", { name: "Call" }));
 
-    const stages = screen.getAllByTestId("street-stage");
-    expect(stages).toHaveLength(2);
-    expect(within(stages[1]).getByText(/All-in — hand is already decided/)).toBeInTheDocument();
+    expect(liveStage()).toHaveAttribute("data-street", "Turn");
+    expect(within(liveStage()).getByText(/All-in — hand is already decided/)).toBeInTheDocument();
+    expect(streetBoxSummary()).toEqual([
+      ["Flop", "past"],
+      ["Turn", "live"],
+    ]);
     expect(screen.queryByText(/isn't implemented yet/)).not.toBeInTheDocument();
   });
 
@@ -453,16 +513,16 @@ describe("PostflopPanel", () => {
     solvePostflopInWorker.mockResolvedValueOnce(
       checkCheckFlopResultWithCheckdown({ P1: 0, P2: 0 }, makeCheckdownEquity()),
     );
-    render(<PostflopPanel {...baseProps(20)} />);
+    renderPanel(20);
 
     pickFlopBoard();
     await screen.findByRole("button", { name: "Check" });
     fireEvent.click(screen.getByRole("button", { name: "Check" }));
     fireEvent.click(screen.getByRole("button", { name: "Check" }));
     // The flop closes to a terminal-showdown with a next street live, so a new
-    // idle Turn stage gets pushed and the flop becomes a past (collapsed)
-    // stage — expand it to reach its checkdown note / precise-EV button.
-    fireEvent.click(within(screen.getAllByTestId("street-stage")[0]).getByRole("button", { name: /Details/ }));
+    // idle Turn stage goes live and the flop becomes a past box — open its
+    // details to reach the checkdown note / precise-EV button.
+    openStreetDetails("Flop");
     await screen.findByText(/Checkdown avg EV/);
   }
 
@@ -532,55 +592,56 @@ describe("PostflopPanel", () => {
     solvePostflopInWorker.mockResolvedValueOnce(
       checkCheckFlopResultWithCheckdown({ P1: 0, P2: 0 }, makeCheckdownEquity()),
     );
-    // Re-picking the flop stage's own checkdown note is still on-screen (stage 0);
-    // the new turn stage should be back to its idle board picker, not a stale "Average:" result.
-    const stages = screen.getAllByTestId("street-stage");
-    expect(within(stages[1]).queryByText(/Average:/)).not.toBeInTheDocument();
+    // The new turn stage is back to its idle board picker, not a stale "Average:" result.
+    expect(within(liveStage()).queryByText(/Average:/)).not.toBeInTheDocument();
   });
 
-  it("a past (already-resolved) street collapses to a pill by default — its full content isn't in the DOM until expanded", async () => {
+  it("a past street is a compact box (street, cards, pot) followed by its seat boxes; its full details only open on demand, over the live stage", async () => {
     solvePostflopInWorker.mockResolvedValueOnce(checkCheckFlopResult({ P1: 0, P2: 0 }));
-    render(<PostflopPanel {...baseProps(20)} />);
+    renderPanel(20);
 
     pickFlopBoard();
     await screen.findByRole("button", { name: "Check" });
     fireEvent.click(screen.getByRole("button", { name: "Check" }));
     fireEvent.click(screen.getByRole("button", { name: "Check" }));
 
-    const stages = screen.getAllByTestId("street-stage");
-    const flopStage = stages[0];
-    // Collapsed: board + pot visible, but the action-bar history (rendered only
-    // in the full content) is not.
-    expect(within(flopStage).getByText("Flop")).toBeInTheDocument();
-    expect(within(flopStage).getByText(/pot 7\.5bb/)).toBeInTheDocument();
-    expect(within(flopStage).queryByText("Check → Check")).toBeInTheDocument(); // collapsed-row action summary
-    expect(within(flopStage).queryByText(/turn card coming next/)).not.toBeInTheDocument();
+    const flopBox = streetBox("Flop");
+    expect(within(flopBox).getByText("Flop")).toBeInTheDocument();
+    expect(within(flopBox).getByText("pot 7.5bb")).toBeInTheDocument();
+    expect(flopBox.querySelectorAll("[data-card]")).toHaveLength(3);
+    expect(timeline()).toEqual(["Flop", "BTN:Check", "BB:Check"]);
+    expect(screen.queryByTestId("past-street-details")).not.toBeInTheDocument();
 
-    fireEvent.click(within(flopStage).getByRole("button", { name: /Details/ }));
-    expect(within(flopStage).getByText(/turn card coming next/)).toBeInTheDocument();
+    // Opening details doesn't replace the live stage — it overlays it.
+    const details = openStreetDetails("Flop");
+    expect(within(details).getByText(/turn card coming next/)).toBeInTheDocument();
+    expect(within(liveStage()).getByText(/Pick the turn card/)).toBeInTheDocument();
 
-    fireEvent.click(within(flopStage).getByRole("button", { name: /Hide details/ }));
-    expect(within(flopStage).queryByText(/turn card coming next/)).not.toBeInTheDocument();
+    fireEvent.click(within(details).getByRole("button", { name: "Close details" }));
+    expect(screen.queryByTestId("past-street-details")).not.toBeInTheDocument();
+
+    // Clicking the same box toggles it.
+    openStreetDetails("Flop");
+    fireEvent.click(streetBox("Flop"));
+    expect(screen.queryByTestId("past-street-details")).not.toBeInTheDocument();
   });
 
-  it("'Pick a different board' inside an expanded past stage still truncates later streets and promotes it back to live", async () => {
+  it("'Pick a different board' inside a past street's details still truncates later streets and makes it live again", async () => {
     solvePostflopInWorker.mockResolvedValueOnce(checkCheckFlopResult({ P1: 0, P2: 0 }));
-    render(<PostflopPanel {...baseProps(20)} />);
+    renderPanel(20);
 
     pickFlopBoard();
     await screen.findByRole("button", { name: "Check" });
     fireEvent.click(screen.getByRole("button", { name: "Check" }));
     fireEvent.click(screen.getByRole("button", { name: "Check" }));
+    expect(liveStage()).toHaveAttribute("data-street", "Turn");
 
-    let stages = screen.getAllByTestId("street-stage");
-    expect(stages).toHaveLength(2); // flop (past) + turn (idle, current)
+    fireEvent.click(within(openStreetDetails("Flop")).getByRole("button", { name: "Pick a different board" }));
 
-    fireEvent.click(within(stages[0]).getByRole("button", { name: /Details/ }));
-    fireEvent.click(within(stages[0]).getByRole("button", { name: "Pick a different board" }));
-
-    stages = screen.getAllByTestId("street-stage");
-    expect(stages).toHaveLength(1); // the turn stage is dropped, flop is promoted back to live
-    expect(within(stages[0]).getByText(/Pick the 3 flop cards/)).toBeInTheDocument();
+    expect(liveStage()).toHaveAttribute("data-street", "Flop");
+    expect(within(liveStage()).getByText(/Pick the 3 flop cards/)).toBeInTheDocument();
+    expect(streetBoxSummary()).toEqual([]);
+    expect(screen.queryByTestId("past-street-details")).not.toBeInTheDocument();
   });
 
   /** A solvePostflopInWorker call whose progress/resolution the test drives by hand, ignoring abort like a late worker message would. */
@@ -603,7 +664,7 @@ describe("PostflopPanel", () => {
 
   async function startTurnSolveAfterFlopCheckCheck() {
     solvePostflopInWorker.mockResolvedValueOnce(checkCheckFlopResult({ P1: 0, P2: 0 }));
-    const utils = render(<PostflopPanel {...baseProps(20)} />);
+    const utils = renderPanel(20);
     pickFlopBoard();
     await screen.findByRole("button", { name: "Check" });
     fireEvent.click(screen.getByRole("button", { name: "Check" }));
@@ -618,9 +679,7 @@ describe("PostflopPanel", () => {
   it("going back to the flop's board picker mid-turn-solve cancels the turn solve and ignores its late messages (regression)", async () => {
     const { turnSolve } = await startTurnSolveAfterFlopCheckCheck();
 
-    const flopStage = screen.getAllByTestId("street-stage")[0];
-    fireEvent.click(within(flopStage).getByRole("button", { name: /Details/ }));
-    fireEvent.click(within(flopStage).getByRole("button", { name: "Pick a different board" }));
+    fireEvent.click(within(openStreetDetails("Flop")).getByRole("button", { name: "Pick a different board" }));
     expect(turnSolve.signal?.aborted).toBe(true);
 
     await act(async () => {
@@ -628,26 +687,24 @@ describe("PostflopPanel", () => {
       turnSolve.resolve(turnResult());
     });
 
-    const stages = screen.getAllByTestId("street-stage");
-    expect(stages).toHaveLength(1);
-    expect(within(stages[0]).getByText(/Pick the 3 flop cards/)).toBeInTheDocument();
+    expect(screen.getAllByTestId("street-stage")).toHaveLength(1);
+    expect(within(liveStage()).getByText(/Pick the 3 flop cards/)).toBeInTheDocument();
+    expect(streetBoxSummary()).toEqual([]);
   });
 
   it("resetting the flop mid-turn-solve also cancels the turn solve (regression)", async () => {
     const { turnSolve } = await startTurnSolveAfterFlopCheckCheck();
 
-    const flopStage = screen.getAllByTestId("street-stage")[0];
-    fireEvent.click(within(flopStage).getByRole("button", { name: /Details/ }));
-    fireEvent.click(within(flopStage).getByRole("button", { name: "Reset to start of street" }));
+    fireEvent.click(within(openStreetDetails("Flop")).getByRole("button", { name: "Reset to start of street" }));
     expect(turnSolve.signal?.aborted).toBe(true);
 
     await act(async () => {
       turnSolve.resolve(turnResult());
     });
 
-    const stages = screen.getAllByTestId("street-stage");
-    expect(stages).toHaveLength(1);
-    expect(within(stages[0]).getByRole("button", { name: "Check" })).toBeInTheDocument();
+    expect(liveStage()).toHaveAttribute("data-street", "Flop");
+    expect(timeline()).toEqual(["Flop", "BTN:active"]);
+    expect(streetBoxSummary()).toEqual([["Flop", "live"]]);
   });
 
   it("unmounting the panel cancels an in-flight solve", async () => {
@@ -657,21 +714,30 @@ describe("PostflopPanel", () => {
     expect(turnSolve.signal?.aborted).toBe(true);
   });
 
-  it("calls onBoardSummaryChange with each confirmed street's cumulative board as streets are solved", async () => {
+  it("keeps the newest timeline entry in view: the seat to act after each action, or a newly added street", async () => {
+    const scrollIntoView = vi.spyOn(Element.prototype, "scrollIntoView");
+    const lastScrolled = () => scrollIntoView.mock.contexts.at(-1) as HTMLElement;
+    const activeSeatBox = () =>
+      screen.getAllByTestId("postflop-seat-box").find((b) => b.getAttribute("data-kind") === "active");
     solvePostflopInWorker.mockResolvedValueOnce(checkCheckFlopResult({ P1: 0, P2: 0 }));
-    const onBoardSummaryChange = vi.fn();
-    render(<PostflopPanel {...baseProps(20)} onBoardSummaryChange={onBoardSummaryChange} />);
-
-    expect(onBoardSummaryChange).toHaveBeenCalledWith([]);
+    renderPanel(20);
 
     pickFlopBoard();
-    await waitFor(() =>
-      expect(onBoardSummaryChange).toHaveBeenLastCalledWith([{ streetLabel: "Flop", board: ["As", "Kd", "Qh"] }]),
-    );
-
+    expect(lastScrolled()).toBe(streetBox("Flop")); // solving: the new street's box
     await screen.findByRole("button", { name: "Check" });
+    expect(lastScrolled()).toBe(activeSeatBox()); // solved: the seat to act
+
     fireEvent.click(screen.getByRole("button", { name: "Check" }));
+    expect(lastScrolled()).toBe(activeSeatBox()); // after an action: the next seat to act
+    expect(lastScrolled()).toHaveAttribute("data-seat", "BB");
+
     fireEvent.click(screen.getByRole("button", { name: "Check" }));
-    expect(onBoardSummaryChange).toHaveBeenLastCalledWith([{ streetLabel: "Flop", board: ["As", "Kd", "Qh"] }]);
+    solvePostflopInWorker.mockResolvedValueOnce(turnResult());
+    fireEvent.click(screen.getByRole("button", { name: "7h" }));
+    fireEvent.click(screen.getByRole("button", { name: "Solve turn" }));
+    await screen.findByRole("button", { name: "Pick a different turn card" });
+    expect(lastScrolled()).toBe(activeSeatBox());
+    expect(timeline().at(-2)).toBe("Turn");
+    scrollIntoView.mockRestore();
   });
 });

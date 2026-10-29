@@ -10,7 +10,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "generate:equity": "tsx scripts/generate-equity-matrix.ts",
-    "generate:preflop-rfi": "tsx scripts/generate-preflop-rfi.ts"
+    "generate:preflop-rfi": "tsx scripts/generate-preflop-rfi.ts",
+    "bench:postflop": "tsx scripts/bench-postflop.ts"
   },
   "dependencies": {
     "next": "16.3.3",

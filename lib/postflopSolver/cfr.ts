@@ -1,7 +1,10 @@
 import type { ComboRange } from "./types";
 import type { EquityTable } from "./terminalEquity";
-import type { DecisionNode, PostflopTreeNode } from "./treeBuilder";
+import type { DecisionNode, PostflopTreeNode, TerminalShowdownNode } from "./treeBuilder";
 import { computeExploitability, type ExploitabilityResult } from "./exploitability";
+import { totalPot } from "./potState";
+import { deriveShowdownLayout } from "./showdownBatch";
+import { singleThreadShowdown, type ShowdownExecutor } from "./showdownExecutor";
 import { narrowReach, rangeAverageActionProbs, terminalUtilities } from "./treeMath";
 
 interface CfrNodeData {
@@ -22,6 +25,10 @@ interface CfrNodeData {
    * iterations dominate the average more aggressively. See DCFR_GAMMA.
    */
   stratSum: number[][];
+  /** This iteration's regret-matching strategy and the reach arriving here — set by the forward pass, read by the backward pass. */
+  strategy: number[][];
+  reachP1: number[];
+  reachP2: number[];
 }
 
 export interface CfrSolution {
@@ -46,19 +53,31 @@ export const DEFAULT_TARGET_EXPLOITABILITY_PERCENT = 0.5;
 
 const DEFAULT_EXPLOITABILITY_CHECK_START_INTERVAL = 100;
 const EXPLOITABILITY_CHECK_INTERVAL_CEILING = 2000;
+/**
+ * Each check costs about 3 iterations, and a solve overshoots its true
+ * convergence point by up to one gap. Gaps 10% of the iteration count keep
+ * both small (bench:postflop: a 3-bet pot stops at 509 iterations instead of
+ * 800 with doubling gaps, against a true crossing near 550).
+ */
+const EXPLOITABILITY_CHECK_GROWTH = 1.1;
 
 /**
  * DCFR (Brown & Sandholm 2019) discount exponents — these replace CFR+'s
  * hard floor-at-0 regret with a smooth, signed discount. α controls how much
  * positive cumulative regret is retained iteration-to-iteration; β controls
  * the same for negative/zero regret; γ controls how strongly later
- * iterations dominate the averaged (equilibrium) strategy. 1.5 / 0 / 2 are
- * the paper's own recommended defaults (best empirical performance across
- * their benchmark games, §8) — no local tuning has been done yet, revisit
- * only if telemetry on this codebase's actual scenarios suggests otherwise.
+ * iterations dominate the averaged (equilibrium) strategy. α=1.5, β=0 are
+ * the paper's defaults; γ=3 (paper: 2) follows postflop-solver and, with the
+ * power-of-4 average reset below, reached the 0.5% target in ~10% fewer
+ * iterations on bench:postflop (SRP 2850 vs 3200, 3-bet pot 550 vs 600).
  */
 const DCFR_ALPHA = 1.5;
-const DCFR_GAMMA = 2;
+const DCFR_GAMMA = 3;
+
+/** Drop the average strategy at iterations 4, 16, 64, … so the noisy early iterates stop weighing on it. */
+function isAverageResetIteration(t: number): boolean {
+  return t > 1 && (t & (t - 1)) === 0 && Math.log2(t) % 2 === 0;
+}
 /**
  * t^β/(t^β+1) with β=0 is 1/(1+1) = 0.5 for every t (t^0 is always 1) —
  * hardcoded as a constant rather than computed per-iteration. If a nonzero β
@@ -72,8 +91,10 @@ export interface CfrRunOptions {
   maxIterations: number;
   /** Stop early once a periodic exploitability check reads at or below this (% of pot). Omit to disable early stopping entirely and always run exactly maxIterations. */
   targetExploitabilityPercent?: number;
-  /** Iteration count of the first periodic exploitability check; the gap doubles after that, capped at EXPLOITABILITY_CHECK_INTERVAL_CEILING. Default 100. */
+  /** Iteration count of the first periodic exploitability check; after that each gap is EXPLOITABILITY_CHECK_GROWTH − 1 of the iteration count, capped at EXPLOITABILITY_CHECK_INTERVAL_CEILING. Default 100. */
   checkIntervalIterations?: number;
+  /** Who evaluates the showdown batch each iteration. Default: this thread. */
+  showdownExecutor?: ShowdownExecutor;
 }
 
 /**
@@ -99,36 +120,92 @@ export function runCfr(
   const initialReachP1 = heroRange.map((c) => c.weight);
   const initialReachP2 = villainRange.map((c) => c.weight);
 
+  const heroCount = heroCombos.length;
+  const villainCount = villainCombos.length;
+
   const cfrData = new Map<DecisionNode, CfrNodeData>();
+  const showdownIndex = new Map<TerminalShowdownNode, number>();
   (function initNodes(node: PostflopTreeNode) {
+    if (node.type === "terminal-showdown") showdownIndex.set(node, showdownIndex.size);
     if (node.type !== "decision") return;
-    const rangeSize = node.actor === "P1" ? heroCombos.length : villainCombos.length;
+    const rangeSize = node.actor === "P1" ? heroCount : villainCount;
     const numActions = node.actions.length;
     cfrData.set(node, {
       regret: Array.from({ length: rangeSize }, () => new Array(numActions).fill(0)),
       stratSum: Array.from({ length: rangeSize }, () => new Array(numActions).fill(0)),
+      strategy: Array.from({ length: rangeSize }, () => new Array(numActions).fill(0)),
+      reachP1: initialReachP1,
+      reachP2: initialReachP2,
     });
     for (const { child } of node.actions) initNodes(child);
   })(tree);
 
-  function regretMatchingStrategy(regrets: number[], numActions: number): number[] {
-    const positiveSum = regrets.reduce((s, r) => s + Math.max(0, r), 0);
-    if (positiveSum <= 0) return new Array(numActions).fill(1 / numActions);
-    return regrets.map((r) => Math.max(0, r) / positiveSum);
+  // Showdown values are most of an iteration's cost (bench:postflop: ~75%), so
+  // each iteration runs in three passes: forward (strategies + reach to every
+  // node), every showdown node evaluated in one batch by the executor (one
+  // thread, or several sharing its buffers), then backward (utilities + updates).
+  const showdownCount = showdownIndex.size;
+  const showdown = (options.showdownExecutor ?? singleThreadShowdown).prepare(
+    deriveShowdownLayout(equityTable.heroEquity, heroCombos, villainCombos),
+    deriveShowdownLayout(equityTable.villainEquity, villainCombos, heroCombos),
+    showdownCount,
+  );
+
+  /** Regret matching, written into a row reused every iteration. */
+  function regretMatchInto(regrets: number[], out: number[]): void {
+    let positiveSum = 0;
+    for (let a = 0; a < regrets.length; a++) if (regrets[a] > 0) positiveSum += regrets[a];
+    if (positiveSum <= 0) {
+      out.fill(1 / regrets.length);
+      return;
+    }
+    for (let a = 0; a < regrets.length; a++) out[a] = regrets[a] > 0 ? regrets[a] / positiveSum : 0;
   }
 
-  function traverse(
+  function forward(node: PostflopTreeNode, reachP1: number[], reachP2: number[]): void {
+    if (node.type === "terminal-fold") return;
+    if (node.type === "terminal-showdown") {
+      const s = showdownIndex.get(node)!;
+      showdown.villainReach.set(reachP2, s * villainCount);
+      showdown.heroReach.set(reachP1, s * heroCount);
+      return;
+    }
+
+    const data = cfrData.get(node)!;
+    const isP1Acting = node.actor === "P1";
+    data.reachP1 = reachP1;
+    data.reachP2 = reachP2;
+    for (let c = 0; c < data.regret.length; c++) regretMatchInto(data.regret[c], data.strategy[c]);
+    node.actions.forEach((edge, a) => {
+      const childReachP1 = isP1Acting ? narrowReach(reachP1, data.strategy, a) : reachP1;
+      const childReachP2 = isP1Acting ? reachP2 : narrowReach(reachP2, data.strategy, a);
+      forward(edge.child, childReachP1, childReachP2);
+    });
+  }
+
+  function showdownUtilities(node: TerminalShowdownNode): { utilP1: number[]; utilP2: number[] } {
+    const s = showdownIndex.get(node)!;
+    const pot = totalPot(node.state);
+    const { P1: committedP1, P2: committedP2 } = node.state.committed;
+    const utilP1 = new Array<number>(heroCount);
+    for (let i = 0; i < heroCount; i++) utilP1[i] = showdown.heroEquity[s * heroCount + i] * pot - committedP1;
+    const utilP2 = new Array<number>(villainCount);
+    for (let j = 0; j < villainCount; j++) utilP2[j] = showdown.villainEquity[s * villainCount + j] * pot - committedP2;
+    return { utilP1, utilP2 };
+  }
+
+  function backward(
     node: PostflopTreeNode,
-    reachP1: number[],
-    reachP2: number[],
     positiveDiscount: number,
     negativeDiscount: number,
     stratWeight: number,
   ): { utilP1: number[]; utilP2: number[] } {
-    if (node.type !== "decision") {
+    if (node.type === "terminal-showdown") return showdownUtilities(node);
+    if (node.type === "terminal-fold") {
+      // A fold's payoff doesn't depend on the opponent's holding, so no reach is needed.
       return {
-        utilP1: terminalUtilities(node, "P1", heroCombos.length, reachP2, equityTable),
-        utilP2: terminalUtilities(node, "P2", villainCombos.length, reachP1, equityTable),
+        utilP1: terminalUtilities(node, "P1", heroCount, initialReachP2, equityTable),
+        utilP2: terminalUtilities(node, "P2", villainCount, initialReachP1, equityTable),
       };
     }
 
@@ -136,16 +213,13 @@ export function runCfr(
     const data = cfrData.get(node)!;
     const isP1Acting = node.actor === "P1";
     const actingCombos = isP1Acting ? heroCombos : villainCombos;
-    const actingReach = isP1Acting ? reachP1 : reachP2;
+    const actingReach = isP1Acting ? data.reachP1 : data.reachP2;
     const numActions = node.actions.length;
+    const strategy = data.strategy;
 
-    const strategy = actingCombos.map((_, c) => regretMatchingStrategy(data.regret[c], numActions));
-
-    const childResults = node.actions.map((edge, a) => {
-      const childReachP1 = isP1Acting ? narrowReach(reachP1, strategy, a) : reachP1;
-      const childReachP2 = isP1Acting ? reachP2 : narrowReach(reachP2, strategy, a);
-      return traverse(edge.child, childReachP1, childReachP2, positiveDiscount, negativeDiscount, stratWeight);
-    });
+    const childResults = node.actions.map((edge) =>
+      backward(edge.child, positiveDiscount, negativeDiscount, stratWeight),
+    );
 
     // Acting player's utility per their own combo, under their own (per-combo) strategy.
     const actingUtil = actingCombos.map((_, c) => {
@@ -208,7 +282,12 @@ export function runCfr(
     const tAlpha = Math.pow(t, DCFR_ALPHA);
     const positiveDiscount = tAlpha / (tAlpha + 1);
     const stratWeight = Math.pow(t, DCFR_GAMMA);
-    traverse(tree, initialReachP1, initialReachP2, positiveDiscount, DCFR_NEGATIVE_REGRET_DISCOUNT, stratWeight);
+    if (isAverageResetIteration(t)) {
+      for (const data of cfrData.values()) for (const row of data.stratSum) row.fill(0);
+    }
+    forward(tree, initialReachP1, initialReachP2);
+    showdown.evaluate();
+    backward(tree, positiveDiscount, DCFR_NEGATIVE_REGRET_DISCOUNT, stratWeight);
 
     if (targetExploitabilityPercent !== undefined && t >= nextCheck) {
       const snapshot: CfrSolution = { iterations: t, getAverageStrategy };
@@ -220,7 +299,7 @@ export function runCfr(
         equityTable,
         tree.state.startPot,
       );
-      nextCheck = t + Math.min(nextCheck, EXPLOITABILITY_CHECK_INTERVAL_CEILING);
+      nextCheck = t + Math.min(Math.max(1, Math.round(t * (EXPLOITABILITY_CHECK_GROWTH - 1))), EXPLOITABILITY_CHECK_INTERVAL_CEILING);
       onProgress?.(t, maxIterations, exploitability.percentOfPot);
       if (exploitability.percentOfPot <= targetExploitabilityPercent) {
         return { iterations: t, getAverageStrategy, finalExploitability: exploitability };

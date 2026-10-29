@@ -8,6 +8,7 @@ import type { HandFrequency } from "@/types/rangeData";
 import { solvePostflopStreet, type PostflopSolveInput } from "../solvePostflop";
 import { serializeCombos, serializeTree } from "../serialize";
 import { computeCheckdownEquities } from "../checkdownEquity";
+import { createParallelShowdown } from "./parallelShowdown";
 
 // Runs entirely client-side in a Worker: no Node `fs`, no equity-matrix file,
 // nothing from lib/equity/loadEquityMatrix.ts — only the pure postflop CFR
@@ -20,6 +21,8 @@ function actionWeight(key: ActionWeightKey): (hf: HandFrequency) => number {
 
 self.onmessage = (event: MessageEvent<PostflopSolveInMessage>) => {
   const { request } = event.data;
+  // One port per helper worker the client could start (only when the page is cross-origin isolated).
+  const showdownExecutor = event.ports.length > 0 ? createParallelShowdown(event.ports) : undefined;
 
   try {
     const solveInput: PostflopSolveInput =
@@ -53,6 +56,7 @@ self.onmessage = (event: MessageEvent<PostflopSolveInMessage>) => {
         const progress: PostflopWorkerOutMessage = { type: "progress", phase, done, total, exploitabilityPercent };
         self.postMessage(progress);
       },
+      showdownExecutor,
     );
 
     const checkdown = computeCheckdownEquities(
