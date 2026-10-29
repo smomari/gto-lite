@@ -99,6 +99,60 @@ describe("SeatActionBar", () => {
     expect(row.className).not.toContain("flex-wrap");
   });
 
+  const threeBetBackToUtg: ActionNode[] = [
+    { actor: "UTG", action: "raise", label: "open", sizeBb: 2.8 },
+    { actor: "UTG1", action: "fold", label: "fold" },
+    { actor: "LJ", action: "fold", label: "fold" },
+    { actor: "HJ", action: "fold", label: "fold" },
+    { actor: "CO", action: "raise", label: "3bet", sizeBb: 8.4 },
+    { actor: "BTN", action: "call", label: "call", sizeBb: 8.4 },
+    { actor: "SB", action: "fold", label: "fold" },
+    { actor: "BB", action: "fold", label: "fold" },
+  ];
+
+  it("keeps the seat to act in view when a re-raise sends action back past the visible row (regression)", () => {
+    const scrollIntoView = vi.spyOn(Element.prototype, "scrollIntoView");
+    render(
+      <SeatActionBar
+        stackBb={100}
+        actionPath={threeBetBackToUtg}
+        activeSeat="UTG"
+        availableActions={{ fold: true, call: { label: "Call", amountBb: 5.6 }, raise: { toBb: 33.6 }, allin: { toBb: 100 } }}
+        loading={false}
+        onAction={noop}
+        onRevisit={noop}
+        onQuickAction={noop}
+      />,
+    );
+
+    const activeBox = screen.getAllByTestId("seat-box").find((b) => b.getAttribute("data-kind") === "active");
+    expect(activeBox).toHaveAttribute("data-position", "UTG");
+    expect(scrollIntoView).toHaveBeenCalledWith({ block: "nearest", inline: "nearest" });
+    expect(scrollIntoView.mock.contexts.at(-1)).toBe(activeBox);
+    scrollIntoView.mockRestore();
+  });
+
+  it("scrolls to the end of the row once the hand is over, and not while a request is loading", () => {
+    const props = {
+      stackBb: 100,
+      actionPath: threeBetBackToUtg,
+      activeSeat: null,
+      availableActions: null,
+      onAction: noop,
+      onRevisit: noop,
+      onQuickAction: noop,
+    };
+    const { container, rerender } = render(<SeatActionBar {...props} actionPath={threeBetBackToUtg.slice(0, 7)} loading={true} />);
+    const row = container.firstElementChild as HTMLElement;
+    Object.defineProperty(row, "scrollWidth", { configurable: true, value: 1800 });
+
+    rerender(<SeatActionBar {...props} loading={true} />);
+    expect(row.scrollLeft).toBe(0);
+
+    rerender(<SeatActionBar {...props} loading={false} />);
+    expect(row.scrollLeft).toBe(1800);
+  });
+
   it("renders `trailing` as the last element in the same row", () => {
     render(
       <SeatActionBar

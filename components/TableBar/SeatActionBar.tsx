@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import type { ActionNode, ActionType, Position } from "@/types/rangeData";
 import type { AvailableActions } from "@/types/solveApi";
 import { computeRoundActingOrder, previewQuickAction } from "@/lib/solveEngine/preview";
@@ -28,9 +29,21 @@ export function SeatActionBar({
   trailing,
 }: SeatActionBarProps) {
   const pendingSeats = activeSeat ? computeRoundActingOrder(actionPath, activeSeat, stackBb).slice(1) : [];
+  const rowRef = useRef<HTMLDivElement>(null);
+
+  // Once a re-raise sends action back around the table, the row grows past
+  // the viewport and the seat to act lands off-screen — keep it in view, or,
+  // once the hand is over, show the latest action and the board.
+  useEffect(() => {
+    const row = rowRef.current;
+    if (!row || loading) return;
+    const activeBox = row.querySelector<HTMLElement>('[data-kind="active"]');
+    if (activeBox) activeBox.scrollIntoView({ block: "nearest", inline: "nearest" });
+    else row.scrollLeft = row.scrollWidth;
+  }, [activeSeat, actionPath.length, loading]);
 
   return (
-    <div className="flex flex-nowrap items-start gap-2 overflow-x-auto pb-1">
+    <div ref={rowRef} className="flex flex-nowrap items-start gap-2 overflow-x-auto pb-1">
       {actionPath.map((entry, globalIndex) => (
         <SeatBox
           key={`h-${globalIndex}`}
