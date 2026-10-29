@@ -10,8 +10,6 @@ import { solveNode, SolveApiError } from "@/lib/apiClient/solveClient";
 import { buildFoldPrefixPath } from "@/lib/solveEngine/preview";
 import { actionPathKey, resolvePostflopHandoff } from "@/lib/solveEngine/postflopHandoff";
 import { PostflopPanel } from "@/components/PostflopBoard/PostflopPanel";
-import { PostflopBoardStrip } from "@/components/TableBar/PostflopBoardStrip";
-import type { StreetBoardSummary } from "@/components/PostflopBoard/streetLabel";
 import type { ActionNode, ActionType, Position } from "@/types/rangeData";
 import type { SolveResponse } from "@/types/solveApi";
 
@@ -41,7 +39,7 @@ export default function Home() {
   // entering the flop is the response at its last decision. Only a stack
   // change invalidates these; undo/replay just looks up a different key.
   const [rangeByPathKey, setRangeByPathKey] = useState<Record<string, SolveResponse>>({});
-  const [postflopBoardSummary, setPostflopBoardSummary] = useState<StreetBoardSummary[]>([]);
+  const [streetBarSlot, setStreetBarSlot] = useState<HTMLDivElement | null>(null);
 
   const requestKey = JSON.stringify({ stackBb, requestPath });
   const loading = result === null || result.key !== requestKey;
@@ -83,7 +81,6 @@ export default function Home() {
     setStackBb(next);
     setRequestPath([]);
     setRangeByPathKey({});
-    setPostflopBoardSummary([]);
   }
 
   function handleAction(action: ActionType) {
@@ -93,7 +90,6 @@ export default function Home() {
 
   function handleRevisit(globalIndex: number) {
     setRequestPath(requestPath.slice(0, globalIndex));
-    setPostflopBoardSummary([]);
   }
 
   function handleQuickAction(target: Position, action: ActionType) {
@@ -144,7 +140,13 @@ export default function Home() {
         onAction={handleAction}
         onRevisit={handleRevisit}
         onQuickAction={handleQuickAction}
-        trailing={<PostflopBoardStrip streets={postflopBoardSummary} />}
+        trailing={
+          <div
+            ref={setStreetBarSlot}
+            data-testid="street-bar-slot"
+            className="flex shrink-0 items-start gap-2 border-l border-zinc-300 pl-2 empty:hidden dark:border-zinc-700"
+          />
+        }
       />
 
       {current?.kind === "error" && (
@@ -195,7 +197,7 @@ export default function Home() {
               villainActionKey={p2.actionKey}
               startPot={current.potBb}
               effectiveStackBb={Math.min(p1.remainingBb, p2.remainingBb)}
-              onBoardSummaryChange={setPostflopBoardSummary}
+              streetBarSlot={streetBarSlot}
             />
           )}
         </div>

@@ -15,7 +15,7 @@ export interface CheckdownEquitySummary {
 
 /**
  * Walks a solved tree once, propagating both players' reach through their
- * own equilibrium average strategy (mirrors cfr.ts's traverse() reach
+ * own equilibrium average strategy (mirrors cfr.ts's forward-pass reach
  * propagation, but uses the already-converged average strategy throughout
  * instead of a live per-iteration regret-matching strategy), and records
  * each terminal-showdown node's range-weighted average equity/EV — "the
@@ -57,7 +57,7 @@ export function computeCheckdownEquities(
     }
 
     // Decision node: only the acting player's reach narrows here, mirroring
-    // cfr.ts's traverse() child-reach construction exactly.
+    // cfr.ts's forward pass (both use narrowReach).
     const isP1Acting = node.actor === "P1";
     const strategy = solution.getAverageStrategy(node);
 
