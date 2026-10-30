@@ -792,7 +792,7 @@ describe("PostflopPanel", () => {
     expect(liveStage()).toHaveAttribute("data-street", "River");
     const turnDetails = openStreetDetails("Turn");
     expect(within(turnDetails).getByText(/river card\s+coming next/)).toBeInTheDocument();
-    expect(within(turnDetails).getByText(/Solved avg EV over every river card .*BTN \+1\.50bb · BB \+6\.00bb/)).toBeInTheDocument();
+    expect(within(turnDetails).getByText(/Lookahead avg EV over the river .*BTN \+1\.50bb · BB \+6\.00bb/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Close details" }));
 
     solvePostflopInWorker.mockResolvedValueOnce(checkCheckRiverResult({ P1: 0, P2: 0 }));

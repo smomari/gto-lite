@@ -89,9 +89,9 @@ const MAX_HELPERS = 8;
  * ports. They share memory with it (SharedArrayBuffer), which browsers only
  * allow on a cross-origin isolated page (COOP/COEP headers in next.config.ts),
  * and are started here on the main thread rather than inside the solver worker.
- *  - C++ engine: only a lookahead solve (the turn, which includes a sample of
- *    rivers) is big enough to split — its leaves go to leaf helpers
- *    (leafHelpers.ts). A single-street solve is a fraction of a second as is.
+ *  - C++ engine: flop and turn solves look ahead past their street, and the
+ *    lookahead's leaves go to leaf helpers (leafHelpers.ts). A river solve is
+ *    a fraction of a second as is.
  *  - TypeScript engine (no WASM SIMD): the showdown batch goes to showdown
  *    helpers (parallelShowdown.ts).
  */
@@ -99,7 +99,7 @@ function startHelpers(request: PostflopSolveRequest): { workers: Worker[]; solve
   const none = { workers: [], solverPorts: [] };
   if (typeof SharedArrayBuffer === "undefined" || !globalThis.crossOriginIsolated) return none;
   const cpp = supportsWasmSimd();
-  if (cpp && request.board.length !== 4) return none;
+  if (cpp && request.board.length === 5) return none;
   const count = Math.max(0, Math.min((navigator.hardwareConcurrency || 4) - 2, MAX_HELPERS));
   const workers: Worker[] = [];
   const solverPorts: MessagePort[] = [];

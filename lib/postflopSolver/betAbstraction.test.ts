@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { initialPostflopPotState, applyPostflopAction } from "./potState";
-import { computePostflopAvailableActions } from "./betAbstraction";
+import { computePostflopAvailableActions, LOOKAHEAD_BET_SIZING } from "./betAbstraction";
 
 describe("computePostflopAvailableActions — opening decision (no bet yet)", () => {
   it("flop offers check, 50%/100% pot bets, and allin, but no fold/call/raise", () => {
@@ -82,5 +82,28 @@ describe("computePostflopAvailableActions — facing a raise (raiseCount at cap)
     expect(actions.bet).toEqual([]);
     expect(actions.raise).toEqual([]);
     expect(actions.allin).toBeNull();
+  });
+});
+
+describe("computePostflopAvailableActions — lookahead menu (all-in only when no size fits)", () => {
+  const river = LOOKAHEAD_BET_SIZING.river;
+
+  it("opens with the one bet size and no separate all-in while the bet fits", () => {
+    const actions = computePostflopAvailableActions(initialPostflopPotState(10), "P1", 97, "river", river);
+    expect(actions.bet).toEqual([{ toBb: 7.5 }]);
+    expect(actions.allin).toBeNull();
+  });
+
+  it("falls back to all-in when the bet size doesn't fit under the stack", () => {
+    const actions = computePostflopAvailableActions(initialPostflopPotState(10), "P1", 5, "river", river);
+    expect(actions.bet).toEqual([]);
+    expect(actions.allin).toEqual({ toBb: 5 });
+  });
+
+  it("facing a bet, the raise is the all-in (no raise sizes in the menu)", () => {
+    const facing = applyPostflopAction(initialPostflopPotState(10), "P1", "bet", { effectiveStackBb: 97, betToBb: 7.5 });
+    const actions = computePostflopAvailableActions(facing, "P2", 97, "river", river);
+    expect(actions.raise).toEqual([]);
+    expect(actions.allin).toEqual({ toBb: 97 });
   });
 });
