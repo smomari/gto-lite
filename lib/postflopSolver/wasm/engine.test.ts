@@ -3,11 +3,14 @@ import { describe, expect, it } from "vitest";
 import { ALL_HANDS } from "@/lib/handRange/handList";
 import { expandToCombos } from "../combos";
 import { buildHandTree, buildStreetTree, type DecisionNode, type PostflopTreeNode } from "../treeBuilder";
+import { LOOKAHEAD_BET_SIZING } from "../betAbstraction";
+import { stratifiedNextCards } from "../nextCardSampling";
 import { createReferenceCfr } from "../reference/referenceCfr";
 import type { ComboRange } from "../types";
 import { loadNodeSolverModule } from "./loadNode";
 import { NativeCfrEngine, runNativeCfr } from "./engine";
-import { solvePostflopStreet } from "../solvePostflop";
+import { LOOKAHEAD_RIVER_CARDS, solvePostflopStreet } from "../solvePostflop";
+import { serializeTree } from "../serialize";
 
 /** A small range: the combos of a slice of hands, every `step`th one, with uneven weights. */
 function smallRange(board: string[], from: number, to: number, step: number): ComboRange {
@@ -93,6 +96,19 @@ describe("C++ CFR engine vs the TypeScript reference", () => {
     expect(maxStrategyDiff).toBeLessThan(1e-4);
     expectReportsClose(got, want, 10);
   });
+
+  it("turn + a sampled river lookahead (per-combo renormalized chance node, reduced river menu)", async () => {
+    const board = ["Kh", "7s", "2d", "As"];
+    const tree = buildHandTree(10, 25, board, {
+      dealNextCards: (b) => stratifiedNextCards(b, 6),
+      laterStreetSizing: LOOKAHEAD_BET_SIZING,
+    });
+    const { maxStrategyDiff, got, want } = await compareWithReference(tree, board, smallRange(board, 0, 20, 5), smallRange(board, 10, 40, 8), 20);
+    expect(maxStrategyDiff).toBeLessThan(1e-4);
+    for (const key of ["p1ActualBb", "p2ActualBb", "p1BestResponseBb", "p2BestResponseBb", "bb"] as const) {
+      expect(Math.abs(got[key] - want[key])).toBeLessThan(10 * 1e-4);
+    }
+  });
 });
 
 describe("runNativeCfr", () => {
@@ -138,5 +154,47 @@ describe("solvePostflopStreet on the C++ engine", () => {
     expect(result.exploitability).toBe(result.solution.finalExploitability);
     const root = result.tree as DecisionNode;
     expect(result.solution.getAverageStrategy(root)).toHaveLength(result.heroRange.length);
+  });
+});
+
+describe("turn solves on the C++ engine", () => {
+  it("look ahead into a sample of rivers, keep the engine open for reading, and value each street change", async () => {
+    const solver = await loadNodeSolverModule();
+    const hands = (labels: string[]) =>
+      ALL_HANDS.map((h) => ({ hand: h.hand, fold: 0, call: labels.includes(h.hand) ? 1 : 0, raise: 0 }));
+    const startPot = 12;
+    const result = solvePostflopStreet(
+      {
+        kind: "canonical",
+        board: ["Kh", "7s", "2d", "As"],
+        heroHandFrequencies: hands(["AA", "KK", "AKs", "QJs"]),
+        heroActionWeight: (hf) => hf.call,
+        villainHandFrequencies: hands(["77", "98s", "KQo", "A5s"]),
+        villainActionWeight: (hf) => hf.call,
+        startPot,
+        effectiveStackBb: 30,
+        maxIterations: 3000,
+        targetExploitabilityPercent: 0.5,
+      },
+      undefined,
+      { solver },
+    );
+    const session = result.session!;
+    try {
+      expect(result.exploitability.percentOfPot).toBeLessThanOrEqual(0.5);
+      const nextStreetEv = session.nextStreetEv();
+      expect(nextStreetEv.size).toBeGreaterThan(0);
+      for (const [chance, ev] of nextStreetEv) {
+        expect(chance.children).toHaveLength(LOOKAHEAD_RIVER_CARDS); // a stratified sample of the river
+        // Zero-sum around the dead money, up to the sampled deal's second-order renormalization error.
+        expect(Math.abs(ev.heroEvBb + ev.villainEvBb - startPot)).toBeLessThan(startPot * 0.01);
+      }
+      // A river street under a chance node serializes from the live engine.
+      const [chance] = nextStreetEv.keys();
+      const river = serializeTree(chance.children[0].child, result.solution);
+      expect(river.type === "decision" || river.type === "terminal-showdown").toBe(true);
+    } finally {
+      session.dispose();
+    }
   });
 });

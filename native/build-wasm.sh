@@ -28,7 +28,7 @@ if [ "$ACTUAL" != "$EXPECTED" ]; then
 fi
 
 SOURCES="$ROOT/native/solver/engine.cpp"
-EXPORTS="_malloc,_free,_eng_create,_eng_destroy,_eng_add_equity_table,_eng_add_river_board,_eng_iterate,_eng_exploitability,_eng_average_strategy"
+EXPORTS="_malloc,_free,_eng_create,_eng_destroy,_eng_add_equity_table,_eng_add_river_board,_eng_iterate,_eng_exploitability,_eng_node_ev,_eng_average_strategy,_eng_partition,_eng_exchange_in,_eng_exchange_out,_eng_trunk_forward,_eng_leaves_iterate,_eng_trunk_backward,_eng_trunk_eval_forward,_eng_leaves_evaluate,_eng_trunk_eval_backward,_eng_pair_mass,_eng_trunk_chance_ev"
 FLAGS="-O3 -msimd128 -std=c++20 -sMODULARIZE -sEXPORT_ES6 -sSINGLE_FILE -sALLOW_MEMORY_GROWTH -sMAXIMUM_MEMORY=4GB \
   -sEXPORTED_FUNCTIONS=$EXPORTS -sEXPORTED_RUNTIME_METHODS=HEAPU8,HEAP32,HEAPU32,HEAPF32,HEAPF64"
 

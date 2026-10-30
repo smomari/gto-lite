@@ -1,5 +1,11 @@
 import { remainingDeck } from "@/lib/cards";
-import { computePostflopAvailableActions, streetForBoardLength, type PostflopStreet } from "./betAbstraction";
+import {
+  BET_SIZING,
+  computePostflopAvailableActions,
+  streetForBoardLength,
+  type PostflopStreet,
+  type StreetBetSizing,
+} from "./betAbstraction";
 import {
   applyPostflopAction,
   initialPostflopPotState,
@@ -37,6 +43,8 @@ export interface ChanceNode {
   type: "chance";
   state: PostflopPotState;
   children: { card: string; weight: number; child: PostflopTreeNode }[];
+  /** The children are a sample standing for the whole deck (not every card), so the engine renormalizes per combo — see engine.cpp's SampledDeal. */
+  sampled: boolean;
 }
 
 export type PostflopTreeNode = DecisionNode | TerminalFoldNode | TerminalShowdownNode | ChanceNode;
@@ -71,7 +79,14 @@ type StreetClose = (closing: PostflopPotState, stackLeft: number) => PostflopTre
  * rather than needing lazy/streaming construction.
  */
 export function buildStreetTree(startPot: number, effectiveStackBb: number, street: PostflopStreet): PostflopTreeNode {
-  return buildFrom(initialPostflopPotState(startPot), "P1", effectiveStackBb, street);
+  return buildFrom(initialPostflopPotState(startPot), "P1", effectiveStackBb, street, BET_SIZING[street]);
+}
+
+export interface HandTreeOptions {
+  /** Which cards come next at each street change, and their weights. Default: every card. */
+  dealNextCards?: DealNextCards;
+  /** Bet menus for the streets after the first one (e.g. betAbstraction.ts's LOOKAHEAD_BET_SIZING). Default: BET_SIZING. */
+  laterStreetSizing?: Record<PostflopStreet, StreetBetSizing>;
 }
 
 /**
@@ -84,22 +99,38 @@ export function buildHandTree(
   startPot: number,
   effectiveStackBb: number,
   board: string[],
-  dealNextCards: DealNextCards = dealEveryCard,
+  options: HandTreeOptions = {},
+): PostflopTreeNode {
+  return buildStreetsFrom(startPot, effectiveStackBb, board, options, true);
+}
+
+function buildStreetsFrom(
+  startPot: number,
+  effectiveStackBb: number,
+  board: string[],
+  options: HandTreeOptions,
+  isFirstStreet: boolean,
 ): PostflopTreeNode {
   const street = streetForBoardLength(board.length);
+  const sizing = (!isFirstStreet && options.laterStreetSizing?.[street]) || BET_SIZING[street];
+  const dealNextCards = options.dealNextCards ?? dealEveryCard;
   const onStreetClose: StreetClose | undefined =
     street === "river"
       ? undefined
-      : (closing, stackLeft) => ({
-          type: "chance",
-          state: closing,
-          children: dealNextCards(board).map(({ card, weight }) => ({
-            card,
-            weight,
-            child: buildHandTree(totalPot(closing), stackLeft, [...board, card], dealNextCards),
-          })),
-        });
-  return buildFrom(initialPostflopPotState(startPot), "P1", effectiveStackBb, street, onStreetClose);
+      : (closing, stackLeft) => {
+          const dealt = dealNextCards(board);
+          return {
+            type: "chance",
+            state: closing,
+            children: dealt.map(({ card, weight }) => ({
+              card,
+              weight,
+              child: buildStreetsFrom(totalPot(closing), stackLeft, [...board, card], options, false),
+            })),
+            sampled: dealt.length < remainingDeck(board).length,
+          };
+        };
+  return buildFrom(initialPostflopPotState(startPot), "P1", effectiveStackBb, street, sizing, onStreetClose);
 }
 
 function buildFrom(
@@ -107,6 +138,7 @@ function buildFrom(
   actor: PostflopPlayer,
   effectiveStackBb: number,
   street: PostflopStreet,
+  sizing: StreetBetSizing,
   onStreetClose?: StreetClose,
 ): PostflopTreeNode {
   /** A closed street: the next street if there's stack behind and one follows, else a showdown. */
@@ -115,7 +147,7 @@ function buildFrom(
     return (stackLeft > 0 ? onStreetClose?.(next, stackLeft) : undefined) ?? { type: "terminal-showdown", state: next };
   };
 
-  const available = computePostflopAvailableActions(state, actor, effectiveStackBb, street);
+  const available = computePostflopAvailableActions(state, actor, effectiveStackBb, street, sizing);
   const actions: DecisionNode["actions"] = [];
 
   if (available.fold) {
@@ -130,7 +162,7 @@ function buildFrom(
     const closesStreet = state.lastActor !== null;
     const child: PostflopTreeNode = closesStreet
       ? closeStreet(next)
-      : buildFrom(next, otherPlayer(actor), effectiveStackBb, street, onStreetClose);
+      : buildFrom(next, otherPlayer(actor), effectiveStackBb, street, sizing, onStreetClose);
     actions.push({ action: "check", child });
   }
 
@@ -143,17 +175,17 @@ function buildFrom(
 
   for (const { toBb } of available.bet) {
     const next = applyPostflopAction(state, actor, "bet", { effectiveStackBb, betToBb: toBb });
-    actions.push({ action: "bet", child: buildFrom(next, otherPlayer(actor), effectiveStackBb, street, onStreetClose) });
+    actions.push({ action: "bet", child: buildFrom(next, otherPlayer(actor), effectiveStackBb, street, sizing, onStreetClose) });
   }
 
   for (const { toBb } of available.raise) {
     const next = applyPostflopAction(state, actor, "raise", { effectiveStackBb, betToBb: toBb });
-    actions.push({ action: "raise", child: buildFrom(next, otherPlayer(actor), effectiveStackBb, street, onStreetClose) });
+    actions.push({ action: "raise", child: buildFrom(next, otherPlayer(actor), effectiveStackBb, street, sizing, onStreetClose) });
   }
 
   if (available.allin) {
     const next = applyPostflopAction(state, actor, "allin", { effectiveStackBb });
-    actions.push({ action: "allin", child: buildFrom(next, otherPlayer(actor), effectiveStackBb, street, onStreetClose) });
+    actions.push({ action: "allin", child: buildFrom(next, otherPlayer(actor), effectiveStackBb, street, sizing, onStreetClose) });
   }
 
   return { type: "decision", actor, state, actions };

@@ -3,12 +3,15 @@ import type { PostflopSolvePhase } from "@/types/postflopSolver";
 import type { BoardCards, ComboRange } from "./types";
 import { expandToCombos, filterBlockedCombos } from "./combos";
 import { buildEquityTable, type EquityTable } from "./terminalEquity";
-import { streetForBoardLength } from "./betAbstraction";
-import { buildStreetTree, type PostflopTreeNode } from "./treeBuilder";
+import { LOOKAHEAD_BET_SIZING, streetForBoardLength } from "./betAbstraction";
+import { stratifiedNextCards } from "./nextCardSampling";
+import { buildHandTree, buildStreetTree, type PostflopTreeNode } from "./treeBuilder";
 import { runCfr, type CfrSolution } from "./cfr";
 import type { ShowdownExecutor } from "./showdownExecutor";
 import { computeExploitability, type ExploitabilityResult } from "./exploitability";
-import { runNativeCfr } from "./wasm/engine";
+import { runNativeCfr, solveNativeSession, type NativeSolveSession } from "./wasm/engine";
+import { solveSplitSession } from "./wasm/splitSolve";
+import { LeafHelpersUnavailableError, workerLeafRunners } from "./worker/leafHelpers";
 import type { SolverModule } from "./wasm/solverModule";
 
 interface PostflopSolveInputCommon {
@@ -40,11 +43,24 @@ export type PostflopSolveInput =
     });
 
 /**
+ * River cards a turn solve looks ahead into — see stratifiedNextCards. On a
+ * 251×359-combo turn, 12 cards came within 1.2 points of check frequency and
+ * 0.7% of EV of all 48 (8 cards: 4 points over on checking, 3% under on EV).
+ */
+export const LOOKAHEAD_RIVER_CARDS = 12;
+
+/**
  * Which engine solves: the C++ one when its module is loaded (exact card
  * removal, unnormalized counterfactual values), otherwise the TypeScript one,
  * optionally with its showdown batch split across helper workers.
  */
-export type PostflopEngine = { solver: SolverModule } | { showdownExecutor?: ShowdownExecutor };
+export type PostflopEngine =
+  | {
+      solver: SolverModule;
+      /** Helper workers (one port each) that take a share of a lookahead solve's leaves — see worker/leafHelpers.ts. */
+      leafHelperPorts?: readonly MessagePort[];
+    }
+  | { showdownExecutor?: ShowdownExecutor };
 
 export interface PostflopSolveResult {
   tree: PostflopTreeNode;
@@ -54,6 +70,12 @@ export interface PostflopSolveResult {
   exploitability: ExploitabilityResult;
   /** The board-fixed equity table this solve was run against — reused by checkdownEquity.ts to report per-node showdown averages without recomputing anything. */
   equityTable: EquityTable;
+  /**
+   * Set when the solve looked ahead past its street (a turn solve on the C++
+   * engine): the engine is kept alive so the caller can read values below the
+   * street's end (nextStreetEv.ts) before disposing it, which it must.
+   */
+  session?: NativeSolveSession;
 }
 
 /**
@@ -85,17 +107,54 @@ export function solvePostflopStreet(
   const equityTable = buildEquityTable(heroRange, villainRange, input.board, (done, total) =>
     onProgress?.("equity", done, total),
   );
-  const tree = buildStreetTree(input.startPot, input.effectiveStackBb, streetForBoardLength(input.board.length));
+  // A turn solve on the C++ engine looks ahead into the river (a stratified
+  // sample of river cards, a reduced river menu), so the turn is solved against
+  // real river play instead of checkdown equity. The river itself is re-solved
+  // with its full menu once its card is picked. (The TypeScript engine is
+  // single-street only.)
+  const street = streetForBoardLength(input.board.length);
+  const throughRiver = "solver" in engine && street === "turn";
+  const tree = throughRiver
+    ? buildHandTree(input.startPot, input.effectiveStackBb, input.board, {
+        dealNextCards: (board) => stratifiedNextCards(board, LOOKAHEAD_RIVER_CARDS),
+        laterStreetSizing: LOOKAHEAD_BET_SIZING,
+      })
+    : buildStreetTree(input.startPot, input.effectiveStackBb, street);
   const cfrOptions = { maxIterations: input.maxIterations, targetExploitabilityPercent: input.targetExploitabilityPercent };
   const cfrProgress = (done: number, total: number, exploitabilityPercent?: number) =>
     onProgress?.("cfr", done, total, exploitabilityPercent);
-  const solution =
-    "solver" in engine
-      ? runNativeCfr(engine.solver, { tree, board: input.board, heroRange, villainRange, rootEquityTable: equityTable }, cfrOptions, cfrProgress)
-      : runCfr(tree, heroRange, villainRange, equityTable, { ...cfrOptions, showdownExecutor: engine.showdownExecutor }, cfrProgress);
+  const nativeInput = { tree, board: input.board, heroRange, villainRange, rootEquityTable: equityTable };
+  let session: NativeSolveSession | undefined;
+  let solution: CfrSolution;
+  if (!("solver" in engine)) {
+    solution = runCfr(tree, heroRange, villainRange, equityTable, { ...cfrOptions, showdownExecutor: engine.showdownExecutor }, cfrProgress);
+  } else if (throughRiver) {
+    session = solveLookahead(engine.solver, engine.leafHelperPorts ?? [], nativeInput, cfrOptions, cfrProgress);
+    solution = session.solution;
+  } else {
+    solution = runNativeCfr(engine.solver, nativeInput, cfrOptions, cfrProgress);
+  }
   const exploitability =
     solution.finalExploitability ??
     computeExploitability(tree, solution, heroRange, villainRange, equityTable, input.startPot);
 
-  return { tree, heroRange, villainRange, solution, exploitability, equityTable };
+  return { tree, heroRange, villainRange, solution, exploitability, equityTable, session };
+}
+
+/** A lookahead solve, its leaves spread over the helper workers when there are any (falling back to this thread if they can't start). */
+function solveLookahead(
+  solver: SolverModule,
+  ports: readonly MessagePort[],
+  input: Parameters<typeof solveNativeSession>[1],
+  options: Parameters<typeof solveNativeSession>[2],
+  onProgress: Parameters<typeof solveNativeSession>[3],
+): NativeSolveSession {
+  if (ports.length > 0) {
+    try {
+      return solveSplitSession(solver, input, options, onProgress, ports.length + 1, workerLeafRunners(ports));
+    } catch (err) {
+      if (!(err instanceof LeafHelpersUnavailableError)) throw err;
+    }
+  }
+  return solveNativeSession(solver, input, options, onProgress);
 }

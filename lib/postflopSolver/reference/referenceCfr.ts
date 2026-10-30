@@ -1,7 +1,7 @@
 import { compareHands } from "../handEval";
 import { totalPot } from "../potState";
 import { comboVsComboRunoutEquity } from "../terminalEquity";
-import type { DecisionNode, PostflopTreeNode } from "../treeBuilder";
+import type { ChanceNode, DecisionNode, PostflopTreeNode } from "../treeBuilder";
 import type { ComboRange } from "../types";
 import type { ExploitabilityResult } from "../exploitability";
 
@@ -109,6 +109,23 @@ function zeroHolding(range: ComboRange, values: number[], card: string): number[
   return values.map((x, i) => (holds(range[i].cards, card) ? 0 : x));
 }
 
+/**
+ * A sampled deal's per-combo renormalization (engine.cpp's SampledDeal): each
+ * combo's weight is the deal's total minus the samples it holds; reach going
+ * in is scaled by total / held, values coming out divided by held. A deal of
+ * every card returns null — no correction.
+ */
+function sampledDeal(node: ChanceNode, hero: ComboRange, villain: ComboRange) {
+  if (!node.sampled) return null;
+  const total = node.children.reduce((s, c) => s + c.weight, 0);
+  const held = (range: ComboRange) =>
+    range.map(({ cards }) => total - node.children.reduce((s, c) => s + (holds(cards, c.card) ? c.weight : 0), 0));
+  return { total, hero: held(hero), villain: held(villain) };
+}
+
+const scaleIn = (reach: number[], held: number[], total: number) => reach.map((r, i) => (held[i] > 0 ? (r * total) / held[i] : 0));
+const normalizeOut = (values: number[], held: number[]) => values.map((x, i) => (held[i] > 0 ? x / held[i] : 0));
+
 function childPosition(pos: Position, node: PostflopTreeNode & { type: "chance" }, card: string): Position {
   return { board: [...pos.board, card], before1: pos.before1 + node.state.committed.P1, before2: pos.before2 + node.state.committed.P2 };
 }
@@ -124,14 +141,17 @@ function solve(
   if (node.type === "terminal-fold" || node.type === "terminal-showdown") return terminalValues(ctx, node, pos, r1, r2);
 
   if (node.type === "chance") {
+    const deal = sampledDeal(node, ctx.hero, ctx.villain);
+    const in1 = deal ? scaleIn(r1, deal.hero, deal.total) : r1;
+    const in2 = deal ? scaleIn(r2, deal.villain, deal.total) : r2;
     const v1 = ctx.hero.map(() => 0);
     const v2 = ctx.villain.map(() => 0);
     for (const { card, weight, child } of node.children) {
-      const [c1, c2] = solve(ctx, child, childPosition(pos, node, card), zeroHolding(ctx.hero, r1, card), zeroHolding(ctx.villain, r2, card), update);
+      const [c1, c2] = solve(ctx, child, childPosition(pos, node, card), zeroHolding(ctx.hero, in1, card), zeroHolding(ctx.villain, in2, card), update);
       zeroHolding(ctx.hero, c1, card).forEach((x, i) => (v1[i] += weight * x));
       zeroHolding(ctx.villain, c2, card).forEach((x, j) => (v2[j] += weight * x));
     }
-    return [v1, v2];
+    return deal ? [normalizeOut(v1, deal.hero), normalizeOut(v2, deal.villain)] : [v1, v2];
   }
 
   const isP1 = node.actor === "P1";
@@ -170,12 +190,14 @@ function evaluate(ctx: Context, node: PostflopTreeNode, pos: Position, p: 0 | 1,
     return terminalValues(ctx, node, pos, p === 0 ? zeros : oppReach, p === 0 ? oppReach : zeros)[p];
   }
   if (node.type === "chance") {
+    const deal = sampledDeal(node, ctx.hero, ctx.villain);
+    const oppIn = deal ? scaleIn(oppReach, p === 0 ? deal.villain : deal.hero, deal.total) : oppReach;
     const out = self.map(() => 0);
     for (const { card, weight, child } of node.children) {
-      const values = evaluate(ctx, child, childPosition(pos, node, card), p, bestResponse, zeroHolding(opp, oppReach, card));
+      const values = evaluate(ctx, child, childPosition(pos, node, card), p, bestResponse, zeroHolding(opp, oppIn, card));
       zeroHolding(self, values, card).forEach((x, i) => (out[i] += weight * x));
     }
-    return out;
+    return deal ? normalizeOut(out, p === 0 ? deal.hero : deal.villain) : out;
   }
   const sigma = normalizedAverage(ctx.stratSum.get(node)!);
   const actorIsP = (node.actor === "P1" ? 0 : 1) === p;

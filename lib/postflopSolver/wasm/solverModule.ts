@@ -42,7 +42,21 @@ export interface SolverModule {
   _eng_add_river_board(engine: number, heroStrength: number, villainStrength: number): number;
   _eng_iterate(engine: number, firstT: number, count: number): void;
   _eng_exploitability(engine: number, out: number): void;
+  _eng_node_ev(engine: number, node: number, reach1: number, reach2: number, out: number): void;
   _eng_average_strategy(engine: number, node: number, out: number): void;
+
+  /** Split solves (eng_partition and the trunk/leaf halves of an iteration or evaluation). */
+  _eng_partition(engine: number, leafCount: number, leafNodes: number, ownTrunk: number, ownedCount: number, ownedSlots: number): void;
+  _eng_exchange_in(engine: number): number;
+  _eng_exchange_out(engine: number): number;
+  _eng_trunk_forward(engine: number, t: number): void;
+  _eng_leaves_iterate(engine: number, t: number): void;
+  _eng_trunk_backward(engine: number, t: number): void;
+  _eng_trunk_eval_forward(engine: number, p: number): void;
+  _eng_leaves_evaluate(engine: number, p: number, bestResponse: number): void;
+  _eng_trunk_eval_backward(engine: number, p: number, bestResponse: number, rootValues: number): void;
+  _eng_pair_mass(engine: number): number;
+  _eng_trunk_chance_ev(engine: number, node: number, out: number): void;
 }
 
 export type CreateSolverModule = () => Promise<SolverModule>;
