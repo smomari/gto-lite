@@ -2,7 +2,7 @@ import type { SerializedCombo, SerializedTreeNode } from "@/types/postflopSolver
 import type { CfrSolution } from "./cfr";
 import type { CheckdownEquitySummary } from "./checkdownEquity";
 import { totalPot, type PostflopActionType, type PostflopPlayer, type PostflopPotState } from "./potState";
-import type { PostflopTreeNode } from "./treeBuilder";
+import { singleStreetOnly, type PostflopTreeNode } from "./treeBuilder";
 import type { ComboRange } from "./types";
 
 function actionLabel(action: PostflopActionType, actor: PostflopPlayer, childState: PostflopPotState): string {
@@ -42,6 +42,7 @@ export function serializeTree(
       committed: { ...node.state.committed },
     };
   }
+  if (node.type === "chance") singleStreetOnly("serializeTree");
   if (node.type === "terminal-showdown") {
     return {
       type: "terminal-showdown",

@@ -1,6 +1,6 @@
 import type { ComboRange } from "./types";
 import type { EquityTable } from "./terminalEquity";
-import type { DecisionNode, PostflopTreeNode, TerminalShowdownNode } from "./treeBuilder";
+import { singleStreetOnly, type DecisionNode, type PostflopTreeNode, type TerminalShowdownNode } from "./treeBuilder";
 import { computeExploitability, type ExploitabilityResult } from "./exploitability";
 import { totalPot } from "./potState";
 import { deriveShowdownLayout } from "./showdownBatch";
@@ -51,7 +51,7 @@ export const DEFAULT_MAX_CFR_ITERATIONS = 20000;
 /** Percent of pot. Loose end of TexasSolver's cited 0.275-0.5% range — this phase targets UX (not maximal precision). */
 export const DEFAULT_TARGET_EXPLOITABILITY_PERCENT = 0.5;
 
-const DEFAULT_EXPLOITABILITY_CHECK_START_INTERVAL = 100;
+export const DEFAULT_EXPLOITABILITY_CHECK_START_INTERVAL = 100;
 const EXPLOITABILITY_CHECK_INTERVAL_CEILING = 2000;
 /**
  * Each check costs about 3 iterations, and a solve overshoots its true
@@ -60,6 +60,11 @@ const EXPLOITABILITY_CHECK_INTERVAL_CEILING = 2000;
  * 800 with doubling gaps, against a true crossing near 550).
  */
 const EXPLOITABILITY_CHECK_GROWTH = 1.1;
+
+/** When to measure next after a check at iteration `t` — shared by both engines (wasm/engine.ts). */
+export function nextExploitabilityCheck(t: number): number {
+  return t + Math.min(Math.max(1, Math.round(t * (EXPLOITABILITY_CHECK_GROWTH - 1))), EXPLOITABILITY_CHECK_INTERVAL_CEILING);
+}
 
 /**
  * DCFR (Brown & Sandholm 2019) discount exponents — these replace CFR+'s
@@ -126,6 +131,7 @@ export function runCfr(
   const cfrData = new Map<DecisionNode, CfrNodeData>();
   const showdownIndex = new Map<TerminalShowdownNode, number>();
   (function initNodes(node: PostflopTreeNode) {
+    if (node.type === "chance") singleStreetOnly("runCfr");
     if (node.type === "terminal-showdown") showdownIndex.set(node, showdownIndex.size);
     if (node.type !== "decision") return;
     const rangeSize = node.actor === "P1" ? heroCount : villainCount;
@@ -164,6 +170,7 @@ export function runCfr(
 
   function forward(node: PostflopTreeNode, reachP1: number[], reachP2: number[]): void {
     if (node.type === "terminal-fold") return;
+    if (node.type === "chance") singleStreetOnly("runCfr");
     if (node.type === "terminal-showdown") {
       const s = showdownIndex.get(node)!;
       showdown.villainReach.set(reachP2, s * villainCount);
@@ -201,6 +208,7 @@ export function runCfr(
     stratWeight: number,
   ): { utilP1: number[]; utilP2: number[] } {
     if (node.type === "terminal-showdown") return showdownUtilities(node);
+    if (node.type === "chance") singleStreetOnly("runCfr");
     if (node.type === "terminal-fold") {
       // A fold's payoff doesn't depend on the opponent's holding, so no reach is needed.
       return {
@@ -273,50 +281,42 @@ export function runCfr(
     });
   }
 
-  try {
-    return iterate();
-  } finally {
-    showdown.dispose?.();
-  }
+  const progressInterval = Math.max(1, Math.floor(maxIterations / 50));
+  let nextCheck = checkIntervalIterations ?? DEFAULT_EXPLOITABILITY_CHECK_START_INTERVAL;
+  for (let t = 1; t <= maxIterations; t++) {
+    // Discount factors depend only on t, not on the node/combo/action being
+    // updated, so compute them once per outer iteration rather than
+    // redundantly at every node visited during this traversal.
+    const tAlpha = Math.pow(t, DCFR_ALPHA);
+    const positiveDiscount = tAlpha / (tAlpha + 1);
+    const stratWeight = Math.pow(t, DCFR_GAMMA);
+    if (isAverageResetIteration(t)) {
+      for (const data of cfrData.values()) for (const row of data.stratSum) row.fill(0);
+    }
+    forward(tree, initialReachP1, initialReachP2);
+    showdown.evaluate();
+    backward(tree, positiveDiscount, DCFR_NEGATIVE_REGRET_DISCOUNT, stratWeight);
 
-  function iterate(): CfrSolution {
-    const progressInterval = Math.max(1, Math.floor(maxIterations / 50));
-    let nextCheck = checkIntervalIterations ?? DEFAULT_EXPLOITABILITY_CHECK_START_INTERVAL;
-    for (let t = 1; t <= maxIterations; t++) {
-      // Discount factors depend only on t, not on the node/combo/action being
-      // updated, so compute them once per outer iteration rather than
-      // redundantly at every node visited during this traversal.
-      const tAlpha = Math.pow(t, DCFR_ALPHA);
-      const positiveDiscount = tAlpha / (tAlpha + 1);
-      const stratWeight = Math.pow(t, DCFR_GAMMA);
-      if (isAverageResetIteration(t)) {
-        for (const data of cfrData.values()) for (const row of data.stratSum) row.fill(0);
+    if (targetExploitabilityPercent !== undefined && t >= nextCheck) {
+      const snapshot: CfrSolution = { iterations: t, getAverageStrategy };
+      const exploitability = computeExploitability(
+        tree,
+        snapshot,
+        heroRange,
+        villainRange,
+        equityTable,
+        tree.state.startPot,
+      );
+      nextCheck = nextExploitabilityCheck(t);
+      onProgress?.(t, maxIterations, exploitability.percentOfPot);
+      if (exploitability.percentOfPot <= targetExploitabilityPercent) {
+        return { iterations: t, getAverageStrategy, finalExploitability: exploitability };
       }
-      forward(tree, initialReachP1, initialReachP2);
-      showdown.evaluate();
-      backward(tree, positiveDiscount, DCFR_NEGATIVE_REGRET_DISCOUNT, stratWeight);
-
-      if (targetExploitabilityPercent !== undefined && t >= nextCheck) {
-        const snapshot: CfrSolution = { iterations: t, getAverageStrategy };
-        const exploitability = computeExploitability(
-          tree,
-          snapshot,
-          heroRange,
-          villainRange,
-          equityTable,
-          tree.state.startPot,
-        );
-        nextCheck = t + Math.min(Math.max(1, Math.round(t * (EXPLOITABILITY_CHECK_GROWTH - 1))), EXPLOITABILITY_CHECK_INTERVAL_CEILING);
-        onProgress?.(t, maxIterations, exploitability.percentOfPot);
-        if (exploitability.percentOfPot <= targetExploitabilityPercent) {
-          return { iterations: t, getAverageStrategy, finalExploitability: exploitability };
-        }
-        continue;
-      }
-
-      if (onProgress && (t % progressInterval === 0 || t === maxIterations)) onProgress(t, maxIterations);
+      continue;
     }
 
-    return { iterations: maxIterations, getAverageStrategy };
+    if (onProgress && (t % progressInterval === 0 || t === maxIterations)) onProgress(t, maxIterations);
   }
+
+  return { iterations: maxIterations, getAverageStrategy };
 }

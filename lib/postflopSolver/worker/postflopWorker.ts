@@ -10,7 +10,7 @@ import { serializeCombos, serializeTree } from "../serialize";
 import { computeCheckdownEquities } from "../checkdownEquity";
 import { createParallelShowdown } from "./parallelShowdown";
 import { loadWebSolverModule } from "../wasm/loadWeb";
-import { createWasmShowdown } from "../wasm/wasmShowdown";
+import type { PostflopEngine } from "../solvePostflop";
 
 // Runs entirely client-side in a Worker: no Node `fs`, no equity-matrix file,
 // nothing from lib/equity/loadEquityMatrix.ts — only the pure postflop CFR
@@ -25,14 +25,12 @@ self.onmessage = async (event: MessageEvent<PostflopSolveInMessage>) => {
   const { request } = event.data;
 
   try {
-    // The C++ core when the browser can run it; otherwise the TypeScript kernel,
-    // split across the helper workers the client started (one port each) if any.
-    const solverModule = await loadWebSolverModule();
-    const showdownExecutor = solverModule
-      ? createWasmShowdown(solverModule)
-      : event.ports.length > 0
-        ? createParallelShowdown(event.ports)
-        : undefined;
+    // The C++ engine when the browser can run it; otherwise the TypeScript one,
+    // its showdown batch split across the helper workers the client started (one port each) if any.
+    const solver = await loadWebSolverModule();
+    const engine: PostflopEngine = solver
+      ? { solver }
+      : { showdownExecutor: event.ports.length > 0 ? createParallelShowdown(event.ports) : undefined };
 
     const solveInput: PostflopSolveInput =
       request.kind === "canonical"
@@ -65,7 +63,7 @@ self.onmessage = async (event: MessageEvent<PostflopSolveInMessage>) => {
         const progress: PostflopWorkerOutMessage = { type: "progress", phase, done, total, exploitabilityPercent };
         self.postMessage(progress);
       },
-      showdownExecutor,
+      engine,
     );
 
     const checkdown = computeCheckdownEquities(

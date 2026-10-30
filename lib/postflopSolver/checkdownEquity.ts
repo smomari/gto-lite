@@ -2,7 +2,7 @@ import type { ComboRange } from "./types";
 import type { EquityTable } from "./terminalEquity";
 import { equityVsRange } from "./terminalEquity";
 import { totalPot } from "./potState";
-import type { PostflopTreeNode } from "./treeBuilder";
+import { singleStreetOnly, type PostflopTreeNode } from "./treeBuilder";
 import type { CfrSolution } from "./cfr";
 import { narrowReach, weightedAverage } from "./treeMath";
 
@@ -55,6 +55,8 @@ export function computeCheckdownEquities(
       });
       return;
     }
+
+    if (node.type === "chance") singleStreetOnly("computeCheckdownEquities");
 
     // Decision node: only the acting player's reach narrows here, mirroring
     // cfr.ts's forward pass (both use narrowReach).
