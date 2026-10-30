@@ -8,6 +8,7 @@
  */
 export interface SolverModule {
   HEAPU8: Uint8Array;
+  HEAPU16: Uint16Array;
   HEAP32: Int32Array;
   HEAPU32: Uint32Array;
   HEAPF32: Float32Array;
@@ -57,6 +58,11 @@ export interface SolverModule {
   _eng_trunk_eval_backward(engine: number, p: number, bestResponse: number, rootValues: number): void;
   _eng_pair_mass(engine: number): number;
   _eng_trunk_chance_ev(engine: number, node: number, out: number): void;
+
+  /** Runout equity tables (native/solver/equity.cpp). */
+  _eq_create(heroCount: number, heroCards: number, heroStrength: number, villainCount: number, villainCards: number, villainStrength: number): number;
+  _eq_destroy(ctx: number): void;
+  _eq_table(ctx: number, slotCount: number, slots: number, unavailable: number, out: number): void;
 }
 
 export type CreateSolverModule = () => Promise<SolverModule>;
