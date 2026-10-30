@@ -1,16 +1,11 @@
 /// <reference lib="webworker" />
-import type {
-  ActionWeightKey,
-  PostflopSolveInMessage,
-  PostflopWorkerOutMessage,
-} from "@/types/postflopSolver";
+import type { ActionWeightKey, PostflopSolveInMessage, PostflopWorkerOutMessage } from "@/types/postflopSolver";
 import type { HandFrequency } from "@/types/rangeData";
-import { solvePostflopStreet, type PostflopSolveInput } from "../solvePostflop";
+import { solvePostflopStreet, type PostflopEngine, type PostflopSolveInput } from "../solvePostflop";
 import { serializeCombos, serializeTree } from "../serialize";
 import { computeCheckdownEquities } from "../checkdownEquity";
 import { createParallelShowdown } from "./parallelShowdown";
 import { loadWebSolverModule } from "../wasm/loadWeb";
-import type { PostflopEngine } from "../solvePostflop";
 
 // Runs entirely client-side in a Worker: no Node `fs`, no equity-matrix file,
 // nothing from lib/equity/loadEquityMatrix.ts — only the pure postflop CFR
@@ -23,14 +18,15 @@ function actionWeight(key: ActionWeightKey): (hf: HandFrequency) => number {
 
 self.onmessage = async (event: MessageEvent<PostflopSolveInMessage>) => {
   const { request } = event.data;
-
+  const ports = event.ports;
   try {
-    // The C++ engine when the browser can run it; otherwise the TypeScript one,
-    // its showdown batch split across the helper workers the client started (one port each) if any.
+    // The C++ engine when the browser can run it — a lookahead solve's leaves
+    // then go to the helper workers the client started (one port each), if
+    // any; otherwise the TypeScript engine, its showdown batch split across them.
     const solver = await loadWebSolverModule();
     const engine: PostflopEngine = solver
-      ? { solver }
-      : { showdownExecutor: event.ports.length > 0 ? createParallelShowdown(event.ports) : undefined };
+      ? { solver, leafHelperPorts: ports }
+      : { showdownExecutor: ports.length > 0 ? createParallelShowdown([...ports]) : undefined };
 
     const solveInput: PostflopSolveInput =
       request.kind === "canonical"
@@ -73,10 +69,14 @@ self.onmessage = async (event: MessageEvent<PostflopSolveInMessage>) => {
       result.villainRange,
       result.equityTable,
     );
+    // A lookahead solve (turn): its EV at each street change, read while the engine is still alive.
+    const nextStreetEv = result.session?.nextStreetEv();
+    const tree = serializeTree(result.tree, result.solution, checkdown, nextStreetEv);
+    result.session?.dispose();
 
     const message: PostflopWorkerOutMessage = {
       type: "result",
-      tree: serializeTree(result.tree, result.solution, checkdown),
+      tree,
       heroRange: serializeCombos(result.heroRange),
       villainRange: serializeCombos(result.villainRange),
       iterations: result.solution.iterations,

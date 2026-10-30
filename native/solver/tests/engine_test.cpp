@@ -21,6 +21,7 @@ int eng_add_equity_table(Engine* e, const float* heroEquity);
 int eng_add_river_board(Engine* e, const uint32_t* heroStrength, const uint32_t* villainStrength);
 void eng_iterate(Engine* e, int firstT, int count);
 void eng_exploitability(Engine* e, double* out);
+void eng_node_ev(Engine* e, int node, const float* reach1, const float* reach2, double* out);
 void eng_average_strategy(Engine* e, int node, float* out);
 }
 
@@ -130,8 +131,9 @@ void checkRiverShowdownRoot() {
   const Range hero = randomRange(rng, 40, 30), villain = randomRange(rng, 55, 30);
   const auto byPair = randomPairStrengths(rng, 12);  // few distinct strengths → many ties
   const auto hs = strengths(hero, byPair), vs = strengths(villain, byPair);
+  // 4 already in from each player (so the starting pot was 2): payoff = 10 × share − 4.
   Tree t;
-  t.add(RIVER, 10, 0, 0, 0);
+  t.add(RIVER, 10, 4, 4, 0);
   Engine* e = build(t, hero, villain);
   eng_add_river_board(e, hs.data(), vs.data());
   double out[6];
@@ -144,9 +146,9 @@ void checkRiverShowdownRoot() {
       const double w = static_cast<double>(hero.weights[i]) * villain.weights[j];
       share += w * (hs[i] > vs[j] ? 1 : hs[i] == vs[j] ? 0.5 : 0);
     }
-  const double expected = 10 * share / pairMass(hero, villain);
+  const double expected = 10 * share / pairMass(hero, villain) - 4;
   CHECK(std::fabs(out[4] - expected) < 1e-4, "river showdown EV %.6f, brute force %.6f", out[4], expected);
-  CHECK(std::fabs(out[4] + out[5] - 10) < 1e-4, "EVs should sum to the pot: %.6f", out[4] + out[5]);
+  CHECK(std::fabs(out[4] + out[5] - 2) < 1e-4, "EVs should sum to the starting pot: %.6f", out[4] + out[5]);
   CHECK(std::fabs(out[0]) < 1e-5, "a lone terminal has nothing to exploit: %.3g", out[0]);
   std::printf("  river showdown root          EV %.6f (brute force %.6f)\n", out[4], expected);
   eng_destroy(e);
@@ -260,6 +262,12 @@ void checkConvergence() {
   eng_exploitability(e, out);
   CHECK(out[1] < 0.3, "exploitability after 2000 iterations %.4f%% of pot (started at %.2f%%)", out[1], initial);
   CHECK(std::fabs(out[4] + out[5] - pot) < 1e-3, "EVs should sum to the starting pot: %.6f", out[4] + out[5]);
+
+  // At the root with the starting weights, the node EV is the exploitability report's EV.
+  double nodeEv[2];
+  eng_node_ev(e, root, hero.weights.data(), villain.weights.data(), nodeEv);
+  CHECK(std::fabs(nodeEv[0] - out[4]) < 1e-5 && std::fabs(nodeEv[1] - out[5]) < 1e-5,
+        "root node EV (%.6f, %.6f) vs report (%.6f, %.6f)", nodeEv[0], nodeEv[1], out[4], out[5]);
 
   std::vector<float> strategy(static_cast<size_t>(hero.n()) * 2);
   eng_average_strategy(e, root, strategy.data());

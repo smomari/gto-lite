@@ -66,12 +66,28 @@ export interface SerializedTerminalNode {
   checkdownEquity?: CheckdownEquitySummary;
 }
 
-export type SerializedTreeNode = SerializedDecisionNode | SerializedTerminalNode;
+/**
+ * Where a street closes with stack behind in a solve that looked ahead to the
+ * river (a turn solve). The lookahead below it isn't sent: the next street is
+ * re-solved with its full bet menu once its card is picked, like after a
+ * terminal-showdown.
+ */
+export interface SerializedChanceNode {
+  type: "chance";
+  potBb: number;
+  /** Chips each player committed on the street that just closed. */
+  committed: { P1: number; P2: number };
+  /** The lookahead's average EV over the next card, from the start of the solved street (same frame as checkdown EVs). */
+  nextStreetEv?: { heroEvBb: number; villainEvBb: number };
+}
+
+export type SerializedTreeNode = SerializedDecisionNode | SerializedTerminalNode | SerializedChanceNode;
 
 export interface PostflopSolveInMessage {
   type: "solve";
   request: PostflopSolveRequest;
 }
+
 
 export interface PostflopResultMessage {
   type: "result";

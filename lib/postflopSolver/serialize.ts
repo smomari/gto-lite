@@ -2,7 +2,7 @@ import type { SerializedCombo, SerializedTreeNode } from "@/types/postflopSolver
 import type { CfrSolution } from "./cfr";
 import type { CheckdownEquitySummary } from "./checkdownEquity";
 import { totalPot, type PostflopActionType, type PostflopPlayer, type PostflopPotState } from "./potState";
-import { singleStreetOnly, type PostflopTreeNode } from "./treeBuilder";
+import type { ChanceNode, PostflopTreeNode } from "./treeBuilder";
 import type { ComboRange } from "./types";
 
 function actionLabel(action: PostflopActionType, actor: PostflopPlayer, childState: PostflopPotState): string {
@@ -33,6 +33,7 @@ export function serializeTree(
   node: PostflopTreeNode,
   solution: CfrSolution,
   checkdown?: Map<PostflopTreeNode, CheckdownEquitySummary>,
+  nextStreetEv?: Map<ChanceNode, { heroEvBb: number; villainEvBb: number }>,
 ): SerializedTreeNode {
   if (node.type === "terminal-fold") {
     return {
@@ -42,7 +43,15 @@ export function serializeTree(
       committed: { ...node.state.committed },
     };
   }
-  if (node.type === "chance") singleStreetOnly("serializeTree");
+  if (node.type === "chance") {
+    // The lookahead below isn't sent: the next street is re-solved in full once its card is picked.
+    return {
+      type: "chance",
+      potBb: totalPot(node.state),
+      committed: { ...node.state.committed },
+      nextStreetEv: nextStreetEv?.get(node),
+    };
+  }
   if (node.type === "terminal-showdown") {
     return {
       type: "terminal-showdown",
@@ -61,7 +70,7 @@ export function serializeTree(
     actions: node.actions.map(({ action, child }) => ({
       action,
       label: actionLabel(action, node.actor, child.state),
-      child: serializeTree(child, solution, checkdown),
+      child: serializeTree(child, solution, checkdown, nextStreetEv),
     })),
   };
 }

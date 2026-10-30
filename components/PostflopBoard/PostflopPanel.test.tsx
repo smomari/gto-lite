@@ -211,6 +211,39 @@ function turnResult(): PostflopResultMessage {
   };
 }
 
+/** A turn solved looking ahead to the river (C++ engine): check-check ends in a chance node carrying the lookahead's EV. */
+function turnLookaheadResult(): PostflopResultMessage {
+  const chance: SerializedTreeNode = {
+    type: "chance",
+    potBb: 7.5,
+    committed: { P1: 0, P2: 0 },
+    nextStreetEv: { heroEvBb: 1.5, villainEvBb: 6 },
+  };
+  const p2Node: SerializedTreeNode = {
+    type: "decision",
+    actor: "P2",
+    potBb: 7.5,
+    currentBetToCall: 0,
+    actions: [{ action: "check", label: "Check", child: chance }],
+    strategy: [[1]],
+  };
+  const tree: SerializedTreeNode = {
+    type: "decision",
+    actor: "P1",
+    potBb: 7.5,
+    currentBetToCall: 0,
+    actions: [{ action: "check", label: "Check", child: p2Node }],
+    strategy: [[1]],
+  };
+  return {
+    type: "result",
+    tree,
+    heroRange: [{ cards: ["Ah", "Kd"], weight: 1 }],
+    villainRange: [{ cards: ["7c", "2c"], weight: 1 }],
+    iterations: 300,
+  };
+}
+
 function baseProps(effectiveStackBb: number) {
   return {
     heroLabel: "BTN",
@@ -739,5 +772,41 @@ describe("PostflopPanel", () => {
     expect(lastScrolled()).toBe(activeSeatBox());
     expect(timeline().at(-2)).toBe("Turn");
     scrollIntoView.mockRestore();
+  });
+  it("a turn that looked ahead to the river shows its next-street EV and still solves the picked river in full", async () => {
+    solvePostflopInWorker.mockResolvedValueOnce(checkCheckFlopResult({ P1: 0, P2: 0 }));
+    renderPanel(20);
+
+    pickFlopBoard();
+    await screen.findByRole("button", { name: "Check" });
+    fireEvent.click(screen.getByRole("button", { name: "Check" }));
+    fireEvent.click(screen.getByRole("button", { name: "Check" }));
+    solvePostflopInWorker.mockResolvedValueOnce(turnLookaheadResult());
+    fireEvent.click(screen.getByRole("button", { name: "7h" }));
+    fireEvent.click(screen.getByRole("button", { name: "Solve turn" }));
+    await screen.findByRole("button", { name: "Pick a different turn card" });
+    fireEvent.click(screen.getByRole("button", { name: "Check" }));
+    fireEvent.click(screen.getByRole("button", { name: "Check" }));
+
+    // The chance node ends the turn like a showdown would: an idle river stage, and the turn's lookahead EV.
+    expect(liveStage()).toHaveAttribute("data-street", "River");
+    const turnDetails = openStreetDetails("Turn");
+    expect(within(turnDetails).getByText(/river card\s+coming next/)).toBeInTheDocument();
+    expect(within(turnDetails).getByText(/Solved avg EV over every river card .*BTN \+1\.50bb · BB \+6\.00bb/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Close details" }));
+
+    solvePostflopInWorker.mockResolvedValueOnce(checkCheckRiverResult({ P1: 0, P2: 0 }));
+    fireEvent.click(screen.getByRole("button", { name: "Ts" }));
+    fireEvent.click(screen.getByRole("button", { name: "Solve river" }));
+    await screen.findByRole("button", { name: "Pick a different river card" });
+
+    const riverRequest = solvePostflopInWorker.mock.calls[2][0] as PostflopSolveRequest;
+    expect(riverRequest.kind).toBe("combos");
+    if (riverRequest.kind === "combos") {
+      expect(riverRequest.board).toEqual(["As", "Kd", "Qh", "7h", "Ts"]);
+      expect(riverRequest.startPot).toBe(7.5);
+      expect(riverRequest.effectiveStackBb).toBe(20);
+      expect(riverRequest.heroRange).toEqual([{ cards: ["Ah", "Kd"], weight: 1 }]);
+    }
   });
 });

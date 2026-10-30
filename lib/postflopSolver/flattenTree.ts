@@ -34,6 +34,8 @@ export interface FlatTree {
   childCard: Uint8Array;
   childWeight: Float32Array;
   decisionIndex: Map<DecisionNode, number>;
+  /** Every node's index (decision nodes are also in `decisionIndex`). */
+  nodeIndex: Map<PostflopTreeNode, number>;
   tableBoards: string[][];
   riverBoards: string[][];
 }
@@ -75,6 +77,7 @@ export function flattenTree(root: PostflopTreeNode, rootBoard: string[]): FlatTr
     childCard: new Uint8Array(nodeCount - 1).fill(NO_CARD),
     childWeight: new Float32Array(nodeCount - 1),
     decisionIndex: new Map(),
+    nodeIndex: indexOf,
     tableBoards: [],
     riverBoards: [],
   };
@@ -105,6 +108,7 @@ export function flattenTree(root: PostflopTreeNode, rootBoard: string[]): FlatTr
         break;
       case "chance":
         flat.type[i] = NODE_CHANCE;
+        flat.aux[i] = node.sampled ? 1 : 0;
         flat.childCount[i] = node.children.length;
         for (const { card, weight, child } of node.children) {
           flat.childCard[slot] = CARD_INDEX[card];

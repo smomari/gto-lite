@@ -15,6 +15,7 @@ import { SolveProgress } from "@/components/PostflopStrategy/SolveProgress";
 import { ExploitabilityBadge } from "@/components/PostflopStrategy/ExploitabilityBadge";
 import { CheckdownEquityNote } from "./CheckdownEquityNote";
 import { AverageNextCardEv, type PreciseAvgState } from "./AverageNextCardEv";
+import { NextStreetEvNote } from "./NextStreetEvNote";
 import { solvePostflopInWorker } from "@/lib/postflopSolver/worker/workerClient";
 import { narrowRangeAlongPath, type TreePathStep } from "@/lib/postflopSolver/rangeNarrowing";
 import { DEFAULT_MAX_CFR_ITERATIONS, DEFAULT_TARGET_EXPLOITABILITY_PERCENT } from "@/lib/postflopSolver/cfr";
@@ -25,7 +26,6 @@ import type {
   PostflopSolvePhase,
   PostflopSolveRequest,
   SerializedDecisionAction,
-  SerializedTerminalNode,
   SerializedTreeNode,
 } from "@/types/postflopSolver";
 import type { HandFrequency } from "@/types/rangeData";
@@ -151,8 +151,10 @@ export function PostflopPanel(props: PostflopPanelProps) {
       // makes a next street worth solving — an all-in-call terminal already
       // has its final runout equity baked into this street's own CFR result,
       // and the river itself has no further street to deal.
+      // A chance node is the same street change in a solve that looked ahead
+      // to the river: the next street still gets its own full solve.
       if (
-        action.child.type === "terminal-showdown" &&
+        (action.child.type === "terminal-showdown" || action.child.type === "chance") &&
         hasNextStreet(stage.board.length) &&
         stage.effectiveStackAtStart - action.child.committed.P1 > 0
       ) {
@@ -206,10 +208,10 @@ export function PostflopPanel(props: PostflopPanelProps) {
       };
     } else {
       const prevStage = streets[stageIndex - 1];
-      if (prevStage.state.kind !== "done" || prevStage.currentNode?.type !== "terminal-showdown") {
-        throw new Error("handleBoardConfirm: the next street requires the previous street to be at a terminal-showdown");
+      const terminal = prevStage.currentNode;
+      if (prevStage.state.kind !== "done" || (terminal?.type !== "terminal-showdown" && terminal?.type !== "chance")) {
+        throw new Error("handleBoardConfirm: the next street requires the previous street to end at a terminal-showdown or chance node");
       }
-      const terminal: SerializedTerminalNode = prevStage.currentNode;
       request = {
         kind: "combos",
         board: fullBoard,
@@ -330,8 +332,8 @@ export function PostflopPanel(props: PostflopPanelProps) {
    * The "done" state's content — identical whether it's the live current
    * street or an expanded past one, since a past stage is (by
    * PostflopPanel's own invariant: a next stage is only ever pushed once the
-   * previous one reaches a terminal-showdown) always a resolved
-   * terminal-showdown, never a decision node — so the 2-column grid branch
+   * previous one reaches a terminal-showdown or chance node) always resolved
+   * at one of those, never a decision node — so the 2-column grid branch
    * below simply never fires for past stages, no separate "past" variant needed.
    */
   function renderDoneContent(
@@ -344,7 +346,23 @@ export function PostflopPanel(props: PostflopPanelProps) {
     return (
       <>
         {solveState.result.exploitability && <ExploitabilityBadge exploitability={solveState.result.exploitability} />}
-        {currentNode.type !== "decision" && (
+        {currentNode.type === "chance" && (
+          <>
+            <p className="text-sm text-zinc-500 dark:text-zinc-400">
+              Street ends — pot {currentNode.potBb.toFixed(1)}bb, {streetLabelForBoardLength(stage.board.length + 1).toLowerCase()} card
+              coming next.
+            </p>
+            {currentNode.nextStreetEv && (
+              <NextStreetEvNote
+                ev={currentNode.nextStreetEv}
+                heroLabel={props.heroLabel}
+                villainLabel={props.villainLabel}
+                nextStreetLabel={streetLabelForBoardLength(stage.board.length + 1)}
+              />
+            )}
+          </>
+        )}
+        {(currentNode.type === "terminal-fold" || currentNode.type === "terminal-showdown") && (
           <PostflopTerminalMessage
             node={currentNode}
             heroLabel={props.heroLabel}
@@ -451,7 +469,7 @@ export function PostflopPanel(props: PostflopPanelProps) {
   function renderPastStreetDetails(i: number) {
     const stage = streets[i];
     // Invariant: a stage is only ever non-last once its own action reached a
-    // terminal-showdown (see handleNavigate) — so a past stage is always done.
+    // terminal-showdown or chance node (see handleNavigate) — so a past stage is always done.
     if (stage.state.kind !== "done" || !stage.currentNode) return null;
     return (
       <div

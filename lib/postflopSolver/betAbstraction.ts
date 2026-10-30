@@ -22,6 +22,20 @@ export const BET_SIZING: Record<PostflopStreet, StreetBetSizing> = {
   river: { betPotFractions: [0.33, 0.66, 1.0], raisePotFractions: [0.5, 1.0] },
 };
 
+/**
+ * Streets a solve only looks ahead into (the river under a turn solve): one bet
+ * size, and no raise size beyond the all-in. Their job is to value the solved
+ * street's lines with real later play; each later street is re-solved with
+ * BET_SIZING once its card is known. Measured on a 251×359-combo SRP turn
+ * looking at all 48 rivers: full river menu 212s, 1 bet + 1 raise 60s, this 50s
+ * — the menu matters far less than how many river cards are included.
+ */
+export const LOOKAHEAD_BET_SIZING: Record<PostflopStreet, StreetBetSizing> = {
+  flop: { betPotFractions: [0.5], raisePotFractions: [] },
+  turn: { betPotFractions: [0.66], raisePotFractions: [] },
+  river: { betPotFractions: [0.75], raisePotFractions: [] },
+};
+
 /** How many times a bet may be raised, this street. Beyond this, only fold/call remain. */
 export const RAISE_CAP = 1;
 
@@ -92,11 +106,11 @@ export function computePostflopAvailableActions(
   actor: PostflopPlayer,
   effectiveStackBb: number,
   street: PostflopStreet,
+  sizing: StreetBetSizing = BET_SIZING[street],
 ): PostflopAvailableActions {
   const alreadyCommitted = state.committed[actor];
   const remaining = effectiveStackBb - alreadyCommitted;
   const facingBet = state.currentBetToCall > alreadyCommitted;
-  const sizing = BET_SIZING[street];
 
   if (!facingBet) {
     const pot = totalPot(state);
