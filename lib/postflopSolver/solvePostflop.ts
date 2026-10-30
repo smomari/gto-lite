@@ -9,10 +9,8 @@ import { buildHandTree, buildStreetTree, type HandTreeOptions, type PostflopTree
 import { runCfr, type CfrSolution } from "./cfr";
 import type { ShowdownExecutor } from "./showdownExecutor";
 import { computeExploitability, type ExploitabilityResult } from "./exploitability";
-import { runNativeCfr, solveNativeSession, type NativeSolveSession } from "./wasm/engine";
+import { runNativeCfr, solveNativeSession, solveThreadedSession, type NativeSolveSession } from "./wasm/engine";
 import { RunoutEquity } from "./wasm/runoutEquity";
-import { solveSplitSession } from "./wasm/splitSolve";
-import { LeafHelpersUnavailableError, workerLeafRunners } from "./worker/leafHelpers";
 import type { SolverModule } from "./wasm/solverModule";
 
 interface PostflopSolveInputCommon {
@@ -90,8 +88,8 @@ export function lookaheadOptions(street: PostflopStreet): HandTreeOptions | null
 export type PostflopEngine =
   | {
       solver: SolverModule;
-      /** Helper workers (one port each) that take a share of a lookahead solve's leaves — see worker/leafHelpers.ts. */
-      leafHelperPorts?: readonly MessagePort[];
+      /** Threads a lookahead solve runs on (a threaded build of the module, with that many in its pool) — see solveThreadedSession. */
+      threads?: number;
     }
   | { showdownExecutor?: ShowdownExecutor };
 
@@ -185,7 +183,11 @@ function solveWithTables(
   if (!("solver" in engine)) {
     solution = runCfr(tree, heroRange, villainRange, equityTable, { ...cfrOptions, showdownExecutor: engine.showdownExecutor }, cfrProgress);
   } else if (lookahead) {
-    session = solveLookahead(engine.solver, engine.leafHelperPorts ?? [], nativeInput, cfrOptions, cfrProgress);
+    const threads = engine.threads ?? 1;
+    session =
+      threads > 1
+        ? solveThreadedSession(engine.solver, nativeInput, cfrOptions, cfrProgress, threads)
+        : solveNativeSession(engine.solver, nativeInput, cfrOptions, cfrProgress);
     solution = session.solution;
   } else {
     solution = runNativeCfr(engine.solver, nativeInput, cfrOptions, cfrProgress);
@@ -195,22 +197,4 @@ function solveWithTables(
     computeExploitability(tree, solution, heroRange, villainRange, equityTable, input.startPot);
 
   return { tree, heroRange, villainRange, solution, exploitability, equityTable, session };
-}
-
-/** A lookahead solve, its leaves spread over the helper workers when there are any (falling back to this thread if they can't start). */
-function solveLookahead(
-  solver: SolverModule,
-  ports: readonly MessagePort[],
-  input: Parameters<typeof solveNativeSession>[1],
-  options: Parameters<typeof solveNativeSession>[2],
-  onProgress: Parameters<typeof solveNativeSession>[3],
-): NativeSolveSession {
-  if (ports.length > 0) {
-    try {
-      return solveSplitSession(solver, input, options, onProgress, ports.length + 1, workerLeafRunners(ports));
-    } catch (err) {
-      if (!(err instanceof LeafHelpersUnavailableError)) throw err;
-    }
-  }
-  return solveNativeSession(solver, input, options, onProgress);
 }

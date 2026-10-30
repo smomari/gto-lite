@@ -23,6 +23,10 @@ void eng_iterate(Engine* e, int firstT, int count);
 void eng_exploitability(Engine* e, double* out);
 void eng_node_ev(Engine* e, int node, const float* reach1, const float* reach2, double* out);
 void eng_average_strategy(Engine* e, int node, float* out);
+void eng_partition(Engine* e, int leafCount, const int32_t* leafNodes);
+int eng_set_threads(Engine* e, int threads);
+void eng_iterate_parallel(Engine* e, int firstT, int count);
+void eng_exploitability_parallel(Engine* e, double* out);
 }
 
 namespace {
@@ -278,6 +282,78 @@ void checkConvergence() {
   eng_destroy(e);
 }
 
+/**
+ * A check/bet street ending in chance nodes over three cards, each followed by
+ * a check/bet river game: the pool must reproduce the one-thread solve, and
+ * this runs it under AddressSanitizer with every thread on its own arena.
+ */
+void checkThreads() {
+  Rng rng(15);
+  const Range hero = randomRange(rng, 30, 20), villain = randomRange(rng, 30, 20);
+  const uint8_t dealt[3] = {0, 1, 2};
+  const float weight = 1.0f / 3, bet = 5;
+  std::vector<std::vector<uint32_t>> hs, vs;
+  for (int c = 0; c < 3; c++) {
+    const auto byPair = randomPairStrengths(rng, 12);
+    hs.push_back(strengths(hero, byPair));
+    vs.push_back(strengths(villain, byPair));
+  }
+
+  Tree t;
+  std::vector<int32_t> leaves;
+  const auto riverGame = [&t, bet](float pot, float committed, int board) {
+    const int p1 = t.add(P1, pot, committed, committed);
+    const int p1Bets = t.add(P2, pot + bet, committed + bet, committed);
+    t.link(p1, t.add(RIVER, pot, committed, committed, board));
+    t.link(p1, p1Bets);
+    t.link(p1Bets, t.add(FOLD, pot + bet, committed + bet, committed, 0));
+    t.link(p1Bets, t.add(RIVER, pot + 2 * bet, committed + bet, committed + bet, board));
+    return p1;
+  };
+  const auto chance = [&](float pot, float committed) {
+    const int node = t.add(CHANCE, pot, committed, committed);
+    for (int c = 0; c < 3; c++) {
+      const int leaf = riverGame(pot, committed, c);
+      t.link(node, leaf, dealt[c], weight);
+      leaves.push_back(leaf);
+    }
+    return node;
+  };
+  const float pot = 10;
+  const int root = t.add(P1, pot, 0, 0);
+  const int p1Bets = t.add(P2, pot + bet, bet, 0);
+  t.link(root, chance(pot, 0));
+  t.link(root, p1Bets);
+  t.link(p1Bets, t.add(FOLD, pot + bet, bet, 0, 0));
+  t.link(p1Bets, chance(pot + 2 * bet, bet));
+
+  Tree copy = t;  // flatten() is one-shot
+  Engine* whole = build(t, hero, villain);
+  Engine* threaded = build(copy, hero, villain);
+  for (int c = 0; c < 3; c++) {
+    eng_add_river_board(whole, hs[c].data(), vs[c].data());
+    eng_add_river_board(threaded, hs[c].data(), vs[c].data());
+  }
+  eng_partition(threaded, static_cast<int>(leaves.size()), leaves.data());
+  const int threads = eng_set_threads(threaded, 3);
+  CHECK(threads == 3, "expected 3 threads, got %d", threads);
+
+  double a[6], b[6];
+  eng_iterate(whole, 1, 70);
+  eng_iterate_parallel(threaded, 1, 70);
+  eng_exploitability(whole, a);
+  eng_exploitability_parallel(threaded, b);
+  for (int k = 0; k < 6; k++) CHECK(std::fabs(a[k] - b[k]) < 1e-5, "report[%d]: one thread %.6f, three %.6f", k, a[k], b[k]);
+
+  std::vector<float> sa(static_cast<size_t>(hero.n()) * 2), sb(sa.size());
+  eng_average_strategy(whole, root, sa.data());
+  eng_average_strategy(threaded, root, sb.data());
+  CHECK(sa == sb, "root strategy differs between one thread and three");
+  std::printf("  3 threads = 1 thread          exploitability %.4f%% of pot\n", b[1]);
+  eng_destroy(whole);
+  eng_destroy(threaded);
+}
+
 }  // namespace
 
 int main() {
@@ -285,5 +361,6 @@ int main() {
   checkTableShowdownAndFold();
   checkChance();
   checkConvergence();
+  checkThreads();
   return testResult();
 }

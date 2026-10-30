@@ -196,67 +196,37 @@ export class NativeCfrEngine {
     }
   }
 
-  // ---------------------------------------------------------- split solves (splitSolve.ts)
+  // ---------------------------------------------------------- threaded solves (solveThreadedSession)
 
-  /** Makes this engine one part of a split solve — see eng_partition. */
-  partition(leafNodes: number[], ownTrunk: boolean, ownedSlots: number[]): void {
+  /** Makes this engine a split solve over `leafNodes` — see eng_partition. */
+  partition(leafNodes: number[]): void {
     const leaves = this.solver._malloc(Math.max(leafNodes.length, 1) * 4);
-    const owned = this.solver._malloc(Math.max(ownedSlots.length, 1) * 4);
     try {
       this.solver.HEAP32.set(leafNodes, leaves / 4);
-      this.solver.HEAP32.set(ownedSlots, owned / 4);
-      this.solver._eng_partition(this.handle, leafNodes.length, leaves, ownTrunk ? 1 : 0, ownedSlots.length, owned);
+      this.solver._eng_partition(this.handle, leafNodes.length, leaves);
     } finally {
       this.solver._free(leaves);
-      this.solver._free(owned);
     }
   }
 
-  /** Row `slot` × (heroCount + villainCount) of the exchange buffers, as views into WASM memory (re-take after any allocation). */
-  exchangeIn(leafCount: number): Float32Array {
-    const ptr = this.solver._eng_exchange_in(this.handle);
-    return this.solver.HEAPF32.subarray(ptr / 4, ptr / 4 + leafCount * (this.heroCount + this.villainCount));
+  /** Starts the pthread pool (after partition); returns the threads actually in use (1 on one-thread builds). */
+  setThreads(threads: number): number {
+    return this.solver._eng_set_threads(this.handle, threads);
   }
 
-  exchangeOut(leafCount: number): Float32Array {
-    const ptr = this.solver._eng_exchange_out(this.handle);
-    return this.solver.HEAPF32.subarray(ptr / 4, ptr / 4 + leafCount * (this.heroCount + this.villainCount));
+  iterateParallel(firstT: number, count: number): void {
+    this.solver._eng_iterate_parallel(this.handle, firstT, count);
   }
 
-  trunkForward(t: number): void {
-    this.solver._eng_trunk_forward(this.handle, t);
-  }
-
-  leavesIterate(t: number): void {
-    this.solver._eng_leaves_iterate(this.handle, t);
-  }
-
-  trunkBackward(t: number): void {
-    this.solver._eng_trunk_backward(this.handle, t);
-  }
-
-  trunkEvalForward(p: 0 | 1): void {
-    this.solver._eng_trunk_eval_forward(this.handle, p);
-  }
-
-  leavesEvaluate(p: 0 | 1, bestResponse: boolean): void {
-    this.solver._eng_leaves_evaluate(this.handle, p, bestResponse ? 1 : 0);
-  }
-
-  /** Player p's root values after the leaves' evaluation is in exchangeOut. */
-  trunkEvalBackward(p: 0 | 1, bestResponse: boolean): Float32Array {
-    const count = p === 0 ? this.heroCount : this.villainCount;
-    const ptr = this.solver._malloc(Math.max(count, 1) * 4);
+  exploitabilityParallel(): ExploitabilityResult {
+    const ptr = this.solver._malloc(6 * 8);
     try {
-      this.solver._eng_trunk_eval_backward(this.handle, p, bestResponse ? 1 : 0, ptr);
-      return this.solver.HEAPF32.slice(ptr / 4, ptr / 4 + count);
+      this.solver._eng_exploitability_parallel(this.handle, ptr);
+      const [bb, percentOfPot, p1BestResponseBb, p2BestResponseBb, p1ActualBb, p2ActualBb] = this.solver.HEAPF64.slice(ptr / 8, ptr / 8 + 6);
+      return { bb, percentOfPot, p1BestResponseBb, p2BestResponseBb, p1ActualBb, p2ActualBb };
     } finally {
       this.solver._free(ptr);
     }
-  }
-
-  pairMass(): number {
-    return this.solver._eng_pair_mass(this.handle);
   }
 
   /** Both players' EV at a trunk chance node, from the last EV-mode evaluation of each (NaN when unreached). */
@@ -401,6 +371,67 @@ export function solveNativeSession(
           rootStreetChanceNodes(input.tree, solution, input.heroRange.map((c) => c.weight), input.villainRange.map((c) => c.weight)).map(
             ({ node, reachP1, reachP2 }) => ({ node, ev: engine.nodeEv(node, reachP1, reachP2) }),
           ),
+        ),
+      dispose: () => engine.dispose(),
+    };
+  } catch (err) {
+    engine.dispose();
+    throw err;
+  }
+}
+
+const NODE_DECISION_P2 = 1;
+const NODE_CHANCE = 5;
+
+/** Leaf roots in slot order: the children of the chance nodes that end the root street. */
+export function findLeafRoots(build: EngineBuild): number[] {
+  const leaves: number[] = [];
+  (function walk(node: number) {
+    const start = build.childStart[node], count = build.childCount[node];
+    if (build.type[node] === NODE_CHANCE) {
+      for (let c = 0; c < count; c++) leaves.push(build.children[start + c]);
+    } else if (build.type[node] <= NODE_DECISION_P2) {
+      for (let c = 0; c < count; c++) walk(build.children[start + c]);
+    }
+  })(0);
+  return leaves;
+}
+
+/**
+ * A lookahead solve on one engine with a pthread pool (threaded builds):
+ * every iteration runs the root street (the trunk) on this thread, then all
+ * the subtrees under its street-ending chance nodes (the leaves) across the
+ * pool — each thread takes the next leaf off a shared queue, so a slow core
+ * just takes fewer — then the trunk again. Same arithmetic as
+ * solveNativeSession, so the same results.
+ */
+export function solveThreadedSession(
+  solver: SolverModule,
+  input: NativeCfrInput,
+  options: NativeCfrOptions,
+  onProgress: CfrProgress | undefined,
+  threads: number,
+): NativeSolveSession {
+  const { build, flat } = prepareEngineBuild(input);
+  const engine = NativeCfrEngine.fromBuild(solver, build, flat);
+  try {
+    engine.partition(findLeafRoots(build));
+    engine.setThreads(threads);
+    const stepper: CfrStepper = {
+      iterate: (firstT, count) => engine.iterateParallel(firstT, count),
+      exploitability: () => engine.exploitabilityParallel(),
+    };
+    const { iterations, finalExploitability } = runSolveLoop(stepper, options, onProgress);
+    const solution = lazySolution(engine, iterations, finalExploitability);
+    return {
+      solution,
+      // runSolveLoop's last measurement was of the final strategy, so the trunk still holds its EV-mode values.
+      nextStreetEv: () =>
+        finiteEvs(
+          rootStreetChanceNodes(input.tree, solution, Array.from(build.heroWeights), Array.from(build.villainWeights)).map(({ node }) => ({
+            node,
+            ev: engine.trunkChanceEv(node),
+          })),
         ),
       dispose: () => engine.dispose(),
     };

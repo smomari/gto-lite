@@ -46,17 +46,11 @@ export interface SolverModule {
   _eng_node_ev(engine: number, node: number, reach1: number, reach2: number, out: number): void;
   _eng_average_strategy(engine: number, node: number, out: number): void;
 
-  /** Split solves (eng_partition and the trunk/leaf halves of an iteration or evaluation). */
-  _eng_partition(engine: number, leafCount: number, leafNodes: number, ownTrunk: number, ownedCount: number, ownedSlots: number): void;
-  _eng_exchange_in(engine: number): number;
-  _eng_exchange_out(engine: number): number;
-  _eng_trunk_forward(engine: number, t: number): void;
-  _eng_leaves_iterate(engine: number, t: number): void;
-  _eng_trunk_backward(engine: number, t: number): void;
-  _eng_trunk_eval_forward(engine: number, p: number): void;
-  _eng_leaves_evaluate(engine: number, p: number, bestResponse: number): void;
-  _eng_trunk_eval_backward(engine: number, p: number, bestResponse: number, rootValues: number): void;
-  _eng_pair_mass(engine: number): number;
+  /** Split solves: eng_partition, then a pthread pool working through the leaves (threaded builds; one thread otherwise). */
+  _eng_partition(engine: number, leafCount: number, leafNodes: number): void;
+  _eng_set_threads(engine: number, threads: number): number;
+  _eng_iterate_parallel(engine: number, firstT: number, count: number): void;
+  _eng_exploitability_parallel(engine: number, out: number): void;
   _eng_trunk_chance_ev(engine: number, node: number, out: number): void;
 
   /** Runout equity tables (native/solver/equity.cpp). */
@@ -65,4 +59,11 @@ export interface SolverModule {
   _eq_table(ctx: number, slotCount: number, slots: number, unavailable: number, out: number): void;
 }
 
-export type CreateSolverModule = () => Promise<SolverModule>;
+export interface SolverModuleOptions {
+  /** Threaded builds: pool threads to start with the module (they can't be started later from a blocked thread). */
+  pthreadPoolSize?: number;
+  /** Threaded web build: starts one pool worker (see native/build-wasm.sh and pthreadEntry.ts). */
+  createPthreadWorker?: () => Worker;
+}
+
+export type CreateSolverModule = (options?: SolverModuleOptions) => Promise<SolverModule>;

@@ -29,7 +29,7 @@ export function solvePostflopInWorker(
     }
 
     const worker = new Worker(new URL("./postflopWorker.ts", import.meta.url));
-    const helpers = startHelpers(request);
+    const helpers = startHelpers();
     let settled = false;
 
     function cleanup() {
@@ -76,37 +76,25 @@ export function solvePostflopInWorker(
   });
 }
 
-/**
- * Capped at cores − 2 (one for the page, one for the solver worker, which also
- * computes a share). A BTN-vs-BB turn lookahead on a 10-core M4: 14.9s on one
- * thread, 4.6s with 5 helpers, 3.8s with 8 — the efficiency cores lag, so the
- * gain per helper shrinks, but it doesn't reverse.
- */
+/** Capped at cores − 2: one for the page, one for the solver worker, which also computes a share. */
 const MAX_HELPERS = 8;
 
 /**
- * Helper workers for one solve, wired to the solver worker by MessageChannel
- * ports. They share memory with it (SharedArrayBuffer), which browsers only
- * allow on a cross-origin isolated page (COOP/COEP headers in next.config.ts),
- * and are started here on the main thread rather than inside the solver worker.
- *  - C++ engine: flop and turn solves look ahead past their street, and the
- *    lookahead's leaves go to leaf helpers (leafHelpers.ts). A river solve is
- *    a fraction of a second as is.
- *  - TypeScript engine (no WASM SIMD): the showdown batch goes to showdown
- *    helpers (parallelShowdown.ts).
+ * Showdown helpers (parallelShowdown.ts) for the TypeScript engine, the
+ * fallback without WASM SIMD: workers wired to the solver worker by
+ * MessageChannel ports. They share memory with it (SharedArrayBuffer), which
+ * browsers only allow on a cross-origin isolated page (COOP/COEP headers in
+ * next.config.ts), and are started here on the main thread rather than inside
+ * the solver worker. The C++ engine starts its own threads (wasm/loadWeb.ts).
  */
-function startHelpers(request: PostflopSolveRequest): { workers: Worker[]; solverPorts: MessagePort[] } {
+function startHelpers(): { workers: Worker[]; solverPorts: MessagePort[] } {
   const none = { workers: [], solverPorts: [] };
-  if (typeof SharedArrayBuffer === "undefined" || !globalThis.crossOriginIsolated) return none;
-  const cpp = supportsWasmSimd();
-  if (cpp && request.board.length === 5) return none;
+  if (typeof SharedArrayBuffer === "undefined" || !globalThis.crossOriginIsolated || supportsWasmSimd()) return none;
   const count = Math.max(0, Math.min((navigator.hardwareConcurrency || 4) - 2, MAX_HELPERS));
   const workers: Worker[] = [];
   const solverPorts: MessagePort[] = [];
   for (let i = 0; i < count; i++) {
-    const helper = cpp
-      ? new Worker(new URL("./leafHelperWorker.ts", import.meta.url))
-      : new Worker(new URL("./showdownHelperWorker.ts", import.meta.url));
+    const helper = new Worker(new URL("./showdownHelperWorker.ts", import.meta.url));
     const channel = new MessageChannel();
     helper.postMessage(null, [channel.port1]);
     workers.push(helper);
