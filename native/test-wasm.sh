@@ -17,7 +17,7 @@ for test in "$ROOT"/native/solver/tests/*_test.cpp; do
   echo "$name"
   # shellcheck disable=SC2086
   em++ "$test" $SOURCES -O1 -g -msimd128 -std=c++20 -fsanitize=address,undefined -fno-sanitize-recover=all \
-    -sALLOW_MEMORY_GROWTH -sENVIRONMENT=node -o "$TMP/$name.js" 2>&1 | grep -v '^shared:INFO' || true
+    -pthread -sPTHREAD_POOL_SIZE=2 -Wno-pthreads-mem-growth -sALLOW_MEMORY_GROWTH -sENVIRONMENT=node -o "$TMP/$name.js" 2>&1 | grep -v '^shared:INFO' || true
   node "$TMP/$name.js" || status=1
 done
 exit $status

@@ -20,13 +20,12 @@ self.onmessage = async (event: MessageEvent<PostflopSolveInMessage>) => {
   const { request } = event.data;
   const ports = event.ports;
   try {
-    // The C++ engine when the browser can run it — a lookahead solve's leaves
-    // then go to the helper workers the client started (one port each), if
-    // any; otherwise the TypeScript engine, its showdown batch split across them.
-    const solver = await loadWebSolverModule();
-    const engine: PostflopEngine = solver
-      ? { solver, leafHelperPorts: ports }
-      : { showdownExecutor: ports.length > 0 ? createParallelShowdown([...ports]) : undefined };
+    // The C++ engine when the browser can run it, on as many threads as the
+    // page allows; otherwise the TypeScript engine, its showdown batch split
+    // across the helper workers the client started (one port each), if any.
+    const engine: PostflopEngine = (await loadWebSolverModule()) ?? {
+      showdownExecutor: ports.length > 0 ? createParallelShowdown([...ports]) : undefined,
+    };
 
     const solveInput: PostflopSolveInput =
       request.kind === "canonical"

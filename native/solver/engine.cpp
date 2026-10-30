@@ -16,11 +16,19 @@
 // a one-time sort. DCFR constants match lib/postflopSolver/cfr.ts: α = 1.5,
 // β = 0 (negative regret × 0.5), γ = 3, average strategy reset at 4, 16, 64, …
 #include <algorithm>
+#include <atomic>
 #include <cmath>
 #include <cstdint>
 #include <cstring>
+#include <numeric>
 #include <vector>
 #include <wasm_simd128.h>
+#ifdef __EMSCRIPTEN_PTHREADS__
+#include <condition_variable>
+#include <functional>
+#include <mutex>
+#include <thread>
+#endif
 
 namespace {
 
@@ -68,19 +76,17 @@ struct Arena {
 };
 
 /**
- * A trunk/leaf split for solving one tree across several engines (one per
- * worker, see lib/postflopSolver/wasm/splitSolve.ts). Leaves are the children
- * of the chance nodes that end the root street; the trunk is everything above
- * them. Each engine owns the trunk and/or some leaves (regrets are only
- * allocated for what it owns), and leaves trade reach and values with the
- * trunk through the exchange buffers, one `width` = n1 + n2 row per leaf.
+ * A trunk/leaf split of one tree, for solving it across threads (see Pool).
+ * Leaves are the children of the chance nodes that end the root street; the
+ * trunk is everything above them. Every iteration the trunk runs on the
+ * calling thread, and leaves trade reach and values with it through the
+ * exchange buffers, one `width` = n1 + n2 row per leaf.
  */
 struct Split {
   bool active = false;
-  bool ownTrunk = false;
   std::vector<int32_t> leafNodes;    // leaf slot → node
   std::vector<int32_t> leafSlot;     // node → leaf slot, or -1
-  std::vector<int32_t> ownedSlots;
+  std::vector<int32_t> leafOrder;    // slots, most regret storage (≈ work) first — the pool's queue order
   std::vector<int32_t> trunkIndex;   // node → trunk index, or -1
   int trunkCount = 0;
   size_t trunkStorageEnd = 0;        // the trunk's regrets/averages are [0, trunkStorageEnd)
@@ -94,6 +100,37 @@ struct Split {
   // The last evaluation: average-strategy reaches, and each player's EV-mode values.
   std::vector<float> evalReach;      // [trunk * width]
   std::vector<float> evalValues;     // [trunk * width]: P1 values then P2 values
+};
+
+/**
+ * Threads that share a split solve's leaves (eng_set_threads). Each round the
+ * calling thread publishes a task and works on it too; every thread pulls leaf
+ * slots from one atomic counter, biggest leaves first, so a thread on a slow
+ * core simply takes fewer — no fixed assignment to fall behind on. Without
+ * pthreads (the single-threaded builds) there is only the calling thread.
+ */
+struct Pool {
+  int threads = 1;  // including the calling thread
+  std::vector<Arena> arenas;  // one per pool thread
+  std::atomic<int> next{0};
+#ifdef __EMSCRIPTEN_PTHREADS__
+  std::vector<std::thread> workers;
+  std::mutex mutex;
+  std::condition_variable wake, finished;
+  std::function<void()> task;
+  int generation = 0;
+  int done = 0;
+  bool stopping = false;
+
+  ~Pool() {
+    {
+      std::lock_guard<std::mutex> lock(mutex);
+      stopping = true;
+    }
+    wake.notify_all();
+    for (auto& worker : workers) worker.join();
+  }
+#endif
 };
 
 struct Engine {
@@ -112,8 +149,13 @@ struct Engine {
   std::vector<float> regret, stratSum;
   std::vector<EquityTable> tables;
   std::vector<RiverBoard> boards;
-  Arena arena;
+  Arena arena;  // the calling thread's scratch; pool threads use their own (see arenaOf)
+  Pool pool;    // declared last, so its threads stop before anything they use is destroyed
 };
+
+/** Pool threads point this at their own arena; the calling thread uses the engine's. */
+thread_local Arena* threadArena = nullptr;
+inline Arena& arenaOf(Engine& e) { return threadArena ? *threadArena : e.arena; }
 
 /** Iteration-wide DCFR factors; null = evaluate only (no regret/average updates). */
 struct Update {
@@ -293,7 +335,7 @@ SampledDeal sampledDeal(Engine& e, int node) {
   for (int c = 0; c < count; c++) deal.total += e.childWeight[start + c];
   for (int p = 0; p < 2; p++) {
     const Player& player = e.players[p];
-    deal.held[p] = e.arena.take(player.n);
+    deal.held[p] = arenaOf(e).take(player.n);
     std::fill(deal.held[p], deal.held[p] + player.n, deal.total);
     for (int c = 0; c < count; c++)
       for (const int32_t i : player.withCard[e.childCard[start + c]]) deal.held[p][i] -= e.childWeight[start + c];
@@ -323,16 +365,16 @@ void solveNode(Engine& e, int node, const float* r1, const float* r2, float* v1,
     return;
   }
 
-  const size_t mark = e.arena.top;
+  const size_t mark = arenaOf(e).top;
   const int start = e.childStart[node], count = e.childCount[node];
 
   if (t == kChance) {
     const bool sampled = e.aux[node] == 1;
     const SampledDeal deal = sampled ? sampledDeal(e, node) : SampledDeal{};
-    float* cr1 = e.arena.take(n1);
-    float* cr2 = e.arena.take(n2);
-    float* cv1 = e.arena.take(n1);
-    float* cv2 = e.arena.take(n2);
+    float* cr1 = arenaOf(e).take(n1);
+    float* cr2 = arenaOf(e).take(n2);
+    float* cv1 = arenaOf(e).take(n1);
+    float* cv2 = arenaOf(e).take(n2);
     std::fill(v1, v1 + n1, 0.0f);
     std::fill(v2, v2 + n2, 0.0f);
     for (int c = 0; c < count; c++) {
@@ -356,7 +398,7 @@ void solveNode(Engine& e, int node, const float* r1, const float* r2, float* v1,
       normalizeValues(deal, 0, n1, v1);
       normalizeValues(deal, 1, n2, v2);
     }
-    e.arena.top = mark;
+    arenaOf(e).top = mark;
     return;
   }
 
@@ -369,10 +411,10 @@ void solveNode(Engine& e, int node, const float* r1, const float* r2, float* v1,
   float* vO = actor == 0 ? v2 : v1;
   float* regret = e.regret.data() + e.storage[node];
 
-  float* sigma = e.arena.take(static_cast<size_t>(count) * nA);
-  float* actionValues = e.arena.take(static_cast<size_t>(count) * nA);
-  float* childReach = e.arena.take(nA);
-  float* otherValues = e.arena.take(nO);
+  float* sigma = arenaOf(e).take(static_cast<size_t>(count) * nA);
+  float* actionValues = arenaOf(e).take(static_cast<size_t>(count) * nA);
+  float* childReach = arenaOf(e).take(nA);
+  float* otherValues = arenaOf(e).take(nO);
   regretMatch(regret, count, nA, sigma, childReach);
 
   std::fill(vA, vA + nA, 0.0f);
@@ -402,7 +444,7 @@ void solveNode(Engine& e, int node, const float* r1, const float* r2, float* v1,
       }
     }
   }
-  e.arena.top = mark;
+  arenaOf(e).top = mark;
 }
 
 /**
@@ -415,14 +457,14 @@ void evaluateNode(Engine& e, int node, int p, bool bestResponse, const float* op
   const int nS = self.n, nO = e.players[1 - p].n;
   if (t == kFold || t == kShowdownTable || t == kShowdownRiver) return terminalValues(e, node, p, oppReach, out);
 
-  const size_t mark = e.arena.top;
+  const size_t mark = arenaOf(e).top;
   const int start = e.childStart[node], count = e.childCount[node];
 
   if (t == kChance) {
     const bool sampled = e.aux[node] == 1;
     const SampledDeal deal = sampled ? sampledDeal(e, node) : SampledDeal{};
-    float* childOpp = e.arena.take(nO);
-    float* childValues = e.arena.take(nS);
+    float* childOpp = arenaOf(e).take(nO);
+    float* childValues = arenaOf(e).take(nS);
     std::fill(out, out + nS, 0.0f);
     for (int c = 0; c < count; c++) {
       const uint8_t card = e.childCard[start + c];
@@ -435,15 +477,15 @@ void evaluateNode(Engine& e, int node, int p, bool bestResponse, const float* op
       for (int i = 0; i < nS; i++) out[i] += w * childValues[i];
     }
     if (sampled) normalizeValues(deal, p, nS, out);
-    e.arena.top = mark;
+    arenaOf(e).top = mark;
     return;
   }
 
   const int actor = t;
   const int nA = e.players[actor].n;
-  float* sigma = e.arena.take(static_cast<size_t>(count) * nA);
-  float* scratch = e.arena.take(std::max(nA, nO));
-  float* childValues = e.arena.take(nS);
+  float* sigma = arenaOf(e).take(static_cast<size_t>(count) * nA);
+  float* scratch = arenaOf(e).take(std::max(nA, nO));
+  float* childValues = arenaOf(e).take(nS);
   averageStrategy(e.stratSum.data() + e.storage[node], count, nA, sigma, scratch);
 
   if (actor == p) {
@@ -464,7 +506,7 @@ void evaluateNode(Engine& e, int node, int p, bool bestResponse, const float* op
       for (int i = 0; i < nS; i++) out[i] += childValues[i];
     }
   }
-  e.arena.top = mark;
+  arenaOf(e).top = mark;
 }
 
 /** Scratch floats a subtree needs at most (both traversals), so the arena never reallocates. */
@@ -508,7 +550,7 @@ void trunkForward(Engine& e, int node, const float* r1, const float* r2) {
   std::copy(r2, r2 + n2, trunkReach(e, node, 1));
   const uint8_t t = e.type[node];
   if (isTerminal(t)) return;
-  const size_t mark = e.arena.top;
+  const size_t mark = arenaOf(e).top;
   const int start = e.childStart[node], count = e.childCount[node];
 
   if (t == kChance) {
@@ -526,14 +568,14 @@ void trunkForward(Engine& e, int node, const float* r1, const float* r2) {
       zeroWithCard(e.players[0], card, in);
       zeroWithCard(e.players[1], card, in + n1);
     }
-    e.arena.top = mark;
+    arenaOf(e).top = mark;
     return;
   }
 
   const int actor = t;
   const int nA = e.players[actor].n;
   float* sigma = e.split.sigma.data() + e.split.sigmaOffset[e.split.trunkIndex[node]];
-  float* childReach = e.arena.take(nA);
+  float* childReach = arenaOf(e).take(nA);
   regretMatch(e.regret.data() + e.storage[node], count, nA, sigma, childReach);
   const float* rA = actor == 0 ? r1 : r2;
   for (int a = 0; a < count; a++) {
@@ -542,7 +584,7 @@ void trunkForward(Engine& e, int node, const float* r1, const float* r2) {
     if (actor == 0) trunkForward(e, e.children[start + a], childReach, r2);
     else trunkForward(e, e.children[start + a], r1, childReach);
   }
-  e.arena.top = mark;
+  arenaOf(e).top = mark;
 }
 
 /** Trunk half of solveNode, coming back up: leaf values from exchangeOut, regret and average updates on the trunk. */
@@ -554,7 +596,7 @@ void trunkBackward(Engine& e, int node, float* v1, float* v2, const Update& upda
     terminalValues(e, node, 1, trunkReach(e, node, 0), v2);
     return;
   }
-  const size_t mark = e.arena.top;
+  const size_t mark = arenaOf(e).top;
   const int start = e.childStart[node], count = e.childCount[node];
 
   if (t == kChance) {
@@ -575,7 +617,7 @@ void trunkBackward(Engine& e, int node, float* v1, float* v2, const Update& upda
       normalizeValues(deal, 0, n1, v1);
       normalizeValues(deal, 1, n2, v2);
     }
-    e.arena.top = mark;
+    arenaOf(e).top = mark;
     return;
   }
 
@@ -585,8 +627,8 @@ void trunkBackward(Engine& e, int node, float* v1, float* v2, const Update& upda
   float* vA = actor == 0 ? v1 : v2;
   float* vO = actor == 0 ? v2 : v1;
   const float* sigma = e.split.sigma.data() + e.split.sigmaOffset[e.split.trunkIndex[node]];
-  float* actionValues = e.arena.take(static_cast<size_t>(count) * nA);
-  float* otherValues = e.arena.take(nO);
+  float* actionValues = arenaOf(e).take(static_cast<size_t>(count) * nA);
+  float* otherValues = arenaOf(e).take(nO);
   std::fill(vA, vA + nA, 0.0f);
   std::fill(vO, vO + nO, 0.0f);
   for (int a = 0; a < count; a++) {
@@ -610,7 +652,7 @@ void trunkBackward(Engine& e, int node, float* v1, float* v2, const Update& upda
       ss[i] += update.strategyWeight * rA[i] * s[i];
     }
   }
-  e.arena.top = mark;
+  arenaOf(e).top = mark;
 }
 
 /** Trunk half of evaluateNode, going down: average-strategy reaches; each leaf's opponent reach (for target `p`) into exchangeIn. */
@@ -620,7 +662,7 @@ void trunkEvalForward(Engine& e, int node, int p, const float* r1, const float* 
   std::copy(r2, r2 + n2, trunkEvalReach(e, node, 1));
   const uint8_t t = e.type[node];
   if (isTerminal(t)) return;
-  const size_t mark = e.arena.top;
+  const size_t mark = arenaOf(e).top;
   const int start = e.childStart[node], count = e.childCount[node];
 
   if (t == kChance) {
@@ -634,14 +676,14 @@ void trunkEvalForward(Engine& e, int node, int p, const float* r1, const float* 
       if (sampled) scaleReach(deal, o, nO, in);
       zeroWithCard(e.players[o], e.childCard[start + c], in);
     }
-    e.arena.top = mark;
+    arenaOf(e).top = mark;
     return;
   }
 
   const int actor = t;
   const int nA = e.players[actor].n;
-  float* sigma = e.arena.take(static_cast<size_t>(count) * nA);
-  float* childReach = e.arena.take(nA);
+  float* sigma = arenaOf(e).take(static_cast<size_t>(count) * nA);
+  float* childReach = arenaOf(e).take(nA);
   averageStrategy(e.stratSum.data() + e.storage[node], count, nA, sigma, childReach);
   const float* rA = actor == 0 ? r1 : r2;
   for (int a = 0; a < count; a++) {
@@ -650,7 +692,7 @@ void trunkEvalForward(Engine& e, int node, int p, const float* r1, const float* 
     if (actor == 0) trunkEvalForward(e, e.children[start + a], p, childReach, r2);
     else trunkEvalForward(e, e.children[start + a], p, r1, childReach);
   }
-  e.arena.top = mark;
+  arenaOf(e).top = mark;
 }
 
 /** Trunk half of evaluateNode, coming back up: player p's values from the leaves' exchangeOut. */
@@ -659,7 +701,7 @@ void trunkEvalBackward(Engine& e, int node, int p, bool bestResponse, float* out
   const int nS = self.n;
   const uint8_t t = e.type[node];
   if (isTerminal(t)) return terminalValues(e, node, p, trunkEvalReach(e, node, 1 - p), out);
-  const size_t mark = e.arena.top;
+  const size_t mark = arenaOf(e).top;
   const int start = e.childStart[node], count = e.childCount[node];
 
   if (t == kChance) {
@@ -674,15 +716,15 @@ void trunkEvalBackward(Engine& e, int node, int p, bool bestResponse, float* out
     }
     if (sampled) normalizeValues(deal, p, nS, out);
     if (!bestResponse) std::copy(out, out + nS, trunkEvalValues(e, node, p));
-    e.arena.top = mark;
+    arenaOf(e).top = mark;
     return;
   }
 
   const int actor = t;
   const int nA = e.players[actor].n, nO = e.players[1 - p].n;
-  float* sigma = e.arena.take(static_cast<size_t>(count) * nA);
-  float* scratch = e.arena.take(std::max(nA, nO));
-  float* childValues = e.arena.take(nS);
+  float* sigma = arenaOf(e).take(static_cast<size_t>(count) * nA);
+  float* scratch = arenaOf(e).take(std::max(nA, nO));
+  float* childValues = arenaOf(e).take(nS);
   averageStrategy(e.stratSum.data() + e.storage[node], count, nA, sigma, scratch);
   if (actor == p) {
     for (int a = 0; a < count; a++) {
@@ -700,7 +742,7 @@ void trunkEvalBackward(Engine& e, int node, int p, bool bestResponse, float* out
       for (int i = 0; i < nS; i++) out[i] += childValues[i];
     }
   }
-  e.arena.top = mark;
+  arenaOf(e).top = mark;
 }
 
 /** Decision nodes in preorder under `node`, stopping at leaf roots unless `node` is one. */
@@ -738,6 +780,42 @@ void linkSameCombos(Player& self, const Player& opp) {
     const int a = self.cards[i * 2], b = self.cards[i * 2 + 1];
     self.sameOpp[i] = byPair[std::min(a, b) * kDeckSize + std::max(a, b)];
   }
+}
+
+/** Runs `work(slot)` for every owned leaf, spread over the pool: each thread takes the next slot until none are left. */
+template <typename Work>
+void forEachLeaf(Engine& e, const Work& work) {
+  Pool& pool = e.pool;
+  const std::vector<int32_t>& order = e.split.leafOrder;
+  pool.next.store(0);
+  const auto drain = [&pool, &order, &work] {
+    for (int k = pool.next.fetch_add(1); k < static_cast<int>(order.size()); k = pool.next.fetch_add(1)) work(order[k]);
+  };
+#ifdef __EMSCRIPTEN_PTHREADS__
+  if (pool.threads > 1) {
+    {
+      std::lock_guard<std::mutex> lock(pool.mutex);
+      pool.task = drain;
+      pool.done = 0;
+      pool.generation++;
+    }
+    pool.wake.notify_all();
+    drain();
+    std::unique_lock<std::mutex> lock(pool.mutex);
+    pool.finished.wait(lock, [&pool] { return pool.done == pool.threads - 1; });
+    return;
+  }
+#endif
+  drain();
+}
+
+void iterateLeaf(Engine& e, int slot, int t, const Update& update) {
+  const int n1 = e.players[0].n;
+  if (isAverageResetIteration(t))
+    std::fill(e.stratSum.begin() + e.split.leafStorageBegin[slot], e.stratSum.begin() + e.split.leafStorageEnd[slot], 0.0f);
+  float* in = leafIn(e, slot);
+  float* out = leafOut(e, slot);
+  solveNode(e, e.split.leafNodes[slot], in, in + n1, out, out + n1, &update);
 }
 
 }  // namespace
@@ -782,7 +860,7 @@ Engine* eng_create(int nodeCount, const uint8_t* type, const int32_t* childStart
   e->stratSum.assign(total, 0.0f);
 
   const size_t widest = static_cast<size_t>(std::max(heroCount, villainCount));
-  e->arena.data.assign(scratchNeed(*e, 0, widest) + 4 * widest, 0.0f);
+  arenaOf(*e).data.assign(scratchNeed(*e, 0, widest) + 4 * widest, 0.0f);
   return e;
 }
 
@@ -824,19 +902,16 @@ int eng_add_river_board(Engine* e, const uint32_t* heroStrength, const uint32_t*
 }
 
 /**
- * Turns this engine into one part of a split solve: `leafNodes` are the leaf
- * roots (slot = position), this engine owns the trunk if `ownTrunk` and the
- * leaves in `ownedSlots`. Regrets and averages are reallocated for just that.
+ * Turns this engine into a split solve: `leafNodes` are the leaf roots (slot =
+ * position). Regrets and averages are reallocated trunk first, then leaf by
+ * leaf, so each thread writes its own range.
  */
-void eng_partition(Engine* e, int leafCount, const int32_t* leafNodes, int ownTrunk, int ownedCount,
-                   const int32_t* ownedSlots) {
+void eng_partition(Engine* e, int leafCount, const int32_t* leafNodes) {
   Split& sp = e->split;
   sp.active = true;
-  sp.ownTrunk = ownTrunk != 0;
   sp.leafNodes.assign(leafNodes, leafNodes + leafCount);
   sp.leafSlot.assign(e->nodeCount, -1);
   for (int k = 0; k < leafCount; k++) sp.leafSlot[leafNodes[k]] = k;
-  sp.ownedSlots.assign(ownedSlots, ownedSlots + ownedCount);
   sp.width = e->players[0].n + e->players[1].n;
   sp.exchangeIn.assign(static_cast<size_t>(leafCount) * sp.width, 0.0f);
   sp.exchangeOut.assign(static_cast<size_t>(leafCount) * sp.width, 0.0f);
@@ -854,17 +929,15 @@ void eng_partition(Engine* e, int leafCount, const int32_t* leafNodes, int ownTr
   };
   sp.sigmaOffset.assign(sp.trunkCount, 0);
   size_t sigmaTotal = 0;
-  if (sp.ownTrunk) {
-    for (const int node : trunkDecisions) {
-      assign(node);
-      sp.sigmaOffset[sp.trunkIndex[node]] = sigmaTotal;
-      sigmaTotal += static_cast<size_t>(e->childCount[node]) * e->players[e->type[node]].n;
-    }
+  for (const int node : trunkDecisions) {
+    assign(node);
+    sp.sigmaOffset[sp.trunkIndex[node]] = sigmaTotal;
+    sigmaTotal += static_cast<size_t>(e->childCount[node]) * e->players[e->type[node]].n;
   }
   sp.trunkStorageEnd = total;
   sp.leafStorageBegin.assign(leafCount, 0);
   sp.leafStorageEnd.assign(leafCount, 0);
-  for (const int slot : sp.ownedSlots) {
+  for (int slot = 0; slot < leafCount; slot++) {
     std::vector<int32_t> decisions;
     collectDecisions(*e, leafNodes[slot], false, decisions, nullptr);
     sp.leafStorageBegin[slot] = total;
@@ -873,64 +946,44 @@ void eng_partition(Engine* e, int leafCount, const int32_t* leafNodes, int ownTr
   }
   e->regret.assign(total, 0.0f);
   e->stratSum.assign(total, 0.0f);
-  const size_t trunkFloats = sp.ownTrunk ? static_cast<size_t>(sp.trunkCount) * sp.width : 0;
+  const size_t trunkFloats = static_cast<size_t>(sp.trunkCount) * sp.width;
   sp.reach.assign(trunkFloats, 0.0f);
   sp.evalReach.assign(trunkFloats, 0.0f);
   sp.evalValues.assign(trunkFloats, 0.0f);
   sp.sigma.assign(sigmaTotal, 0.0f);
+  sp.leafOrder.resize(leafCount);
+  std::iota(sp.leafOrder.begin(), sp.leafOrder.end(), 0);
+  std::stable_sort(sp.leafOrder.begin(), sp.leafOrder.end(), [&sp](int a, int b) {
+    return sp.leafStorageEnd[a] - sp.leafStorageBegin[a] > sp.leafStorageEnd[b] - sp.leafStorageBegin[b];
+  });
 }
-
-float* eng_exchange_in(Engine* e) { return e->split.exchangeIn.data(); }
-float* eng_exchange_out(Engine* e) { return e->split.exchangeOut.data(); }
 
 /** Iteration t, first trunk half: writes every leaf's reaches (P1 then P2) into exchangeIn. */
 void eng_trunk_forward(Engine* e, int t) {
   if (isAverageResetIteration(t)) std::fill(e->stratSum.begin(), e->stratSum.begin() + e->split.trunkStorageEnd, 0.0f);
   trunkForward(*e, 0, e->players[0].weights.data(), e->players[1].weights.data());
-  e->arena.top = 0;
-}
-
-/** Iteration t on this engine's leaves: exchangeIn reaches → exchangeOut values (P1 then P2). */
-void eng_leaves_iterate(Engine* e, int t) {
-  const Update update = updateFor(t);
-  const int n1 = e->players[0].n;
-  for (const int slot : e->split.ownedSlots) {
-    if (isAverageResetIteration(t))
-      std::fill(e->stratSum.begin() + e->split.leafStorageBegin[slot], e->stratSum.begin() + e->split.leafStorageEnd[slot], 0.0f);
-    float* in = leafIn(*e, slot);
-    float* out = leafOut(*e, slot);
-    solveNode(*e, e->split.leafNodes[slot], in, in + n1, out, out + n1, &update);
-    e->arena.top = 0;
-  }
+  arenaOf(*e).top = 0;
 }
 
 /** Iteration t, second trunk half: leaf values from exchangeOut, trunk regret/average updates. */
 void eng_trunk_backward(Engine* e, int t) {
   const Update update = updateFor(t);
-  float* v1 = e->arena.take(e->players[0].n);
-  float* v2 = e->arena.take(e->players[1].n);
+  float* v1 = arenaOf(*e).take(e->players[0].n);
+  float* v2 = arenaOf(*e).take(e->players[1].n);
   trunkBackward(*e, 0, v1, v2, update);
-  e->arena.top = 0;
+  arenaOf(*e).top = 0;
 }
 
 /** Evaluation for player p, first trunk half: each leaf's opponent reach (average strategy) into exchangeIn. */
 void eng_trunk_eval_forward(Engine* e, int p) {
   trunkEvalForward(*e, 0, p, e->players[0].weights.data(), e->players[1].weights.data());
-  e->arena.top = 0;
-}
-
-/** Evaluation on this engine's leaves: exchangeIn opponent reach → exchangeOut player-p values. */
-void eng_leaves_evaluate(Engine* e, int p, int bestResponse) {
-  for (const int slot : e->split.ownedSlots) {
-    evaluateNode(*e, e->split.leafNodes[slot], p, bestResponse != 0, leafIn(*e, slot), leafOut(*e, slot));
-    e->arena.top = 0;
-  }
+  arenaOf(*e).top = 0;
 }
 
 /** Evaluation, second trunk half: player p's root values into `rootValues`. */
 void eng_trunk_eval_backward(Engine* e, int p, int bestResponse, float* rootValues) {
   trunkEvalBackward(*e, 0, p, bestResponse != 0, rootValues);
-  e->arena.top = 0;
+  arenaOf(*e).top = 0;
 }
 
 /** Compatible-pair mass of the starting ranges: what EVs are averaged over. */
@@ -960,17 +1013,92 @@ void eng_trunk_chance_ev(Engine* e, int node, double* out) {
   }
 }
 
+/**
+ * Starts `threads` − 1 pool threads (the caller is the last one) for
+ * eng_iterate_parallel / eng_exploitability_parallel. Single-threaded builds
+ * keep one thread whatever is asked. Call after eng_partition.
+ */
+int eng_set_threads(Engine* e, int threads) {
+#ifdef __EMSCRIPTEN_PTHREADS__
+  Pool& pool = e->pool;
+  pool.threads = std::max(1, threads);
+  pool.arenas.resize(pool.threads - 1);
+  for (Arena& arena : pool.arenas) arena.data.assign(e->arena.data.size(), 0.0f);
+  for (int k = 0; k < pool.threads - 1; k++) {
+    pool.workers.emplace_back([&pool, k] {
+      threadArena = &pool.arenas[k];
+      int seen = 0;
+      for (;;) {
+        {
+          std::unique_lock<std::mutex> lock(pool.mutex);
+          pool.wake.wait(lock, [&pool, seen] { return pool.stopping || pool.generation != seen; });
+          if (pool.stopping) return;
+          seen = pool.generation;
+        }
+        pool.task();  // stays put until every thread has reported done
+        {
+          std::lock_guard<std::mutex> lock(pool.mutex);
+          pool.done++;
+        }
+        pool.finished.notify_one();
+      }
+    });
+  }
+  return pool.threads;
+#else
+  (void)threads;
+  return 1;
+#endif
+}
+
+/** DCFR iterations on a split engine owning the trunk and every leaf: trunk down, all leaves across the pool, trunk up. */
+void eng_iterate_parallel(Engine* e, int firstT, int count) {
+  for (int t = firstT; t < firstT + count; t++) {
+    eng_trunk_forward(e, t);
+    const Update update = updateFor(t);
+    forEachLeaf(*e, [e, t, &update](int slot) { iterateLeaf(*e, slot, t, update); });
+    eng_trunk_backward(e, t);
+  }
+}
+
+/** eng_exploitability for a split engine, its leaves evaluated across the pool (same output layout). */
+void eng_exploitability_parallel(Engine* e, double* out) {
+  const double pairs = eng_pair_mass(e);
+  std::vector<float> root(std::max(e->players[0].n, e->players[1].n));
+  const auto ev = [e, pairs, &root](int p, bool bestResponse) {
+    eng_trunk_eval_forward(e, p);
+    forEachLeaf(*e, [e, p, bestResponse](int slot) {
+      evaluateNode(*e, e->split.leafNodes[slot], p, bestResponse, leafIn(*e, slot), leafOut(*e, slot));
+    });
+    eng_trunk_eval_backward(e, p, bestResponse ? 1 : 0, root.data());
+    const Player& self = e->players[p];
+    double sum = 0;
+    for (int i = 0; i < self.n; i++) sum += static_cast<double>(self.weights[i]) * root[i];
+    return pairs > 0 ? sum / pairs : 0;
+  };
+  // EV passes for both players also leave each chance node's values for eng_trunk_chance_ev.
+  const double p1Actual = ev(0, false), p1Best = ev(0, true), p2Actual = ev(1, false), p2Best = ev(1, true);
+  const double startPot = e->pot[0] - e->committed1[0] - e->committed2[0];
+  const double bb = (p1Best - p1Actual + p2Best - p2Actual) / 2;
+  out[0] = bb;
+  out[1] = startPot > 0 ? bb / startPot * 100 : 0;
+  out[2] = p1Best;
+  out[3] = p2Best;
+  out[4] = p1Actual;
+  out[5] = p2Actual;
+}
+
 /** Runs DCFR iterations t = firstT .. firstT + count - 1 (t counts from 1). */
 void eng_iterate(Engine* e, int firstT, int count) {
   const int n1 = e->players[0].n, n2 = e->players[1].n;
-  float* v1 = e->arena.take(n1);
-  float* v2 = e->arena.take(n2);
+  float* v1 = arenaOf(*e).take(n1);
+  float* v2 = arenaOf(*e).take(n2);
   for (int t = firstT; t < firstT + count; t++) {
     if (isAverageResetIteration(t)) std::fill(e->stratSum.begin(), e->stratSum.end(), 0.0f);
     const Update update = updateFor(t);
     solveNode(*e, 0, e->players[0].weights.data(), e->players[1].weights.data(), v1, v2, &update);
   }
-  e->arena.top = 0;
+  arenaOf(*e).top = 0;
 }
 
 /**
@@ -987,7 +1115,7 @@ void eng_exploitability(Engine* e, double* out) {
     const float* oppWeights = e->players[1 - p].weights.data();
     for (int br = 0; br < 2; br++) {
       evaluateNode(*e, 0, p, br == 1, oppWeights, values.data());
-      e->arena.top = 0;
+      arenaOf(*e).top = 0;
       double sum = 0;
       for (int i = 0; i < self.n; i++) sum += static_cast<double>(self.weights[i]) * values[i];
       ev[p][br] = sum;
@@ -1026,7 +1154,7 @@ void eng_node_ev(Engine* e, int node, const float* reach1, const float* reach2, 
   for (int i = 0; i < p1.n; i++) pairs += reach1[i] * live(p1, i, s, reach2);
   for (int p = 0; p < 2; p++) {
     evaluateNode(*e, node, p, false, reach[1 - p], values.data());
-    e->arena.top = 0;
+    arenaOf(*e).top = 0;
     double sum = 0;
     for (int i = 0; i < e->players[p].n; i++) sum += static_cast<double>(reach[p][i]) * values[i];
     out[p] = pairs > 0 ? sum / pairs : std::nan("");

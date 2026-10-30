@@ -7,7 +7,7 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 "$ROOT/native/build-wasm.sh" "$TMP" > /dev/null
-for f in solver.web.mjs solver.node.mjs; do
+for f in solver.web.mjs solver.web-threads.mjs solver.node.mjs solver.node-threads.mjs; do
   if ! cmp -s "$TMP/$f" "$ROOT/lib/postflopSolver/wasm/$f"; then
     echo "lib/postflopSolver/wasm/$f is stale — run npm run build:wasm and commit the result" >&2
     exit 1
