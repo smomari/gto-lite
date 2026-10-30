@@ -80,10 +80,10 @@ export function solvePostflopInWorker(
 const MAX_SHOWDOWN_HELPERS = 5;
 
 /**
- * Helper workers that share the TypeScript showdown batch with the solver
- * worker — only for browsers that can't run the C++/WASM core, which on one
- * thread already beats the TypeScript batch split across six (a BTN-vs-BB flop:
- * CFR 2.5s vs 4.2s). They need SharedArrayBuffer, which browsers only allow on
+ * Helper workers that share the TypeScript engine's showdown batch with the
+ * solver worker — only for browsers that can't run the C++/WASM engine, which
+ * on one thread is far ahead of the TypeScript engine split across six (a
+ * BTN-vs-BB flop: CFR 0.1s vs 4.2s). They need SharedArrayBuffer, which browsers only allow on
  * a cross-origin isolated page (COOP/COEP headers in next.config.ts). Started
  * here on the main thread (not from inside the solver worker) and wired to it
  * by MessageChannel.

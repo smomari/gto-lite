@@ -56,8 +56,10 @@ npm run check:wasm    # 커밋된 산출물이 소스와 같은지 (다시 빌�
 npm run test:native   # C++ 테스트 — 같은 SIMD 코드를 AddressSanitizer + UBSan으로 빌드해 Node에서 실행
 ```
 
-WebAssembly SIMD를 지원하지 않는 브라우저(Chrome 91·Firefox 89·Safari 16.4 미만)에서는 기존
-TypeScript 커널로 대체된다.
+C++ 엔진(`native/solver/engine.cpp`)은 정규화하지 않은 반사실 가치로 카드 제거를 정확히 반영하고,
+턴·리버 카드가 나뉘는 찬스 노드를 지원한다. `lib/postflopSolver/reference/`는 같은 정의를 단순하게 옮긴
+테스트 전용 TypeScript 구현(정답 기준)이다. WebAssembly SIMD를 지원하지 않는 브라우저(Chrome 91·
+Firefox 89·Safari 16.4 미만)에서는 기존 TypeScript 엔진(`cfr.ts`)으로 대체된다.
 
 ## 테스트
 

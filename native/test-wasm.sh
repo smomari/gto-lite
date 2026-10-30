@@ -10,7 +10,7 @@ if ! command -v em++ > /dev/null 2>&1; then
 fi
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
-SOURCES="$ROOT/native/solver/showdown.cpp"
+SOURCES="$ROOT/native/solver/engine.cpp"
 status=0
 for test in "$ROOT"/native/solver/tests/*_test.cpp; do
   name="$(basename "$test" .cpp)"

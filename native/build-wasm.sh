@@ -27,10 +27,10 @@ if [ "$ACTUAL" != "$EXPECTED" ]; then
   exit 1
 fi
 
-SOURCES="$ROOT/native/solver/showdown.cpp"
-EXPORTS="_sd_create,_sd_destroy,_sd_equity,_sd_row_cards,_sd_col_cards,_sd_row_same_col,_sd_opponent_reach,_sd_out,_sd_evaluate"
+SOURCES="$ROOT/native/solver/engine.cpp"
+EXPORTS="_malloc,_free,_eng_create,_eng_destroy,_eng_add_equity_table,_eng_add_river_board,_eng_iterate,_eng_exploitability,_eng_average_strategy"
 FLAGS="-O3 -msimd128 -std=c++20 -sMODULARIZE -sEXPORT_ES6 -sSINGLE_FILE -sALLOW_MEMORY_GROWTH -sMAXIMUM_MEMORY=4GB \
-  -sEXPORTED_FUNCTIONS=$EXPORTS -sEXPORTED_RUNTIME_METHODS=HEAPU8,HEAP32,HEAPF32,HEAPF64"
+  -sEXPORTED_FUNCTIONS=$EXPORTS -sEXPORTED_RUNTIME_METHODS=HEAPU8,HEAP32,HEAPU32,HEAPF32,HEAPF64"
 
 mkdir -p "$OUT"
 # shellcheck disable=SC2086

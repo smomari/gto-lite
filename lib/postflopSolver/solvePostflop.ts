@@ -8,6 +8,8 @@ import { buildStreetTree, type PostflopTreeNode } from "./treeBuilder";
 import { runCfr, type CfrSolution } from "./cfr";
 import type { ShowdownExecutor } from "./showdownExecutor";
 import { computeExploitability, type ExploitabilityResult } from "./exploitability";
+import { runNativeCfr } from "./wasm/engine";
+import type { SolverModule } from "./wasm/solverModule";
 
 interface PostflopSolveInputCommon {
   board: BoardCards;
@@ -37,6 +39,13 @@ export type PostflopSolveInput =
       villainRange: ComboRange;
     });
 
+/**
+ * Which engine solves: the C++ one when its module is loaded (exact card
+ * removal, unnormalized counterfactual values), otherwise the TypeScript one,
+ * optionally with its showdown batch split across helper workers.
+ */
+export type PostflopEngine = { solver: SolverModule } | { showdownExecutor?: ShowdownExecutor };
+
 export interface PostflopSolveResult {
   tree: PostflopTreeNode;
   heroRange: ComboRange;
@@ -58,7 +67,7 @@ export interface PostflopSolveResult {
 export function solvePostflopStreet(
   input: PostflopSolveInput,
   onProgress?: (phase: PostflopSolvePhase, done: number, total: number, exploitabilityPercent?: number) => void,
-  showdownExecutor?: ShowdownExecutor,
+  engine: PostflopEngine = {},
 ): PostflopSolveResult {
   const heroRange =
     input.kind === "canonical"
@@ -77,14 +86,13 @@ export function solvePostflopStreet(
     onProgress?.("equity", done, total),
   );
   const tree = buildStreetTree(input.startPot, input.effectiveStackBb, streetForBoardLength(input.board.length));
-  const solution = runCfr(
-    tree,
-    heroRange,
-    villainRange,
-    equityTable,
-    { maxIterations: input.maxIterations, targetExploitabilityPercent: input.targetExploitabilityPercent, showdownExecutor },
-    (done, total, exploitabilityPercent) => onProgress?.("cfr", done, total, exploitabilityPercent),
-  );
+  const cfrOptions = { maxIterations: input.maxIterations, targetExploitabilityPercent: input.targetExploitabilityPercent };
+  const cfrProgress = (done: number, total: number, exploitabilityPercent?: number) =>
+    onProgress?.("cfr", done, total, exploitabilityPercent);
+  const solution =
+    "solver" in engine
+      ? runNativeCfr(engine.solver, { tree, board: input.board, heroRange, villainRange, rootEquityTable: equityTable }, cfrOptions, cfrProgress)
+      : runCfr(tree, heroRange, villainRange, equityTable, { ...cfrOptions, showdownExecutor: engine.showdownExecutor }, cfrProgress);
   const exploitability =
     solution.finalExploitability ??
     computeExploitability(tree, solution, heroRange, villainRange, equityTable, input.startPot);

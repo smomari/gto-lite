@@ -9,19 +9,40 @@
 export interface SolverModule {
   HEAPU8: Uint8Array;
   HEAP32: Int32Array;
+  HEAPU32: Uint32Array;
   HEAPF32: Float32Array;
   HEAPF64: Float64Array;
 
-  /** Showdown batch context (native/solver/showdown.cpp). `side`: 0 = hero rows, 1 = villain rows. */
-  _sd_create(heroRows: number, villainRows: number, nodeCount: number): number;
-  _sd_destroy(ctx: number): void;
-  _sd_equity(ctx: number, side: number): number;
-  _sd_row_cards(ctx: number, side: number): number;
-  _sd_col_cards(ctx: number, side: number): number;
-  _sd_row_same_col(ctx: number, side: number): number;
-  _sd_opponent_reach(ctx: number, side: number): number;
-  _sd_out(ctx: number, side: number): number;
-  _sd_evaluate(ctx: number): void;
+  _malloc(bytes: number): number;
+  _free(ptr: number): void;
+
+  /** CFR engine (native/solver/engine.cpp) — see engine.ts for the argument layout. */
+  _eng_create(
+    nodeCount: number,
+    type: number,
+    childStart: number,
+    childCount: number,
+    pot: number,
+    committed1: number,
+    committed2: number,
+    aux: number,
+    childSlots: number,
+    children: number,
+    childCard: number,
+    childWeight: number,
+    heroCount: number,
+    heroCards: number,
+    heroWeights: number,
+    villainCount: number,
+    villainCards: number,
+    villainWeights: number,
+  ): number;
+  _eng_destroy(engine: number): void;
+  _eng_add_equity_table(engine: number, heroEquity: number): number;
+  _eng_add_river_board(engine: number, heroStrength: number, villainStrength: number): number;
+  _eng_iterate(engine: number, firstT: number, count: number): void;
+  _eng_exploitability(engine: number, out: number): void;
+  _eng_average_strategy(engine: number, node: number, out: number): void;
 }
 
 export type CreateSolverModule = () => Promise<SolverModule>;
