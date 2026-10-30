@@ -5,6 +5,7 @@ import type {
   PostflopSolveRequest,
   PostflopWorkerOutMessage,
 } from "@/types/postflopSolver";
+import { supportsWasmSimd } from "../wasm/simdSupport";
 
 export interface SolvePostflopOptions {
   onProgress?: (phase: PostflopSolvePhase, done: number, total: number, exploitabilityPercent?: number) => void;
@@ -79,13 +80,16 @@ export function solvePostflopInWorker(
 const MAX_SHOWDOWN_HELPERS = 5;
 
 /**
- * Helper workers that share the showdown batch with the solver worker. They
- * need SharedArrayBuffer, which browsers only allow on a cross-origin isolated
- * page (COOP/COEP headers in next.config.ts) — otherwise none, and the solver
- * runs on its own thread as before. Started here on the main thread (not from
- * inside the solver worker) and wired to it by MessageChannel.
+ * Helper workers that share the TypeScript showdown batch with the solver
+ * worker — only for browsers that can't run the C++/WASM core, which on one
+ * thread already beats the TypeScript batch split across six (a BTN-vs-BB flop:
+ * CFR 2.5s vs 4.2s). They need SharedArrayBuffer, which browsers only allow on
+ * a cross-origin isolated page (COOP/COEP headers in next.config.ts). Started
+ * here on the main thread (not from inside the solver worker) and wired to it
+ * by MessageChannel.
  */
 function startShowdownHelpers(): { workers: Worker[]; solverPorts: MessagePort[] } {
+  if (supportsWasmSimd()) return { workers: [], solverPorts: [] };
   if (typeof SharedArrayBuffer === "undefined" || !globalThis.crossOriginIsolated) return { workers: [], solverPorts: [] };
   const count = Math.max(0, Math.min((navigator.hardwareConcurrency || 4) - 2, MAX_SHOWDOWN_HELPERS));
   const workers: Worker[] = [];

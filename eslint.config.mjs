@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Emscripten output (native/build-wasm.sh), committed but generated.
+    "lib/postflopSolver/wasm/*.mjs",
   ]),
 ]);
 

@@ -36,6 +36,29 @@ npm run dev
 npm run generate:equity   # 169x169 all-in equity 매트릭스 (data/equity/, 커밋됨)
 ```
 
+## C++/WASM 솔버 빌드
+
+포스트플랍 솔버의 계산 핵심은 C++(`native/solver/`)로 작성하고, Emscripten으로 WASM(SIMD)으로
+빌드한다. 트리 구성·핸드 평가·UI는 TypeScript. 빌드 산출물(`lib/postflopSolver/wasm/solver.*.mjs`,
+wasm이 내장된 단일 파일 ES 모듈)은 **커밋한다** — Vercel 빌드에는 Emscripten이 없기 때문. 그래서
+C++ 소스를 고치지 않는 한 Emscripten 없이도 개발·빌드·테스트가 된다.
+
+C++을 고칠 때만 Emscripten이 필요하다(버전은 `native/EMSDK_VERSION`에 고정):
+
+```bash
+git clone https://github.com/emscripten-core/emsdk.git ~/emsdk
+cd ~/emsdk && ./emsdk install 6.0.13 && ./emsdk activate 6.0.13
+```
+
+```bash
+npm run build:wasm    # native/solver → lib/postflopSolver/wasm/solver.{web,node}.mjs
+npm run check:wasm    # 커밋된 산출물이 소스와 같은지 (다시 빌드해서 비교)
+npm run test:native   # C++ 테스트 — 같은 SIMD 코드를 AddressSanitizer + UBSan으로 빌드해 Node에서 실행
+```
+
+WebAssembly SIMD를 지원하지 않는 브라우저(Chrome 91·Firefox 89·Safari 16.4 미만)에서는 기존
+TypeScript 커널로 대체된다.
+
 ## 테스트
 
 ```bash
