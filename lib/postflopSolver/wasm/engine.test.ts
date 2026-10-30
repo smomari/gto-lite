@@ -9,7 +9,7 @@ import { createReferenceCfr } from "../reference/referenceCfr";
 import type { ComboRange } from "../types";
 import { loadNodeSolverModule } from "./loadNode";
 import { NativeCfrEngine, runNativeCfr } from "./engine";
-import { LOOKAHEAD_RIVER_CARDS, solvePostflopStreet } from "../solvePostflop";
+import { FLOP_LOOKAHEAD, LOOKAHEAD_RIVER_CARDS, solvePostflopStreet } from "../solvePostflop";
 import { serializeTree } from "../serialize";
 
 /** A small range: the combos of a slice of hands, every `step`th one, with uneven weights. */
@@ -130,7 +130,7 @@ describe("runNativeCfr", () => {
 });
 
 describe("solvePostflopStreet on the C++ engine", () => {
-  it("solves a flop end to end and reports the engine's exploitability", async () => {
+  it("solves a flop end to end, looking ahead into a sample of turns, and reports the engine's exploitability", async () => {
     const solver = await loadNodeSolverModule();
     const hands = (labels: string[]) =>
       ALL_HANDS.map((h) => ({ hand: h.hand, fold: 0, call: labels.includes(h.hand) ? 1 : 0, raise: 0 }));
@@ -150,10 +150,19 @@ describe("solvePostflopStreet on the C++ engine", () => {
       undefined,
       { solver },
     );
-    expect(result.exploitability.percentOfPot).toBeLessThanOrEqual(0.5);
-    expect(result.exploitability).toBe(result.solution.finalExploitability);
-    const root = result.tree as DecisionNode;
-    expect(result.solution.getAverageStrategy(root)).toHaveLength(result.heroRange.length);
+    try {
+      expect(result.exploitability.percentOfPot).toBeLessThanOrEqual(0.5);
+      expect(result.exploitability).toBe(result.solution.finalExploitability);
+      const root = result.tree as DecisionNode;
+      expect(result.solution.getAverageStrategy(root)).toHaveLength(result.heroRange.length);
+      // Check-check ends the flop in a lookahead over FLOP_LOOKAHEAD.turnCards sampled turns, each checked down after the turn.
+      const checkCheck = (root.actions[0].child as DecisionNode).actions[0].child;
+      expect(checkCheck.type).toBe("chance");
+      if (checkCheck.type === "chance") expect(checkCheck.children).toHaveLength(FLOP_LOOKAHEAD.turnCards);
+      expect(result.session!.nextStreetEv().size).toBeGreaterThan(0);
+    } finally {
+      result.session?.dispose();
+    }
   });
 });
 

@@ -87,6 +87,8 @@ export interface HandTreeOptions {
   dealNextCards?: DealNextCards;
   /** Bet menus for the streets after the first one (e.g. betAbstraction.ts's LOOKAHEAD_BET_SIZING). Default: BET_SIZING. */
   laterStreetSizing?: Record<PostflopStreet, StreetBetSizing>;
+  /** The last street to include; one closing before the river past it ends in a showdown (valued by its runout equity). Default: river. */
+  lastStreet?: PostflopStreet;
 }
 
 /**
@@ -115,7 +117,7 @@ function buildStreetsFrom(
   const sizing = (!isFirstStreet && options.laterStreetSizing?.[street]) || BET_SIZING[street];
   const dealNextCards = options.dealNextCards ?? dealEveryCard;
   const onStreetClose: StreetClose | undefined =
-    street === "river"
+    street === "river" || street === options.lastStreet
       ? undefined
       : (closing, stackLeft) => {
           const dealt = dealNextCards(board);

@@ -8,6 +8,8 @@ export interface StreetBetSizing {
   betPotFractions: number[];
   /** Raise sizes, as a fraction of "pot after calling the current bet" — see computeRaiseTo. */
   raisePotFractions: number[];
+  /** "when-no-size-fits": all-in is offered only when none of the sizes above fits under the stack. Default: always offered. */
+  allin?: "always" | "when-no-size-fits";
 }
 
 /**
@@ -23,17 +25,20 @@ export const BET_SIZING: Record<PostflopStreet, StreetBetSizing> = {
 };
 
 /**
- * Streets a solve only looks ahead into (the river under a turn solve): one bet
- * size, and no raise size beyond the all-in. Their job is to value the solved
- * street's lines with real later play; each later street is re-solved with
- * BET_SIZING once its card is known. Measured on a 251×359-combo SRP turn
- * looking at all 48 rivers: full river menu 212s, 1 bet + 1 raise 60s, this 50s
- * — the menu matters far less than how many river cards are included.
+ * Streets a solve only looks ahead into (the turn and river under a flop
+ * solve, the river under a turn solve): one bet size, and all-in only when it
+ * doesn't fit (so facing a bet, the raise is the all-in). Their job is to value
+ * the solved street's lines with real later play; each later street is
+ * re-solved with BET_SIZING once its card is known. Measured on a
+ * 251×359-combo SRP turn looking at all 48 rivers: full river menu 212s, one
+ * bet + one raise 60s, one bet + all-in always 50s, this 27s — and with 12
+ * sampled rivers, 6.4s instead of 12.5s, root checking within 1 point and EV
+ * within 0.4% of always offering the all-in.
  */
 export const LOOKAHEAD_BET_SIZING: Record<PostflopStreet, StreetBetSizing> = {
-  flop: { betPotFractions: [0.5], raisePotFractions: [] },
-  turn: { betPotFractions: [0.66], raisePotFractions: [] },
-  river: { betPotFractions: [0.75], raisePotFractions: [] },
+  flop: { betPotFractions: [0.5], raisePotFractions: [], allin: "when-no-size-fits" },
+  turn: { betPotFractions: [0.66], raisePotFractions: [], allin: "when-no-size-fits" },
+  river: { betPotFractions: [0.75], raisePotFractions: [], allin: "when-no-size-fits" },
 };
 
 /** How many times a bet may be raised, this street. Beyond this, only fold/call remain. */
@@ -118,13 +123,14 @@ export function computePostflopAvailableActions(
       remaining > 0
         ? candidateSizes(sizing.betPotFractions, (frac) => alreadyCommitted + pot * frac, effectiveStackBb)
         : [];
+    const offerAllin = remaining > 0 && (sizing.allin !== "when-no-size-fits" || bets.length === 0);
     return {
       fold: false,
       check: true,
       call: null,
       bet: bets,
       raise: [],
-      allin: remaining > 0 ? { toBb: effectiveStackBb } : null,
+      allin: offerAllin ? { toBb: effectiveStackBb } : null,
     };
   }
 
@@ -149,6 +155,6 @@ export function computePostflopAvailableActions(
     call: remaining > 0 ? { amountBb: callAmount } : null,
     bet: [],
     raise: raises,
-    allin: !capReached && hasRaiseRoom ? { toBb: effectiveStackBb } : null,
+    allin: !capReached && hasRaiseRoom && (sizing.allin !== "when-no-size-fits" || raises.length === 0) ? { toBb: effectiveStackBb } : null,
   };
 }

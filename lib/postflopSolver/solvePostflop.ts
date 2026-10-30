@@ -3,9 +3,9 @@ import type { PostflopSolvePhase } from "@/types/postflopSolver";
 import type { BoardCards, ComboRange } from "./types";
 import { expandToCombos, filterBlockedCombos } from "./combos";
 import { buildEquityTable, type EquityTable } from "./terminalEquity";
-import { LOOKAHEAD_BET_SIZING, streetForBoardLength } from "./betAbstraction";
+import { LOOKAHEAD_BET_SIZING, streetForBoardLength, type PostflopStreet } from "./betAbstraction";
 import { stratifiedNextCards } from "./nextCardSampling";
-import { buildHandTree, buildStreetTree, type PostflopTreeNode } from "./treeBuilder";
+import { buildHandTree, buildStreetTree, type HandTreeOptions, type PostflopTreeNode } from "./treeBuilder";
 import { runCfr, type CfrSolution } from "./cfr";
 import type { ShowdownExecutor } from "./showdownExecutor";
 import { computeExploitability, type ExploitabilityResult } from "./exploitability";
@@ -48,6 +48,38 @@ export type PostflopSolveInput =
  * 0.7% of EV of all 48 (8 cards: 4 points over on checking, 3% under on EV).
  */
 export const LOOKAHEAD_RIVER_CARDS = 12;
+
+/**
+ * Turn cards a flop solve looks ahead into, and river cards under each (0: the
+ * lookahead stops at the turn, which is then checked down). Against a K24×M12
+ * reference (1.5–3.5 minutes on one thread) on a 251×359-combo flop, turn-only
+ * K10–K16 came within 0.7–1.1% of EV (checkdown: 1.6%), but root
+ * checking was still 6–10 points off; turn+river lookaheads cost 4–8× more and
+ * were no closer — the fixed card sample sways them too much. K10 over K16:
+ * a BTN-vs-BB flop in the browser takes 2.6s instead of 4.9s. See the plan doc.
+ */
+export const FLOP_LOOKAHEAD = { turnCards: 10, riverCards: 0 };
+
+/**
+ * How a street's solve on the C++ engine looks past its own end, or null when
+ * it doesn't (the river). Later streets get a stratified sample of their cards
+ * and the reduced LOOKAHEAD_BET_SIZING menu; each is re-solved with its full
+ * menu once its card is picked.
+ */
+export function lookaheadOptions(street: PostflopStreet): HandTreeOptions | null {
+  if (street === "turn") {
+    return { dealNextCards: (board) => stratifiedNextCards(board, LOOKAHEAD_RIVER_CARDS), laterStreetSizing: LOOKAHEAD_BET_SIZING };
+  }
+  if (street === "flop") {
+    const { turnCards, riverCards } = FLOP_LOOKAHEAD;
+    return {
+      dealNextCards: (board) => stratifiedNextCards(board, board.length === 3 ? turnCards : riverCards),
+      laterStreetSizing: LOOKAHEAD_BET_SIZING,
+      lastStreet: riverCards > 0 ? "river" : "turn",
+    };
+  }
+  return null;
+}
 
 /**
  * Which engine solves: the C++ one when its module is loaded (exact card
@@ -107,18 +139,13 @@ export function solvePostflopStreet(
   const equityTable = buildEquityTable(heroRange, villainRange, input.board, (done, total) =>
     onProgress?.("equity", done, total),
   );
-  // A turn solve on the C++ engine looks ahead into the river (a stratified
-  // sample of river cards, a reduced river menu), so the turn is solved against
-  // real river play instead of checkdown equity. The river itself is re-solved
-  // with its full menu once its card is picked. (The TypeScript engine is
-  // single-street only.)
+  // On the C++ engine, flop and turn solves look ahead past their own street
+  // (lookaheadOptions), so they're solved against later play instead of
+  // checkdown equity. The TypeScript engine is single-street only.
   const street = streetForBoardLength(input.board.length);
-  const throughRiver = "solver" in engine && street === "turn";
-  const tree = throughRiver
-    ? buildHandTree(input.startPot, input.effectiveStackBb, input.board, {
-        dealNextCards: (board) => stratifiedNextCards(board, LOOKAHEAD_RIVER_CARDS),
-        laterStreetSizing: LOOKAHEAD_BET_SIZING,
-      })
+  const lookahead = "solver" in engine ? lookaheadOptions(street) : null;
+  const tree = lookahead
+    ? buildHandTree(input.startPot, input.effectiveStackBb, input.board, lookahead)
     : buildStreetTree(input.startPot, input.effectiveStackBb, street);
   const cfrOptions = { maxIterations: input.maxIterations, targetExploitabilityPercent: input.targetExploitabilityPercent };
   const cfrProgress = (done: number, total: number, exploitabilityPercent?: number) =>
@@ -128,7 +155,7 @@ export function solvePostflopStreet(
   let solution: CfrSolution;
   if (!("solver" in engine)) {
     solution = runCfr(tree, heroRange, villainRange, equityTable, { ...cfrOptions, showdownExecutor: engine.showdownExecutor }, cfrProgress);
-  } else if (throughRiver) {
+  } else if (lookahead) {
     session = solveLookahead(engine.solver, engine.leafHelperPorts ?? [], nativeInput, cfrOptions, cfrProgress);
     solution = session.solution;
   } else {
