@@ -21,6 +21,8 @@ export interface NativeCfrInput {
   villainRange: ComboRange;
   /** The root board's equity table if the caller already built it (saves rebuilding it here). */
   rootEquityTable?: EquityTable;
+  /** A faster source for other boards' tables (engine layout), e.g. RunoutEquity's turn tables; undefined falls back to building one. */
+  equityTableFor?: (board: string[]) => Float32Array | undefined;
 }
 
 /**
@@ -70,8 +72,10 @@ export function prepareEngineBuild(input: NativeCfrInput): { build: EngineBuild;
     heroWeights: weightsOf(heroRange),
     villainCards: cardsOf(villainRange),
     villainWeights: weightsOf(villainRange),
-    equityTables: flat.tableBoards.map((tableBoard) =>
-      engineEquityTable(heroRange, villainRange, tableBoard, tableBoard.length === board.length ? input.rootEquityTable : undefined),
+    equityTables: flat.tableBoards.map(
+      (tableBoard) =>
+        (tableBoard.length !== board.length && input.equityTableFor?.(tableBoard)) ||
+        engineEquityTable(heroRange, villainRange, tableBoard, tableBoard.length === board.length ? input.rootEquityTable : undefined),
     ),
     riverStrengths: flat.riverBoards.map((riverBoard) => ({
       hero: riverStrengths(heroRange, riverBoard),

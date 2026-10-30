@@ -10,6 +10,7 @@ import { runCfr, type CfrSolution } from "./cfr";
 import type { ShowdownExecutor } from "./showdownExecutor";
 import { computeExploitability, type ExploitabilityResult } from "./exploitability";
 import { runNativeCfr, solveNativeSession, type NativeSolveSession } from "./wasm/engine";
+import { RunoutEquity } from "./wasm/runoutEquity";
 import { solveSplitSession } from "./wasm/splitSolve";
 import { LeafHelpersUnavailableError, workerLeafRunners } from "./worker/leafHelpers";
 import type { SolverModule } from "./wasm/solverModule";
@@ -103,9 +104,9 @@ export interface PostflopSolveResult {
   /** The board-fixed equity table this solve was run against — reused by checkdownEquity.ts to report per-node showdown averages without recomputing anything. */
   equityTable: EquityTable;
   /**
-   * Set when the solve looked ahead past its street (a turn solve on the C++
-   * engine): the engine is kept alive so the caller can read values below the
-   * street's end (nextStreetEv.ts) before disposing it, which it must.
+   * Set when the solve looked ahead past its street (a flop or turn solve on
+   * the C++ engine): the engine is kept alive so the caller can read values
+   * below the street's end (session.nextStreetEv) before disposing it, which it must.
    */
   session?: NativeSolveSession;
 }
@@ -136,9 +137,30 @@ export function solvePostflopStreet(
     throw new Error("solvePostflopStreet: hero and villain ranges must both be non-empty after board removal");
   }
 
-  const equityTable = buildEquityTable(heroRange, villainRange, input.board, (done, total) =>
-    onProgress?.("equity", done, total),
-  );
+  // On the C++ engine a flop's tables come from its runout strengths in one
+  // pass (RunoutEquity) — the flop's own table and every lookahead turn's.
+  const runout =
+    "solver" in engine && input.board.length === 3 ? RunoutEquity.create(engine.solver, heroRange, villainRange, input.board) : null;
+  try {
+    return solveWithTables(input, heroRange, villainRange, engine, runout, onProgress);
+  } finally {
+    runout?.dispose();
+  }
+}
+
+function solveWithTables(
+  input: PostflopSolveInput,
+  heroRange: ComboRange,
+  villainRange: ComboRange,
+  engine: PostflopEngine,
+  runout: RunoutEquity | null,
+  onProgress?: (phase: PostflopSolvePhase, done: number, total: number, exploitabilityPercent?: number) => void,
+): PostflopSolveResult {
+  onProgress?.("equity", 0, 1);
+  const equityTable = runout
+    ? runout.flopTable()
+    : buildEquityTable(heroRange, villainRange, input.board, (done, total) => onProgress?.("equity", done, total));
+  onProgress?.("equity", 1, 1);
   // On the C++ engine, flop and turn solves look ahead past their own street
   // (lookaheadOptions), so they're solved against later play instead of
   // checkdown equity. The TypeScript engine is single-street only.
@@ -150,7 +172,14 @@ export function solvePostflopStreet(
   const cfrOptions = { maxIterations: input.maxIterations, targetExploitabilityPercent: input.targetExploitabilityPercent };
   const cfrProgress = (done: number, total: number, exploitabilityPercent?: number) =>
     onProgress?.("cfr", done, total, exploitabilityPercent);
-  const nativeInput = { tree, board: input.board, heroRange, villainRange, rootEquityTable: equityTable };
+  const nativeInput = {
+    tree,
+    board: input.board,
+    heroRange,
+    villainRange,
+    rootEquityTable: equityTable,
+    equityTableFor: runout ? (board: string[]) => (board.length === 4 ? runout.turnTable(board[3]) : undefined) : undefined,
+  };
   let session: NativeSolveSession | undefined;
   let solution: CfrSolution;
   if (!("solver" in engine)) {
