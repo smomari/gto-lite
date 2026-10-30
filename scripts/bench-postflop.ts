@@ -4,6 +4,9 @@ import { buildEquityTable } from "../lib/postflopSolver/terminalEquity";
 import { buildStreetTree, type DecisionNode } from "../lib/postflopSolver/treeBuilder";
 import { runCfr } from "../lib/postflopSolver/cfr";
 import { computeExploitability } from "../lib/postflopSolver/exploitability";
+import type { ShowdownExecutor } from "../lib/postflopSolver/showdownExecutor";
+import { loadNodeSolverModule } from "../lib/postflopSolver/wasm/loadNode";
+import { createWasmShowdown } from "../lib/postflopSolver/wasm/wasmShowdown";
 
 // Fixed flop scenarios for comparing solver changes before/after:
 // same board, ranges, and stacks every run.
@@ -26,12 +29,21 @@ let t0 = performance.now();
 const table = buildEquityTable(hero, villain, BOARD);
 console.log(`combos ${hero.length}x${villain.length}, equity table ${(performance.now() - t0).toFixed(0)}ms`);
 
-for (const s of SCENARIOS) {
+// Each scenario runs once per showdown kernel: the TypeScript one and the C++/WASM one.
+async function main() {
+  const kernels: { name: string; executor?: ShowdownExecutor }[] = [
+    { name: "ts" },
+    { name: "wasm", executor: createWasmShowdown(await loadNodeSolverModule()) },
+  ];
+  for (const s of SCENARIOS) for (const kernel of kernels) benchScenario(s, kernel.name, kernel.executor);
+}
+
+function benchScenario(s: (typeof SCENARIOS)[number], kernel: string, showdownExecutor: ShowdownExecutor | undefined) {
   const tree = buildStreetTree(s.startPot, s.stack, "flop");
 
   // Same iteration count every version → strategies must match for changes that shouldn't alter the math.
   t0 = performance.now();
-  const fixed = runCfr(tree, hero, villain, table, { maxIterations: FIXED_ITERATIONS });
+  const fixed = runCfr(tree, hero, villain, table, { maxIterations: FIXED_ITERATIONS, showdownExecutor });
   const msPerIter = (performance.now() - t0) / FIXED_ITERATIONS;
   const root = fixed.getAverageStrategy(tree as DecisionNode);
   const weightSum = hero.reduce((sum, c) => sum + c.weight, 0);
@@ -45,6 +57,7 @@ for (const s of SCENARIOS) {
   const solved = runCfr(tree, hero, villain, table, {
     maxIterations: 20000,
     targetExploitabilityPercent: TARGET_PERCENT,
+    showdownExecutor,
   });
   const solveSec = (performance.now() - t0) / 1000;
   const exploitability =
@@ -53,6 +66,7 @@ for (const s of SCENARIOS) {
   console.log(
     JSON.stringify({
       scenario: s.name,
+      kernel,
       msPerIter: Number(msPerIter.toFixed(3)),
       toTarget: { iterations: solved.iterations, sec: Number(solveSec.toFixed(2)) },
       exploitabilityPct: Number(exploitability.percentOfPot.toFixed(4)),
@@ -60,3 +74,5 @@ for (const s of SCENARIOS) {
     }),
   );
 }
+
+main();

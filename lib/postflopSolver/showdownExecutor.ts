@@ -13,6 +13,8 @@ export interface ShowdownRun {
   heroEquity: Float64Array;
   villainEquity: Float64Array;
   evaluate(): void;
+  /** Releases memory the run holds outside the JS heap (the WASM executor's context). */
+  dispose?(): void;
 }
 
 export interface ShowdownExecutor {

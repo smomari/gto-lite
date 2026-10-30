@@ -9,6 +9,8 @@ import { solvePostflopStreet, type PostflopSolveInput } from "../solvePostflop";
 import { serializeCombos, serializeTree } from "../serialize";
 import { computeCheckdownEquities } from "../checkdownEquity";
 import { createParallelShowdown } from "./parallelShowdown";
+import { loadWebSolverModule } from "../wasm/loadWeb";
+import { createWasmShowdown } from "../wasm/wasmShowdown";
 
 // Runs entirely client-side in a Worker: no Node `fs`, no equity-matrix file,
 // nothing from lib/equity/loadEquityMatrix.ts — only the pure postflop CFR
@@ -19,12 +21,19 @@ function actionWeight(key: ActionWeightKey): (hf: HandFrequency) => number {
   return (hf) => hf[key] ?? 0;
 }
 
-self.onmessage = (event: MessageEvent<PostflopSolveInMessage>) => {
+self.onmessage = async (event: MessageEvent<PostflopSolveInMessage>) => {
   const { request } = event.data;
-  // One port per helper worker the client could start (only when the page is cross-origin isolated).
-  const showdownExecutor = event.ports.length > 0 ? createParallelShowdown(event.ports) : undefined;
 
   try {
+    // The C++ core when the browser can run it; otherwise the TypeScript kernel,
+    // split across the helper workers the client started (one port each) if any.
+    const solverModule = await loadWebSolverModule();
+    const showdownExecutor = solverModule
+      ? createWasmShowdown(solverModule)
+      : event.ports.length > 0
+        ? createParallelShowdown(event.ports)
+        : undefined;
+
     const solveInput: PostflopSolveInput =
       request.kind === "canonical"
         ? {

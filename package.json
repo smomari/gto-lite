@@ -11,7 +11,10 @@
     "test:watch": "vitest",
     "generate:equity": "tsx scripts/generate-equity-matrix.ts",
     "generate:preflop-rfi": "tsx scripts/generate-preflop-rfi.ts",
-    "bench:postflop": "tsx scripts/bench-postflop.ts"
+    "bench:postflop": "tsx scripts/bench-postflop.ts",
+    "build:wasm": "native/build-wasm.sh",
+    "check:wasm": "native/check-wasm.sh",
+    "test:native": "native/test-wasm.sh"
   },
   "dependencies": {
     "next": "16.3.3",

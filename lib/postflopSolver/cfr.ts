@@ -273,42 +273,50 @@ export function runCfr(
     });
   }
 
-  const progressInterval = Math.max(1, Math.floor(maxIterations / 50));
-  let nextCheck = checkIntervalIterations ?? DEFAULT_EXPLOITABILITY_CHECK_START_INTERVAL;
-  for (let t = 1; t <= maxIterations; t++) {
-    // Discount factors depend only on t, not on the node/combo/action being
-    // updated, so compute them once per outer iteration rather than
-    // redundantly at every node visited during this traversal.
-    const tAlpha = Math.pow(t, DCFR_ALPHA);
-    const positiveDiscount = tAlpha / (tAlpha + 1);
-    const stratWeight = Math.pow(t, DCFR_GAMMA);
-    if (isAverageResetIteration(t)) {
-      for (const data of cfrData.values()) for (const row of data.stratSum) row.fill(0);
-    }
-    forward(tree, initialReachP1, initialReachP2);
-    showdown.evaluate();
-    backward(tree, positiveDiscount, DCFR_NEGATIVE_REGRET_DISCOUNT, stratWeight);
-
-    if (targetExploitabilityPercent !== undefined && t >= nextCheck) {
-      const snapshot: CfrSolution = { iterations: t, getAverageStrategy };
-      const exploitability = computeExploitability(
-        tree,
-        snapshot,
-        heroRange,
-        villainRange,
-        equityTable,
-        tree.state.startPot,
-      );
-      nextCheck = t + Math.min(Math.max(1, Math.round(t * (EXPLOITABILITY_CHECK_GROWTH - 1))), EXPLOITABILITY_CHECK_INTERVAL_CEILING);
-      onProgress?.(t, maxIterations, exploitability.percentOfPot);
-      if (exploitability.percentOfPot <= targetExploitabilityPercent) {
-        return { iterations: t, getAverageStrategy, finalExploitability: exploitability };
-      }
-      continue;
-    }
-
-    if (onProgress && (t % progressInterval === 0 || t === maxIterations)) onProgress(t, maxIterations);
+  try {
+    return iterate();
+  } finally {
+    showdown.dispose?.();
   }
 
-  return { iterations: maxIterations, getAverageStrategy };
+  function iterate(): CfrSolution {
+    const progressInterval = Math.max(1, Math.floor(maxIterations / 50));
+    let nextCheck = checkIntervalIterations ?? DEFAULT_EXPLOITABILITY_CHECK_START_INTERVAL;
+    for (let t = 1; t <= maxIterations; t++) {
+      // Discount factors depend only on t, not on the node/combo/action being
+      // updated, so compute them once per outer iteration rather than
+      // redundantly at every node visited during this traversal.
+      const tAlpha = Math.pow(t, DCFR_ALPHA);
+      const positiveDiscount = tAlpha / (tAlpha + 1);
+      const stratWeight = Math.pow(t, DCFR_GAMMA);
+      if (isAverageResetIteration(t)) {
+        for (const data of cfrData.values()) for (const row of data.stratSum) row.fill(0);
+      }
+      forward(tree, initialReachP1, initialReachP2);
+      showdown.evaluate();
+      backward(tree, positiveDiscount, DCFR_NEGATIVE_REGRET_DISCOUNT, stratWeight);
+
+      if (targetExploitabilityPercent !== undefined && t >= nextCheck) {
+        const snapshot: CfrSolution = { iterations: t, getAverageStrategy };
+        const exploitability = computeExploitability(
+          tree,
+          snapshot,
+          heroRange,
+          villainRange,
+          equityTable,
+          tree.state.startPot,
+        );
+        nextCheck = t + Math.min(Math.max(1, Math.round(t * (EXPLOITABILITY_CHECK_GROWTH - 1))), EXPLOITABILITY_CHECK_INTERVAL_CEILING);
+        onProgress?.(t, maxIterations, exploitability.percentOfPot);
+        if (exploitability.percentOfPot <= targetExploitabilityPercent) {
+          return { iterations: t, getAverageStrategy, finalExploitability: exploitability };
+        }
+        continue;
+      }
+
+      if (onProgress && (t % progressInterval === 0 || t === maxIterations)) onProgress(t, maxIterations);
+    }
+
+    return { iterations: maxIterations, getAverageStrategy };
+  }
 }
