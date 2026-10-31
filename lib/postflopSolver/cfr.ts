@@ -3,8 +3,7 @@ import type { EquityTable } from "./terminalEquity";
 import { singleStreetOnly, type DecisionNode, type PostflopTreeNode, type TerminalShowdownNode } from "./treeBuilder";
 import { computeExploitability, type ExploitabilityResult } from "./exploitability";
 import { totalPot } from "./potState";
-import { deriveShowdownLayout } from "./showdownBatch";
-import { singleThreadShowdown, type ShowdownExecutor } from "./showdownExecutor";
+import { deriveShowdownLayout, opponentCardWeights, showdownEquities } from "./showdownBatch";
 import { narrowReach, rangeAverageActionProbs, terminalUtilities } from "./treeMath";
 
 interface CfrNodeData {
@@ -98,8 +97,6 @@ export interface CfrRunOptions {
   targetExploitabilityPercent?: number;
   /** Iteration count of the first periodic exploitability check; after that each gap is EXPLOITABILITY_CHECK_GROWTH − 1 of the iteration count, capped at EXPLOITABILITY_CHECK_INTERVAL_CEILING. Default 100. */
   checkIntervalIterations?: number;
-  /** Who evaluates the showdown batch each iteration. Default: this thread. */
-  showdownExecutor?: ShowdownExecutor;
 }
 
 /**
@@ -148,14 +145,23 @@ export function runCfr(
 
   // Showdown values are most of an iteration's cost (bench:postflop: ~75%), so
   // each iteration runs in three passes: forward (strategies + reach to every
-  // node), every showdown node evaluated in one batch by the executor (one
-  // thread, or several sharing its buffers), then backward (utilities + updates).
+  // node), every showdown node evaluated in one batch, then backward (utilities
+  // + updates). The batch's arrays are node-major, `[node * combos + combo]`.
   const showdownCount = showdownIndex.size;
-  const showdown = (options.showdownExecutor ?? singleThreadShowdown).prepare(
-    deriveShowdownLayout(equityTable.heroEquity, heroCombos, villainCombos),
-    deriveShowdownLayout(equityTable.villainEquity, villainCombos, heroCombos),
-    showdownCount,
-  );
+  const heroLayout = deriveShowdownLayout(equityTable.heroEquity, heroCombos, villainCombos);
+  const villainLayout = deriveShowdownLayout(equityTable.villainEquity, villainCombos, heroCombos);
+  const showdown = {
+    heroReach: new Float64Array(showdownCount * heroCount),
+    villainReach: new Float64Array(showdownCount * villainCount),
+    heroEquity: new Float64Array(showdownCount * heroCount),
+    villainEquity: new Float64Array(showdownCount * villainCount),
+    evaluate() {
+      const villainWeights = opponentCardWeights(heroLayout, showdown.villainReach, showdownCount);
+      const heroWeights = opponentCardWeights(villainLayout, showdown.heroReach, showdownCount);
+      showdownEquities(heroLayout, showdown.villainReach, villainWeights, showdownCount, 0, heroCount, showdown.heroEquity);
+      showdownEquities(villainLayout, showdown.heroReach, heroWeights, showdownCount, 0, villainCount, showdown.villainEquity);
+    },
+  };
 
   /** Regret matching, written into a row reused every iteration. */
   function regretMatchInto(regrets: number[], out: number[]): void {

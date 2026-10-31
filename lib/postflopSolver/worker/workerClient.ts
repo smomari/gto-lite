@@ -5,7 +5,6 @@ import type {
   PostflopSolveRequest,
   PostflopWorkerOutMessage,
 } from "@/types/postflopSolver";
-import { supportsWasmSimd } from "../wasm/simdSupport";
 
 export interface SolvePostflopOptions {
   onProgress?: (phase: PostflopSolvePhase, done: number, total: number, exploitabilityPercent?: number) => void;
@@ -29,12 +28,10 @@ export function solvePostflopInWorker(
     }
 
     const worker = new Worker(new URL("./postflopWorker.ts", import.meta.url));
-    const helpers = startHelpers();
     let settled = false;
 
     function cleanup() {
       worker.terminate();
-      for (const helper of helpers.workers) helper.terminate();
       options?.signal?.removeEventListener("abort", onAbort);
     }
 
@@ -72,33 +69,6 @@ export function solvePostflopInWorker(
     };
 
     const inMessage: PostflopSolveInMessage = { type: "solve", request };
-    worker.postMessage(inMessage, helpers.solverPorts);
+    worker.postMessage(inMessage);
   });
-}
-
-/** Capped at cores − 2: one for the page, one for the solver worker, which also computes a share. */
-const MAX_HELPERS = 8;
-
-/**
- * Showdown helpers (parallelShowdown.ts) for the TypeScript engine, the
- * fallback without WASM SIMD: workers wired to the solver worker by
- * MessageChannel ports. They share memory with it (SharedArrayBuffer), which
- * browsers only allow on a cross-origin isolated page (COOP/COEP headers in
- * next.config.ts), and are started here on the main thread rather than inside
- * the solver worker. The C++ engine starts its own threads (wasm/loadWeb.ts).
- */
-function startHelpers(): { workers: Worker[]; solverPorts: MessagePort[] } {
-  const none = { workers: [], solverPorts: [] };
-  if (typeof SharedArrayBuffer === "undefined" || !globalThis.crossOriginIsolated || supportsWasmSimd()) return none;
-  const count = Math.max(0, Math.min((navigator.hardwareConcurrency || 4) - 2, MAX_HELPERS));
-  const workers: Worker[] = [];
-  const solverPorts: MessagePort[] = [];
-  for (let i = 0; i < count; i++) {
-    const helper = new Worker(new URL("./showdownHelperWorker.ts", import.meta.url));
-    const channel = new MessageChannel();
-    helper.postMessage(null, [channel.port1]);
-    workers.push(helper);
-    solverPorts.push(channel.port2);
-  }
-  return { workers, solverPorts };
 }

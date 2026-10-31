@@ -1,10 +1,9 @@
 /// <reference lib="webworker" />
 import type { ActionWeightKey, PostflopSolveInMessage, PostflopWorkerOutMessage } from "@/types/postflopSolver";
 import type { HandFrequency } from "@/types/rangeData";
-import { solvePostflopStreet, type PostflopEngine, type PostflopSolveInput } from "../solvePostflop";
+import { solvePostflopStreet, type PostflopSolveInput } from "../solvePostflop";
 import { serializeCombos, serializeTree } from "../serialize";
 import { computeCheckdownEquities } from "../checkdownEquity";
-import { createParallelShowdown } from "./parallelShowdown";
 import { loadWebSolverModule } from "../wasm/loadWeb";
 
 // Runs entirely client-side in a Worker: no Node `fs`, no equity-matrix file,
@@ -18,14 +17,8 @@ function actionWeight(key: ActionWeightKey): (hf: HandFrequency) => number {
 
 self.onmessage = async (event: MessageEvent<PostflopSolveInMessage>) => {
   const { request } = event.data;
-  const ports = event.ports;
   try {
-    // The C++ engine when the browser can run it, on as many threads as the
-    // page allows; otherwise the TypeScript engine, its showdown batch split
-    // across the helper workers the client started (one port each), if any.
-    const engine: PostflopEngine = (await loadWebSolverModule()) ?? {
-      showdownExecutor: ports.length > 0 ? createParallelShowdown([...ports]) : undefined,
-    };
+    const engine = await loadWebSolverModule();
 
     const solveInput: PostflopSolveInput =
       request.kind === "canonical"
@@ -55,11 +48,11 @@ self.onmessage = async (event: MessageEvent<PostflopSolveInMessage>) => {
 
     const result = solvePostflopStreet(
       solveInput,
+      engine,
       (phase, done, total, exploitabilityPercent) => {
         const progress: PostflopWorkerOutMessage = { type: "progress", phase, done, total, exploitabilityPercent };
         self.postMessage(progress);
       },
-      engine,
     );
 
     const checkdown = computeCheckdownEquities(

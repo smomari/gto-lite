@@ -11,20 +11,18 @@ export interface WebSolver {
   threads: number;
 }
 
-let loading: Promise<WebSolver | null> | undefined;
+let loading: Promise<WebSolver> | undefined;
 
 /**
  * The C++ solver core for browser workers, loaded once per worker. On a
  * cross-origin isolated page (COOP/COEP, next.config.ts) it's the threaded
  * build, its pool workers started up front; otherwise the one-thread build.
- * Resolves to null when the browser can't run it — the module needs
- * WebAssembly SIMD (Chrome 91+, Firefox 89+, Safari 16.4+) — so callers fall
- * back to the TypeScript engine.
+ * Rejects when the browser can't run it, with a message fit to show.
  */
-export function loadWebSolverModule(): Promise<WebSolver | null> {
+export function loadWebSolverModule(): Promise<WebSolver> {
   loading ??= load().catch((err: unknown) => {
-    console.warn("WASM solver core unavailable, using the TypeScript engine:", err);
-    return null;
+    console.warn("WASM solver core unavailable:", err);
+    throw new Error("This browser can't run the postflop solver: it needs WebAssembly SIMD (Chrome 91+, Firefox 89+, Safari 16.4+).");
   });
   return loading;
 }

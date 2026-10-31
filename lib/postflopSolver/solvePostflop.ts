@@ -6,9 +6,8 @@ import { buildEquityTable, type EquityTable } from "./terminalEquity";
 import { LOOKAHEAD_BET_SIZING, streetForBoardLength, type PostflopStreet } from "./betAbstraction";
 import { stratifiedNextCards } from "./nextCardSampling";
 import { buildHandTree, buildStreetTree, type HandTreeOptions, type PostflopTreeNode } from "./treeBuilder";
-import { runCfr, type CfrSolution } from "./cfr";
-import type { ShowdownExecutor } from "./showdownExecutor";
-import { computeExploitability, type ExploitabilityResult } from "./exploitability";
+import type { CfrSolution } from "./cfr";
+import type { ExploitabilityResult } from "./exploitability";
 import { runNativeCfr, solveNativeSession, solveThreadedSession, type NativeSolveSession } from "./wasm/engine";
 import { RunoutEquity } from "./wasm/runoutEquity";
 import type { SolverModule } from "./wasm/solverModule";
@@ -71,7 +70,7 @@ export const FLOP_LOOKAHEAD = { turnCards: 10, riverCards: 0 };
 export const FLOP_PRECISE_LOOKAHEAD = { turnCards: 10, riverCards: 6 };
 
 /**
- * How a street's solve on the C++ engine looks past its own end, or null when
+ * How a street's solve looks past its own end, or null when
  * it doesn't (the river). Later streets get a stratified sample of their cards
  * and the reduced LOOKAHEAD_BET_SIZING menu; each is re-solved with its full
  * menu once its card is picked.
@@ -91,18 +90,12 @@ export function lookaheadOptions(street: PostflopStreet, precise = false): HandT
   return null;
 }
 
-/**
- * Which engine solves: the C++ one when its module is loaded (exact card
- * removal, unnormalized counterfactual values), otherwise the TypeScript one,
- * optionally with its showdown batch split across helper workers.
- */
-export type PostflopEngine =
-  | {
-      solver: SolverModule;
-      /** Threads a lookahead solve runs on (a threaded build of the module, with that many in its pool) — see solveThreadedSession. */
-      threads?: number;
-    }
-  | { showdownExecutor?: ShowdownExecutor };
+/** The loaded C++ solver core a solve runs on. */
+export interface PostflopEngine {
+  solver: SolverModule;
+  /** Threads a lookahead solve runs on (a threaded build of the module, with that many in its pool) — see solveThreadedSession. */
+  threads?: number;
+}
 
 export interface PostflopSolveResult {
   tree: PostflopTreeNode;
@@ -113,8 +106,8 @@ export interface PostflopSolveResult {
   /** The board-fixed equity table this solve was run against — reused by checkdownEquity.ts to report per-node showdown averages without recomputing anything. */
   equityTable: EquityTable;
   /**
-   * Set when the solve looked ahead past its street (a flop or turn solve on
-   * the C++ engine): the engine is kept alive so the caller can read values
+   * Set when the solve looked ahead past its street (a flop or turn solve):
+   * the engine is kept alive so the caller can read values
    * below the street's end (session.nextStreetEv) before disposing it, which it must.
    */
   session?: NativeSolveSession;
@@ -130,8 +123,8 @@ export interface PostflopSolveResult {
  */
 export function solvePostflopStreet(
   input: PostflopSolveInput,
+  engine: PostflopEngine,
   onProgress?: (phase: PostflopSolvePhase, done: number, total: number, exploitabilityPercent?: number) => void,
-  engine: PostflopEngine = {},
 ): PostflopSolveResult {
   const heroRange =
     input.kind === "canonical"
@@ -146,10 +139,9 @@ export function solvePostflopStreet(
     throw new Error("solvePostflopStreet: hero and villain ranges must both be non-empty after board removal");
   }
 
-  // On the C++ engine a flop's tables come from its runout strengths in one
-  // pass (RunoutEquity) — the flop's own table and every lookahead turn's.
-  const runout =
-    "solver" in engine && input.board.length === 3 ? RunoutEquity.create(engine.solver, heroRange, villainRange, input.board) : null;
+  // A flop's tables come from its runout strengths in one pass (RunoutEquity)
+  // — the flop's own table and every lookahead turn's.
+  const runout = input.board.length === 3 ? RunoutEquity.create(engine.solver, heroRange, villainRange, input.board) : null;
   try {
     return solveWithTables(input, heroRange, villainRange, engine, runout, onProgress);
   } finally {
@@ -170,11 +162,10 @@ function solveWithTables(
     ? runout.flopTable()
     : buildEquityTable(heroRange, villainRange, input.board, (done, total) => onProgress?.("equity", done, total));
   onProgress?.("equity", 1, 1);
-  // On the C++ engine, flop and turn solves look ahead past their own street
-  // (lookaheadOptions), so they're solved against later play instead of
-  // checkdown equity. The TypeScript engine is single-street only.
+  // Flop and turn solves look ahead past their own street (lookaheadOptions),
+  // so they're solved against later play instead of checkdown equity.
   const street = streetForBoardLength(input.board.length);
-  const lookahead = "solver" in engine ? lookaheadOptions(street, input.precise) : null;
+  const lookahead = lookaheadOptions(street, input.precise);
   const tree = lookahead
     ? buildHandTree(input.startPot, input.effectiveStackBb, input.board, lookahead)
     : buildStreetTree(input.startPot, input.effectiveStackBb, street);
@@ -191,9 +182,7 @@ function solveWithTables(
   };
   let session: NativeSolveSession | undefined;
   let solution: CfrSolution;
-  if (!("solver" in engine)) {
-    solution = runCfr(tree, heroRange, villainRange, equityTable, { ...cfrOptions, showdownExecutor: engine.showdownExecutor }, cfrProgress);
-  } else if (lookahead) {
+  if (lookahead) {
     const threads = engine.threads ?? 1;
     session =
       threads > 1
@@ -203,9 +192,7 @@ function solveWithTables(
   } else {
     solution = runNativeCfr(engine.solver, nativeInput, cfrOptions, cfrProgress);
   }
-  const exploitability =
-    solution.finalExploitability ??
-    computeExploitability(tree, solution, heroRange, villainRange, equityTable, input.startPot);
+  const exploitability = solution.finalExploitability!;
 
   return { tree, heroRange, villainRange, solution, exploitability, equityTable, session };
 }
