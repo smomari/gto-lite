@@ -36,6 +36,18 @@ function lastActionIndex(actionPath: ActionNode[], seat: Position): number {
   return -1;
 }
 
+/**
+ * Each range engine only produces one aggressive action — Nash shoves, the
+ * heuristic engine and solver export raise — but a seat can click either, so
+ * read off that action's frequency alone and the range comes back empty.
+ * Both clicks mean "this seat's aggressive range": an approximation of what
+ * it would really do with the size it didn't produce, but a usable one.
+ */
+function withAggressiveRange(hands: HandFrequency[], actionKey: ActionWeightKey): HandFrequency[] {
+  if (actionKey !== "raise" && actionKey !== "allin") return hands;
+  return hands.map((hf) => ({ ...hf, [actionKey]: hf.raise + (hf.allin ?? 0) }));
+}
+
 export function resolvePostflopHandoff(
   actionPath: ActionNode[],
   committed: Partial<Record<Position, number>>,
@@ -50,11 +62,12 @@ export function resolvePostflopHandoff(
     if (lastIdx !== -1 && actionPath[lastIdx].action === "fold") continue;
 
     const response = lastIdx === -1 ? undefined : rangeByPathKey[actionPathKey(actionPath.slice(0, lastIdx))];
+    const actionKey = lastIdx === -1 ? "call" : actionPath[lastIdx].action;
     liveSeats.push({
       seat,
       remainingBb: stackBb - (committedBb ?? 0),
-      hands: response?.heroPosition === seat ? response.hands : null,
-      actionKey: lastIdx === -1 ? "call" : actionPath[lastIdx].action,
+      hands: response?.heroPosition === seat ? withAggressiveRange(response.hands, actionKey) : null,
+      actionKey,
     });
   }
 

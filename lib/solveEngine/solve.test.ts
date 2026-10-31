@@ -1,9 +1,15 @@
 import { describe, expect, it } from "vitest";
 import { loadEquityMatrix } from "@/lib/equity/loadEquityMatrix";
+import { HAND_BY_LABEL } from "@/lib/handRange/handList";
+import type { HandFrequency } from "@/types/rangeData";
 import { initialPotState, applyAction } from "./potState";
 import { solveActiveSeat } from "./solve";
 
 const matrix = loadEquityMatrix();
+
+function combosWith(hands: HandFrequency[], freq: (h: HandFrequency) => number): number {
+  return hands.reduce((sum, h) => sum + freq(h) * HAND_BY_LABEL.get(h.hand)!.combos, 0);
+}
 
 describe("solveActiveSeat", () => {
   it("routes a shallow-stack opening spot to Nash and produces allin-only frequencies", () => {
@@ -16,6 +22,20 @@ describe("solveActiveSeat", () => {
     }
     const aa = result.hands.find((h) => h.hand === "AA")!;
     expect(aa.allin).toBeGreaterThan(0.9);
+  });
+
+  it("shoves tighter the more players are left to act: UTG < BTN", () => {
+    const shoves = (seat: "UTG" | "BTN") => combosWith(solveActiveSeat(matrix, seat, initialPotState(), 10).hands, (h) => h.allin ?? 0);
+    expect(shoves("UTG")).toBeLessThan(shoves("BTN"));
+    expect(shoves("UTG") / 1326).toBeLessThan(0.25);
+  });
+
+  it("calls an UTG shove tighter than a SB shove", () => {
+    const calls = (shover: "UTG" | "SB") => {
+      const state = applyAction(initialPotState(), shover, "allin", { effectiveStackBb: 10 });
+      return combosWith(solveActiveSeat(matrix, "BB", state, 10).hands, (h) => h.call);
+    };
+    expect(calls("UTG")).toBeLessThan(calls("SB"));
   });
 
   it("routes a 100bb opening spot to the heuristic engine and produces raise-only frequencies (non-SB — solver-export only covers SB, see Phase C-1 plan doc)", () => {

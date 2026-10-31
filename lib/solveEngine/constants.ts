@@ -3,7 +3,8 @@ export const BIG_BLIND_BB = 1;
 /** Single BB-posted ante covering the whole table (the modern MTT convention). */
 export const BB_ANTE_BB = 1;
 
-export const STACK_MIN_BB = 1;
+/** At 1bb an all-in only matches the big blind: no raise, so no seat could ever call it or close the action. */
+export const STACK_MIN_BB = 2;
 export const STACK_MAX_BB = 100;
 
 /** Stack depth the Phase C-1 preflop RFI solver-export data was generated at — see data/preflop/rfi-100bb.json. */
@@ -28,5 +29,5 @@ export const OPEN_RAISE_OOP_SHALLOW_BB = 2.3; // UTG, UTG1, LJ, HJ at/below the 
 export const OPEN_RAISE_OOP_DEEP_BB = 2.8; // UTG, UTG1, LJ, HJ at STACK_MAX_BB
 
 /** Reactive raise-to size, as a multiple of the previous aggressor's raise-to amount. */
-export const REACTIVE_RAISE_IP_MULTIPLIER = 3; // raiser's seat index > last aggressor's
-export const REACTIVE_RAISE_OOP_MULTIPLIER = 4; // raiser's seat index < last aggressor's
+export const REACTIVE_RAISE_IP_MULTIPLIER = 3; // raiser acts after the last aggressor postflop
+export const REACTIVE_RAISE_OOP_MULTIPLIER = 4; // raiser acts before the last aggressor postflop

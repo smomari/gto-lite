@@ -48,23 +48,32 @@ describe("computeRawRaiseTo — opening raises", () => {
 });
 
 describe("computeRawRaiseTo — reactive raises", () => {
-  it("raises 3x (IP) when the raiser's seat index is after the last aggressor's", () => {
+  it("raises 3x (IP) when the raiser acts after the last aggressor postflop", () => {
     const state = applyAction(initialPotState(), "UTG", "raise", { effectiveStackBb: 100, raiseToBb: 4 });
     expect(computeRawRaiseTo("CO", state, 100)).toBe(12); // 4 * 3
   });
 
-  it("raises 4x (OOP) when the raiser's seat index is before the last aggressor's", () => {
+  it("raises 4x (OOP) when the raiser acts before the last aggressor postflop", () => {
     const state = applyAction(initialPotState(), "CO", "raise", { effectiveStackBb: 100, raiseToBb: 3 });
-    // UTG is seat index 0, CO is 4 — UTG is "before" CO, so OOP by the literal seat-order rule,
-    // even though CO opened after UTG's turn already passed in this constructed fixture.
+    // A constructed fixture: CO opened after UTG's turn had already passed.
     expect(computeRawRaiseTo("UTG", state, 100)).toBe(12); // 3 * 4
   });
 
-  it("uses the literal seat-order rule even when it contradicts real postflop position: SB reacting to BTN is classified IP", () => {
-    const state = applyAction(initialPotState(), "BTN", "raise", { effectiveStackBb: 100, raiseToBb: 3 });
-    // SB (index 6) is after BTN (index 5), so this rule calls it IP (3x), even
-    // though SB is always out of position postflop against BTN in real poker.
-    expect(computeRawRaiseTo("SB", state, 100)).toBe(9); // 3 * 3
+  it("treats the blinds as OOP even though they act last preflop: SB and BB reacting to BTN raise 4x", () => {
+    const state = applyAction(initialPotState(), "BTN", "raise", { effectiveStackBb: 100, raiseToBb: 2.5 });
+    expect(computeRawRaiseTo("SB", state, 100)).toBe(10); // 2.5 * 4
+    expect(computeRawRaiseTo("BB", state, 100)).toBe(10);
+  });
+
+  it("gives BTN position over a blind's 3-bet: 3x, though BTN acts before the blinds preflop", () => {
+    const open = applyAction(initialPotState(), "BTN", "raise", { effectiveStackBb: 100, raiseToBb: 2.5 });
+    const threeBet = applyAction(open, "SB", "raise", { effectiveStackBb: 100, raiseToBb: 10 });
+    expect(computeRawRaiseTo("BTN", threeBet, 100)).toBe(30); // 10 * 3
+  });
+
+  it("puts SB out of position against BB", () => {
+    const state = applyAction(initialPotState(), "BB", "raise", { effectiveStackBb: 100, raiseToBb: 3 });
+    expect(computeRawRaiseTo("SB", state, 100)).toBe(12); // 3 * 4
   });
 
   it("always compares against the CURRENT lastAggressor, not a stale one, when a seat reopens", () => {
@@ -100,6 +109,14 @@ describe("computeAvailableActions", () => {
     const short = computeAvailableActions("UTG1", state, 10);
     expect(short.raise).toBeNull();
     expect(short.allin).toEqual({ toBb: 10 });
+  });
+
+  it("offers no Allin facing an all-in, where Call already puts the whole stack in", () => {
+    const state = applyAction(initialPotState(), "UTG", "allin", { effectiveStackBb: 20 });
+    const actions = computeAvailableActions("BB", state, 20);
+    expect(actions.allin).toBeNull();
+    expect(actions.raise).toBeNull();
+    expect(actions.call).toEqual({ label: "Call", amountBb: 19 });
   });
 
   it('labels the call option "Check" when nothing is owed (constructed fixture — not reachable via real replay)', () => {

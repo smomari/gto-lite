@@ -24,4 +24,12 @@ describe("getPushFoldResult", () => {
     expect(at20).not.toBe(at10);
     expect(at20.shoveFrequency.get("72o")).toBeLessThanOrEqual(at10.shoveFrequency.get("72o")!);
   });
+
+  it("caches each number of opponents behind apart", () => {
+    const headsUp = getPushFoldResult(matrix, 10);
+    const fullTable = getPushFoldResult(matrix, 10, 7);
+    expect(fullTable).not.toBe(headsUp);
+    expect(getPushFoldResult(matrix, 10, 7)).toBe(fullTable);
+    expect(fullTable).toEqual(solvePushFold(matrix, { effectiveStackBb: 10, opponentsBehind: 7 }));
+  });
 });

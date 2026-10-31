@@ -320,6 +320,19 @@ describe("PostflopPanel", () => {
     expect(streetBoxSummary()).toEqual([]);
   });
 
+  it("a failed solve can be left: the error offers picking a different board, back to the board picker", async () => {
+    solvePostflopInWorker.mockRejectedValueOnce(new Error("solve failed"));
+    renderPanel(20);
+
+    pickFlopBoard();
+
+    expect(await within(liveStage()).findByText("Error: solve failed")).toBeInTheDocument();
+    fireEvent.click(within(liveStage()).getByRole("button", { name: "Pick a different board" }));
+
+    expect(within(liveStage()).getByText(/Pick the 3 flop cards/)).toBeInTheDocument();
+    expect(streetBoxSummary()).toEqual([]);
+  });
+
   it("once a board is confirmed, a live Flop box with the picked cards appears in the seat-bar slot, not in the panel", () => {
     solvePostflopInWorker.mockReturnValueOnce(new Promise(() => {})); // never resolves — only the "solving" state matters here
     renderPanel(20);

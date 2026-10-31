@@ -1,7 +1,7 @@
 # GTO Lite — Preflop Range Viewer
 
 8인 토너먼트 프리플랍 레인지 뷰어. 169개 핸드(13×13 매트릭스)를 그리드로 렌더링하고, 전체
-테이블 스택(1~100bb)을 설정한 뒤 각 포지션(UTG, UTG1, LJ, HJ, CO, BTN, SB, BB)의 액션을
+테이블 스택(2~100bb)을 설정한 뒤 각 포지션(UTG, UTG1, LJ, HJ, CO, BTN, SB, BB)의 액션을
 순서대로 클릭해서 실제 포커 액션 시퀀스(재오픈 포함)를 만들면, 현재 차례인 포지션의
 Fold/Call/Raise/Allin 빈도를 색상 바로 보여준다.
 
@@ -21,7 +21,8 @@ npm run dev
 - `lib/solveEngine/potState.ts` + `rotation.ts` + `replay.ts` — 액션 시퀀스를 실제 포커 규칙
   (재오픈 포함)으로 검증/재생하며 팟/콜금액/다음 차례를 추적.
 - `lib/solveEngine/actionSizing.ts` — 레이즈 사이즈 자동 계산(오픈: 앞쪽 포지션 4bb/뒤쪽
-  3bb, 리레이즈: 포지션 순서상 뒤(IP)면 이전 베팅의 3배·앞(OOP)면 4배).
+  3bb, 리레이즈: 포스트플랍에서 마지막 공격자보다 뒤에 행동(IP)하면 이전 베팅의 3배, 앞(OOP)이면 4배
+  — SB·BB는 항상 OOP 쪽).
 - `lib/solveEngine/classify.ts` — 스택이 얕거나(≤25bb) 팟 대비 남은 스택이 적으면 Nash
   push/fold 솔버(`lib/nashSolver/pushFoldSolver.ts`)로, 아니면 근사 레인지 엔진
   (`lib/heuristicRanges/`)으로 라우팅.

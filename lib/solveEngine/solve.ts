@@ -1,7 +1,7 @@
 import type { HandFrequency, Position, RangeSource } from "@/types/rangeData";
 import type { EquityMatrix } from "@/lib/equity/loadEquityMatrix";
 import { ALL_HANDS } from "@/lib/handRange/handList";
-import { seatIndex } from "@/lib/actionTree/seatOrder";
+import { SEAT_ORDER, postflopSeatIndex, seatIndex } from "@/lib/actionTree/seatOrder";
 import { generateOpeningScenario, generateFacingRaiseScenario } from "@/lib/heuristicRanges/generateScenario";
 import { loadRfiExport } from "@/lib/preflopSolver/loadRfiExport";
 import type { PotState } from "./potState";
@@ -48,7 +48,9 @@ export function solveActiveSeat(
   }
 
   if (shouldUseNash(effectiveStackBb, remainingStackBb, potState.potBb, hasOpener)) {
-    const result = getPushFoldResult(matrix, remainingStackBb);
+    const shover = potState.lastAggressor ?? activeSeat;
+    const opponentsBehind = Math.max(1, SEAT_ORDER.length - 1 - seatIndex(shover));
+    const result = getPushFoldResult(matrix, remainingStackBb, opponentsBehind);
     return {
       source: "nash-shove-fold",
       hands: hasOpener ? callFrequencyToHands(result.callFrequency) : shoveFrequencyToHands(result.shoveFrequency),
@@ -66,7 +68,7 @@ export function solveActiveSeat(
     source: "heuristic-approx",
     hands: generateFacingRaiseScenario(ranking, {
       raiseDepth: potState.raiseDepth,
-      isIP: seatIndex(activeSeat) > seatIndex(lastAggressor),
+      isIP: postflopSeatIndex(activeSeat) > postflopSeatIndex(lastAggressor),
       potBb: potState.potBb,
       amountOwedBb,
     }),

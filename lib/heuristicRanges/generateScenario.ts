@@ -77,7 +77,7 @@ export function generateOpeningScenario(ranking: PercentileRanking, seatIdx: num
 export interface FacingRaiseParams {
   /** Number of raises/allin-as-raise events in the hand so far; always >= 1. */
   raiseDepth: number;
-  /** Whether hero's seat is after the most recent aggressor's seat in table order. */
+  /** Whether hero acts after the most recent aggressor postflop. */
   isIP: boolean;
   /** Pot size (bb) before hero acts, including all blinds/ante/prior bets. */
   potBb: number;

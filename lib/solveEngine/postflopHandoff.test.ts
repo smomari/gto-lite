@@ -37,6 +37,35 @@ function capture(path: ActionNode[]): Record<string, SolveResponse> {
 const foldsUtg1ToHj = [step("UTG1", "fold"), step("LJ", "fold"), step("HJ", "fold")];
 
 describe("resolvePostflopHandoff", () => {
+  const foldsToBb = [...foldsUtg1ToHj, step("CO", "fold"), step("BTN", "fold"), step("SB", "fold")];
+
+  function handsAfter(path: ActionNode[], hands: SolveResponse["hands"]) {
+    const ranges = capture(path);
+    ranges[""] = { ...ranges[""], hands };
+    const { matchup } = resolvePostflopHandoff(path, { SB: 0.5, BB: 20, UTG: 20 }, 20, ranges);
+    const utg = matchup?.find((s) => s.seat === "UTG");
+    return utg?.hands.map((hf) => hf[utg.actionKey]);
+  }
+
+  it("a raise from a range that only shoves (Nash) uses the shove frequencies", () => {
+    const path = [step("UTG", "raise"), ...foldsToBb, step("BB", "call")];
+    expect(handsAfter(path, [{ hand: "AA", fold: 0.1, call: 0, raise: 0, allin: 0.9 }])).toEqual([0.9]);
+  });
+
+  it("an all-in from a range that only raises (heuristic) uses the raise frequencies", () => {
+    const path = [step("UTG", "allin"), ...foldsToBb, step("BB", "call")];
+    expect(handsAfter(path, [{ hand: "AA", fold: 0.2, call: 0, raise: 0.8 }])).toEqual([0.8]);
+  });
+
+  it("leaves a caller's frequencies alone", () => {
+    const path = [step("UTG", "raise"), ...foldsToBb, step("BB", "call")];
+    const ranges = capture(path);
+    const hands = [{ hand: "KK", fold: 0.5, call: 0.25, raise: 0.25 }];
+    ranges[actionPathKey(path.slice(0, 7))] = { ...ranges[actionPathKey(path.slice(0, 7))], hands };
+    const { matchup } = resolvePostflopHandoff(path, { SB: 0.5, BB: 2.8, UTG: 2.8 }, 100, ranges);
+    expect(matchup?.[0].hands).toBe(hands);
+  });
+
   it("open-call: pairs the two live seats OOP first, each with its own last-decision range and action", () => {
     const path = [
       step("UTG", "raise"),

@@ -8,18 +8,23 @@ describe("buildRfiTree", () => {
     expect(RFI_POSITIONS).toEqual(["UTG", "UTG1", "LJ", "HJ", "CO", "BTN", "SB"]);
   });
 
-  it("UTG at 100bb: sizes match actionSizing.ts's OOP deep values (2.8 open, 8.4 3bet)", () => {
+  it("UTG at 100bb: sizes match actionSizing.ts's OOP deep values (2.8 open, 11.2 3bet from BB, OOP postflop)", () => {
     const { tree, openSizeBb, threeBetSizeBb } = buildRfiTree("UTG", 100);
     expect(openSizeBb).toBe(2.8);
-    expect(threeBetSizeBb).toBe(8.4);
+    expect(threeBetSizeBb).toBe(11.2);
     expect(tree.actions.map((a) => a.action)).toEqual(["fold", "raise"]);
     expect(tree.state.committed.P1).toBe(0);
   });
 
-  it("BTN at 100bb: sizes match actionSizing.ts's IP deep values (2.5 open, 7.5 3bet)", () => {
+  it("BTN at 100bb: sizes match actionSizing.ts's deep values (2.5 open, 10 3bet from BB, OOP postflop)", () => {
     const { openSizeBb, threeBetSizeBb } = buildRfiTree("BTN", 100);
     expect(openSizeBb).toBe(2.5);
-    expect(threeBetSizeBb).toBe(7.5);
+    expect(threeBetSizeBb).toBe(10);
+  });
+
+  it("SB at 100bb: BB is IP postflop, so it 3-bets 3x (the size data/preflop/rfi-100bb.json was solved with)", () => {
+    const { openSizeBb, threeBetSizeBb } = buildRfiTree("SB", 100);
+    expect(threeBetSizeBb).toBe(openSizeBb * 3);
   });
 
   it("SB's root has 0.5bb already committed (its posted small blind), unlike every other opener", () => {
