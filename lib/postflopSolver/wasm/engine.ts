@@ -209,6 +209,17 @@ export class NativeCfrEngine {
     }
   }
 
+  /** Fixes a trunk decision node's strategy, per combo (after partition) — see eng_lock_strategy. */
+  lockStrategy(node: number, strategy: number[][]): void {
+    const ptr = this.solver._malloc(Math.max(strategy.length * strategy[0].length, 1) * 4);
+    try {
+      this.solver.HEAPF32.set(strategy.flat(), ptr / 4);
+      this.solver._eng_lock_strategy(this.handle, node, ptr);
+    } finally {
+      this.solver._free(ptr);
+    }
+  }
+
   /** Starts the pthread pool (after partition); returns the threads actually in use (1 on one-thread builds). */
   setThreads(threads: number): number {
     return this.solver._eng_set_threads(this.handle, threads);
@@ -397,6 +408,12 @@ export function findLeafRoots(build: EngineBuild): number[] {
   return leaves;
 }
 
+/** A root-street decision's strategy, per combo, that a solve must play instead of finding its own. */
+export interface StrategyLock {
+  node: DecisionNode;
+  strategy: number[][];
+}
+
 /**
  * A lookahead solve on one engine with a pthread pool (threaded builds):
  * every iteration runs the root street (the trunk) on this thread, then all
@@ -411,11 +428,13 @@ export function solveThreadedSession(
   options: NativeCfrOptions,
   onProgress: CfrProgress | undefined,
   threads: number,
+  locks: readonly StrategyLock[] = [],
 ): NativeSolveSession {
   const { build, flat } = prepareEngineBuild(input);
   const engine = NativeCfrEngine.fromBuild(solver, build, flat);
   try {
     engine.partition(findLeafRoots(build));
+    for (const { node, strategy } of locks) engine.lockStrategy(flat.nodeIndex.get(node)!, strategy);
     engine.setThreads(threads);
     const stepper: CfrStepper = {
       iterate: (firstT, count) => engine.iterateParallel(firstT, count),

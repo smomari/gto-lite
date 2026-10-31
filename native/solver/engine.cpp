@@ -88,6 +88,7 @@ struct Split {
   std::vector<int32_t> leafSlot;     // node → leaf slot, or -1
   std::vector<int32_t> leafOrder;    // slots, most regret storage (≈ work) first — the pool's queue order
   std::vector<int32_t> trunkIndex;   // node → trunk index, or -1
+  std::vector<char> locked;          // per trunk node: plays lockedSigma, see eng_lock_strategy
   int trunkCount = 0;
   size_t trunkStorageEnd = 0;        // the trunk's regrets/averages are [0, trunkStorageEnd)
   std::vector<size_t> leafStorageBegin, leafStorageEnd;  // per leaf slot
@@ -97,6 +98,7 @@ struct Split {
   std::vector<float> reach;          // [trunk * width]: P1 reach then P2 reach
   std::vector<size_t> sigmaOffset;
   std::vector<float> sigma;
+  std::vector<float> lockedSigma;    // same layout as sigma
   // The last evaluation: average-strategy reaches, and each player's EV-mode values.
   std::vector<float> evalReach;      // [trunk * width]
   std::vector<float> evalValues;     // [trunk * width]: P1 values then P2 values
@@ -543,6 +545,19 @@ inline float* leafOut(Engine& e, int slot) { return e.split.exchangeOut.data() +
 
 bool isTerminal(uint8_t t) { return t == kFold || t == kShowdownTable || t == kShowdownRiver; }
 
+inline bool isLocked(const Engine& e, int node) { return e.split.locked[e.split.trunkIndex[node]] != 0; }
+inline const float* lockedSigma(const Engine& e, int node) { return e.split.lockedSigma.data() + e.split.sigmaOffset[e.split.trunkIndex[node]]; }
+
+/** The strategy a trunk node reports and is evaluated with: its lock if it has one, otherwise its average. */
+void trunkStrategy(const Engine& e, int node, int count, int n, float* sigma, float* scratch) {
+  if (isLocked(e, node)) {
+    const float* locked = lockedSigma(e, node);
+    std::copy(locked, locked + static_cast<size_t>(count) * n, sigma);
+  } else {
+    averageStrategy(e.stratSum.data() + e.storage[node], count, n, sigma, scratch);
+  }
+}
+
 /** Trunk half of solveNode, going down: strategies and reaches at every trunk node; each leaf's reaches into exchangeIn. */
 void trunkForward(Engine& e, int node, const float* r1, const float* r2) {
   const int n1 = e.players[0].n, n2 = e.players[1].n;
@@ -576,7 +591,8 @@ void trunkForward(Engine& e, int node, const float* r1, const float* r2) {
   const int nA = e.players[actor].n;
   float* sigma = e.split.sigma.data() + e.split.sigmaOffset[e.split.trunkIndex[node]];
   float* childReach = arenaOf(e).take(nA);
-  regretMatch(e.regret.data() + e.storage[node], count, nA, sigma, childReach);
+  if (isLocked(e, node)) std::copy(lockedSigma(e, node), lockedSigma(e, node) + static_cast<size_t>(count) * nA, sigma);
+  else regretMatch(e.regret.data() + e.storage[node], count, nA, sigma, childReach);
   const float* rA = actor == 0 ? r1 : r2;
   for (int a = 0; a < count; a++) {
     const float* s = sigma + static_cast<size_t>(a) * nA;
@@ -684,7 +700,7 @@ void trunkEvalForward(Engine& e, int node, int p, const float* r1, const float* 
   const int nA = e.players[actor].n;
   float* sigma = arenaOf(e).take(static_cast<size_t>(count) * nA);
   float* childReach = arenaOf(e).take(nA);
-  averageStrategy(e.stratSum.data() + e.storage[node], count, nA, sigma, childReach);
+  trunkStrategy(e, node, count, nA, sigma, childReach);
   const float* rA = actor == 0 ? r1 : r2;
   for (int a = 0; a < count; a++) {
     const float* s = sigma + static_cast<size_t>(a) * nA;
@@ -725,13 +741,14 @@ void trunkEvalBackward(Engine& e, int node, int p, bool bestResponse, float* out
   float* sigma = arenaOf(e).take(static_cast<size_t>(count) * nA);
   float* scratch = arenaOf(e).take(std::max(nA, nO));
   float* childValues = arenaOf(e).take(nS);
-  averageStrategy(e.stratSum.data() + e.storage[node], count, nA, sigma, scratch);
+  trunkStrategy(e, node, count, nA, sigma, scratch);
   if (actor == p) {
+    const bool pickBest = bestResponse && !isLocked(e, node);
     for (int a = 0; a < count; a++) {
       trunkEvalBackward(e, e.children[start + a], p, bestResponse, childValues);
       const float* s = sigma + static_cast<size_t>(a) * nS;
       for (int i = 0; i < nS; i++) {
-        if (bestResponse) out[i] = a == 0 ? childValues[i] : std::max(out[i], childValues[i]);
+        if (pickBest) out[i] = a == 0 ? childValues[i] : std::max(out[i], childValues[i]);
         else out[i] = (a == 0 ? 0 : out[i]) + s[i] * childValues[i];
       }
     }
@@ -951,11 +968,29 @@ void eng_partition(Engine* e, int leafCount, const int32_t* leafNodes) {
   sp.evalReach.assign(trunkFloats, 0.0f);
   sp.evalValues.assign(trunkFloats, 0.0f);
   sp.sigma.assign(sigmaTotal, 0.0f);
+  sp.locked.assign(sp.trunkCount, 0);
+  sp.lockedSigma.assign(sigmaTotal, 0.0f);
   sp.leafOrder.resize(leafCount);
   std::iota(sp.leafOrder.begin(), sp.leafOrder.end(), 0);
   std::stable_sort(sp.leafOrder.begin(), sp.leafOrder.end(), [&sp](int a, int b) {
     return sp.leafStorageEnd[a] - sp.leafStorageBegin[a] > sp.leafStorageEnd[b] - sp.leafStorageBegin[b];
   });
+}
+
+/**
+ * Fixes a trunk decision node's strategy (after eng_partition): its player can
+ * no longer choose there, in solving or in best responses, so a solve finds
+ * the equilibrium given that strategy. `strategy` is in eng_average_strategy's
+ * layout, [combo * actions + action].
+ */
+void eng_lock_strategy(Engine* e, int node, const float* strategy) {
+  const int actions = e->childCount[node];
+  const int n = e->players[e->type[node]].n;
+  const int index = e->split.trunkIndex[node];
+  float* sigma = e->split.lockedSigma.data() + e->split.sigmaOffset[index];
+  for (int a = 0; a < actions; a++)
+    for (int i = 0; i < n; i++) sigma[static_cast<size_t>(a) * n + i] = strategy[static_cast<size_t>(i) * actions + a];
+  e->split.locked[index] = 1;
 }
 
 /** Iteration t, first trunk half: writes every leaf's reaches (P1 then P2) into exchangeIn. */
