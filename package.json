@@ -12,6 +12,7 @@
     "generate:equity": "tsx scripts/generate-equity-matrix.ts",
     "generate:preflop-rfi": "tsx scripts/generate-preflop-rfi.ts",
     "bench:postflop": "tsx scripts/bench-postflop.ts",
+    "accuracy:postflop": "tsx scripts/accuracy-postflop.ts",
     "build:wasm": "native/build-wasm.sh",
     "check:wasm": "native/check-wasm.sh",
     "test:native": "native/test-wasm.sh"
