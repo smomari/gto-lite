@@ -2,9 +2,6 @@ import { ALL_HANDS } from "../lib/handRange/handList";
 import { expandToCombos } from "../lib/postflopSolver/combos";
 import { buildEquityTable } from "../lib/postflopSolver/terminalEquity";
 import { buildStreetTree, type DecisionNode } from "../lib/postflopSolver/treeBuilder";
-import { runCfr, type CfrRunOptions, type CfrSolution } from "../lib/postflopSolver/cfr";
-import { computeExploitability } from "../lib/postflopSolver/exploitability";
-import type { PostflopTreeNode } from "../lib/postflopSolver/treeBuilder";
 import { loadNodeSolverModule } from "../lib/postflopSolver/wasm/loadNode";
 import { runNativeCfr } from "../lib/postflopSolver/wasm/engine";
 import type { SolverModule } from "../lib/postflopSolver/wasm/solverModule";
@@ -30,29 +27,19 @@ let t0 = performance.now();
 const table = buildEquityTable(hero, villain, BOARD);
 console.log(`combos ${hero.length}x${villain.length}, equity table ${(performance.now() - t0).toFixed(0)}ms`);
 
-type Solve = (tree: PostflopTreeNode, options: Pick<CfrRunOptions, "maxIterations" | "targetExploitabilityPercent">) => CfrSolution;
-
-// Each scenario runs on both engines. Their exploitability numbers use slightly
-// different definitions (the C++ engine's is the exact pair-weighted one), so
-// compare each engine with its own earlier runs.
 async function main() {
   const solver: SolverModule = await loadNodeSolverModule();
-  const engines: { name: string; solve: Solve }[] = [
-    { name: "ts", solve: (tree, options) => runCfr(tree, hero, villain, table, options) },
-    {
-      name: "cpp",
-      solve: (tree, options) => runNativeCfr(solver, { tree, board: BOARD, heroRange: hero, villainRange: villain, rootEquityTable: table }, options),
-    },
-  ];
-  for (const s of SCENARIOS) for (const engine of engines) benchScenario(s, engine.name, engine.solve);
+  for (const s of SCENARIOS) benchScenario(s, solver);
 }
 
-function benchScenario(s: (typeof SCENARIOS)[number], engine: string, solve: Solve) {
+function benchScenario(s: (typeof SCENARIOS)[number], solver: SolverModule) {
   const tree = buildStreetTree(s.startPot, s.stack, "flop");
+  const solve = (options: { maxIterations: number; targetExploitabilityPercent?: number }) =>
+    runNativeCfr(solver, { tree, board: BOARD, heroRange: hero, villainRange: villain, rootEquityTable: table }, options);
 
   // Same iteration count every version → strategies must match for changes that shouldn't alter the math.
   t0 = performance.now();
-  const fixed = solve(tree, { maxIterations: FIXED_ITERATIONS });
+  const fixed = solve({ maxIterations: FIXED_ITERATIONS });
   const msPerIter = (performance.now() - t0) / FIXED_ITERATIONS;
   const root = fixed.getAverageStrategy(tree as DecisionNode);
   const weightSum = hero.reduce((sum, c) => sum + c.weight, 0);
@@ -63,15 +50,13 @@ function benchScenario(s: (typeof SCENARIOS)[number], engine: string, solve: Sol
   const fingerprint = root.reduce((sum, row, ci) => sum + row.reduce((r, p, ai) => r + p * (ci + 1) * (ai + 1), 0), 0);
 
   t0 = performance.now();
-  const solved = solve(tree, { maxIterations: 20000, targetExploitabilityPercent: TARGET_PERCENT });
+  const solved = solve({ maxIterations: 20000, targetExploitabilityPercent: TARGET_PERCENT });
   const solveSec = (performance.now() - t0) / 1000;
-  const exploitability =
-    solved.finalExploitability ?? computeExploitability(tree, solved, hero, villain, table, s.startPot);
+  const exploitability = solved.finalExploitability!;
 
   console.log(
     JSON.stringify({
       scenario: s.name,
-      engine,
       msPerIter: Number(msPerIter.toFixed(3)),
       toTarget: { iterations: solved.iterations, sec: Number(solveSec.toFixed(2)) },
       exploitabilityPct: Number(exploitability.percentOfPot.toFixed(4)),

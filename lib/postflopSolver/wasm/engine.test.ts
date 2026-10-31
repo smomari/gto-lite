@@ -147,7 +147,6 @@ describe("solvePostflopStreet on the C++ engine", () => {
         maxIterations: 3000,
         targetExploitabilityPercent: 0.5,
       },
-      undefined,
       { solver },
     );
     try {
@@ -183,7 +182,6 @@ describe("solvePostflopStreet on the C++ engine", () => {
         targetExploitabilityPercent: 0.5,
         precise: true,
       },
-      undefined,
       { solver },
     );
     try {
@@ -223,7 +221,6 @@ describe("turn solves on the C++ engine", () => {
         maxIterations: 3000,
         targetExploitabilityPercent: 0.5,
       },
-      undefined,
       { solver },
     );
     const session = result.session!;

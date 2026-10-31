@@ -88,7 +88,7 @@ export function opponentCardWeights(layout: ShowdownLayout, opponentReach: Float
 }
 
 /** Same as `opponentCardWeights`, written into existing buffers (e.g. shared with other workers). */
-export function opponentCardWeightsInto(
+function opponentCardWeightsInto(
   layout: ShowdownLayout,
   opponentReach: Float64Array,
   nodeCount: number,

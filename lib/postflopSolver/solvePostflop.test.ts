@@ -1,9 +1,11 @@
+// @vitest-environment node
 import { describe, expect, it } from "vitest";
 import { ALL_HANDS } from "@/lib/handRange/handList";
 import type { HandFrequency } from "@/types/rangeData";
 import { solvePostflopStreet } from "./solvePostflop";
 import type { DecisionNode } from "./treeBuilder";
 import { computeCheckdownEquities } from "./checkdownEquity";
+import { loadNodeSolverModule } from "./wasm/loadNode";
 
 /** A narrow, small HandFrequency[] so the resulting ComboRange stays tiny and the test stays fast. */
 function narrowHands(includedHands: string[]): HandFrequency[] {
@@ -17,7 +19,7 @@ function narrowHands(includedHands: string[]): HandFrequency[] {
 }
 
 describe("solvePostflopStreet", () => {
-  it("runs end-to-end from preflop-shaped HandFrequency[] to a solved tree", () => {
+  it("runs end-to-end from preflop-shaped HandFrequency[] to a solved tree", async () => {
     const board = ["Kh", "7s", "2d"];
     const result = solvePostflopStreet({
       kind: "canonical",
@@ -29,7 +31,7 @@ describe("solvePostflopStreet", () => {
       startPot: 7.5,
       effectiveStackBb: 10,
       maxIterations: 200,
-    });
+    }, { solver: await loadNodeSolverModule() });
 
     expect(result.heroRange.length).toBeGreaterThan(0);
     expect(result.villainRange.length).toBeGreaterThan(0);
@@ -58,10 +60,12 @@ describe("solvePostflopStreet", () => {
     for (const summary of checkdown.values()) {
       expect(summary.heroEquityPercent + summary.villainEquityPercent).toBeCloseTo(100, 3);
     }
+    result.session?.dispose();
   });
 
-  it("throws if a range is empty after board removal", () => {
+  it("throws if a range is empty after board removal", async () => {
     const board = ["Kh", "7s", "2d"];
+    const solver = await loadNodeSolverModule();
     expect(() =>
       solvePostflopStreet({
         kind: "canonical",
@@ -73,11 +77,11 @@ describe("solvePostflopStreet", () => {
         startPot: 7.5,
         effectiveStackBb: 10,
         maxIterations: 50,
-      }),
+      }, { solver }),
     ).toThrow();
   });
 
-  it("kind: combos — solves from an already-computed combo range, re-filtering for a newly-dealt card", () => {
+  it("kind: combos — solves from an already-computed combo range, re-filtering for a newly-dealt card", async () => {
     const board = ["Kh", "7s", "2d", "9c"]; // turn board: 3 flop cards + 1 new turn card
     const result = solvePostflopStreet({
       kind: "combos",
@@ -94,12 +98,13 @@ describe("solvePostflopStreet", () => {
       startPot: 12.4,
       effectiveStackBb: 20,
       maxIterations: 100,
-    });
+    }, { solver: await loadNodeSolverModule() });
 
     expect(result.heroRange).toEqual([
       { cards: ["Ks", "Kd"], weight: 1 },
       { cards: ["9s", "9h"], weight: 1 },
     ]);
     expect(result.villainRange).toHaveLength(2);
+    result.session?.dispose();
   });
 });
