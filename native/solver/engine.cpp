@@ -15,6 +15,9 @@
 // come: checkdown leaves, all-ins) or from river hand strengths in O(n) after
 // a one-time sort. DCFR constants match lib/postflopSolver/cfr.ts: α = 1.5,
 // β = 0 (negative regret × 0.5), γ = 3, average strategy reset at 4, 16, 64, …
+// Unlike cfr.ts, updates alternate: each iteration traverses for P1, then for
+// P2 against P1's updated regrets. On a BTN-vs-BB flop that took 4× fewer
+// iterations than updating both at once, each costing about the same.
 #include <algorithm>
 #include <atomic>
 #include <cmath>
@@ -357,95 +360,33 @@ inline void normalizeValues(const SampledDeal& deal, int p, int n, float* values
 
 // ---------------------------------------------------------------- CFR traversal
 
-/** Both players' counterfactual values at `node`, updating regrets/averages when `update` is set. */
-void solveNode(Engine& e, int node, const float* r1, const float* r2, float* v1, float* v2, const Update* update) {
-  const uint8_t t = e.type[node];
-  const int n1 = e.players[0].n, n2 = e.players[1].n;
-  if (t == kFold || t == kShowdownTable || t == kShowdownRiver) {
-    terminalValues(e, node, 0, r2, v1);
-    terminalValues(e, node, 1, r1, v2);
-    return;
-  }
-
+/**
+ * A chance node's values for player p: each child's, from `recurse(child,
+ * opponent reach, values)`, weighted by its card, with combos holding the card
+ * zeroed on both sides. Sampled nodes also renormalize per combo (SampledDeal).
+ */
+template <class Recurse>
+void dealChance(Engine& e, int node, int p, const float* oppReach, float* out, Recurse recurse) {
+  const Player& self = e.players[p];
+  const int nS = self.n, nO = e.players[1 - p].n;
   const size_t mark = arenaOf(e).top;
   const int start = e.childStart[node], count = e.childCount[node];
-
-  if (t == kChance) {
-    const bool sampled = e.aux[node] == 1;
-    const SampledDeal deal = sampled ? sampledDeal(e, node) : SampledDeal{};
-    float* cr1 = arenaOf(e).take(n1);
-    float* cr2 = arenaOf(e).take(n2);
-    float* cv1 = arenaOf(e).take(n1);
-    float* cv2 = arenaOf(e).take(n2);
-    std::fill(v1, v1 + n1, 0.0f);
-    std::fill(v2, v2 + n2, 0.0f);
-    for (int c = 0; c < count; c++) {
-      const uint8_t card = e.childCard[start + c];
-      const float w = e.childWeight[start + c];
-      std::copy(r1, r1 + n1, cr1);
-      std::copy(r2, r2 + n2, cr2);
-      if (sampled) {
-        scaleReach(deal, 0, n1, cr1);
-        scaleReach(deal, 1, n2, cr2);
-      }
-      zeroWithCard(e.players[0], card, cr1);
-      zeroWithCard(e.players[1], card, cr2);
-      solveNode(e, e.children[start + c], cr1, cr2, cv1, cv2, update);
-      zeroWithCard(e.players[0], card, cv1);
-      zeroWithCard(e.players[1], card, cv2);
-      for (int i = 0; i < n1; i++) v1[i] += w * cv1[i];
-      for (int j = 0; j < n2; j++) v2[j] += w * cv2[j];
-    }
-    if (sampled) {
-      normalizeValues(deal, 0, n1, v1);
-      normalizeValues(deal, 1, n2, v2);
-    }
-    arenaOf(e).top = mark;
-    return;
+  const bool sampled = e.aux[node] == 1;
+  const SampledDeal deal = sampled ? sampledDeal(e, node) : SampledDeal{};
+  float* childOpp = arenaOf(e).take(nO);
+  float* childValues = arenaOf(e).take(nS);
+  std::fill(out, out + nS, 0.0f);
+  for (int c = 0; c < count; c++) {
+    const uint8_t card = e.childCard[start + c];
+    std::copy(oppReach, oppReach + nO, childOpp);
+    if (sampled) scaleReach(deal, 1 - p, nO, childOpp);
+    zeroWithCard(e.players[1 - p], card, childOpp);
+    recurse(e.children[start + c], childOpp, childValues);
+    zeroWithCard(self, card, childValues);
+    const float w = e.childWeight[start + c];
+    for (int i = 0; i < nS; i++) out[i] += w * childValues[i];
   }
-
-  // Decision node.
-  const int actor = t;  // kDecisionP1 = 0, kDecisionP2 = 1
-  const int nA = actor == 0 ? n1 : n2, nO = actor == 0 ? n2 : n1;
-  const float* rA = actor == 0 ? r1 : r2;
-  const float* rO = actor == 0 ? r2 : r1;
-  float* vA = actor == 0 ? v1 : v2;
-  float* vO = actor == 0 ? v2 : v1;
-  float* regret = e.regret.data() + e.storage[node];
-
-  float* sigma = arenaOf(e).take(static_cast<size_t>(count) * nA);
-  float* actionValues = arenaOf(e).take(static_cast<size_t>(count) * nA);
-  float* childReach = arenaOf(e).take(nA);
-  float* otherValues = arenaOf(e).take(nO);
-  regretMatch(regret, count, nA, sigma, childReach);
-
-  std::fill(vA, vA + nA, 0.0f);
-  std::fill(vO, vO + nO, 0.0f);
-  for (int a = 0; a < count; a++) {
-    const float* s = sigma + static_cast<size_t>(a) * nA;
-    float* av = actionValues + static_cast<size_t>(a) * nA;
-    for (int i = 0; i < nA; i++) childReach[i] = rA[i] * s[i];
-    if (actor == 0) solveNode(e, e.children[start + a], childReach, rO, av, otherValues, update);
-    else solveNode(e, e.children[start + a], rO, childReach, otherValues, av, update);
-    for (int j = 0; j < nO; j++) vO[j] += otherValues[j];
-    for (int i = 0; i < nA; i++) vA[i] += s[i] * av[i];
-  }
-
-  if (update) {
-    float* sum = e.stratSum.data() + e.storage[node];
-    const float pos = update->positiveDiscount, weight = update->strategyWeight;
-    for (int a = 0; a < count; a++) {
-      float* r = regret + static_cast<size_t>(a) * nA;
-      float* ss = sum + static_cast<size_t>(a) * nA;
-      const float* av = actionValues + static_cast<size_t>(a) * nA;
-      const float* s = sigma + static_cast<size_t>(a) * nA;
-      for (int i = 0; i < nA; i++) {
-        const float x = r[i] + av[i] - vA[i];
-        r[i] = x * (x > 0 ? pos : kNegativeRegretDiscount);
-        ss[i] += weight * rA[i] * s[i];
-      }
-    }
-  }
+  if (sampled) normalizeValues(deal, p, nS, out);
   arenaOf(e).top = mark;
 }
 
@@ -459,30 +400,14 @@ void evaluateNode(Engine& e, int node, int p, bool bestResponse, const float* op
   const int nS = self.n, nO = e.players[1 - p].n;
   if (t == kFold || t == kShowdownTable || t == kShowdownRiver) return terminalValues(e, node, p, oppReach, out);
 
-  const size_t mark = arenaOf(e).top;
-  const int start = e.childStart[node], count = e.childCount[node];
-
   if (t == kChance) {
-    const bool sampled = e.aux[node] == 1;
-    const SampledDeal deal = sampled ? sampledDeal(e, node) : SampledDeal{};
-    float* childOpp = arenaOf(e).take(nO);
-    float* childValues = arenaOf(e).take(nS);
-    std::fill(out, out + nS, 0.0f);
-    for (int c = 0; c < count; c++) {
-      const uint8_t card = e.childCard[start + c];
-      std::copy(oppReach, oppReach + nO, childOpp);
-      if (sampled) scaleReach(deal, 1 - p, nO, childOpp);
-      zeroWithCard(e.players[1 - p], card, childOpp);
-      evaluateNode(e, e.children[start + c], p, bestResponse, childOpp, childValues);
-      zeroWithCard(self, card, childValues);
-      const float w = e.childWeight[start + c];
-      for (int i = 0; i < nS; i++) out[i] += w * childValues[i];
-    }
-    if (sampled) normalizeValues(deal, p, nS, out);
-    arenaOf(e).top = mark;
-    return;
+    return dealChance(e, node, p, oppReach, out, [&e, p, bestResponse](int child, const float* reach, float* values) {
+      evaluateNode(e, child, p, bestResponse, reach, values);
+    });
   }
 
+  const size_t mark = arenaOf(e).top;
+  const int start = e.childStart[node], count = e.childCount[node];
   const int actor = t;
   const int nA = e.players[actor].n;
   float* sigma = arenaOf(e).take(static_cast<size_t>(count) * nA);
@@ -505,6 +430,74 @@ void evaluateNode(Engine& e, int node, int p, bool bestResponse, const float* op
       const float* s = sigma + static_cast<size_t>(a) * nO;
       for (int j = 0; j < nO; j++) scratch[j] = oppReach[j] * s[j];
       evaluateNode(e, e.children[start + a], p, bestResponse, scratch, childValues);
+      for (int i = 0; i < nS; i++) out[i] += childValues[i];
+    }
+  }
+  arenaOf(e).top = mark;
+}
+
+/** Regret update at a node whose player just got `actionValues` ([action * n + combo]) and `values` from sigma. */
+void updateRegrets(float* regret, const float* actionValues, const float* values, int actions, int n, const Update& update) {
+  for (int a = 0; a < actions; a++) {
+    float* r = regret + static_cast<size_t>(a) * n;
+    const float* av = actionValues + static_cast<size_t>(a) * n;
+    for (int i = 0; i < n; i++) {
+      const float x = r[i] + av[i] - values[i];
+      r[i] = x * (x > 0 ? update.positiveDiscount : kNegativeRegretDiscount);
+    }
+  }
+}
+
+/** The opponent's strategy this iteration into their average, `reach` being their reach into the node. */
+void addToAverage(float* sum, const float* sigma, const float* reach, int actions, int n, const Update& update) {
+  for (int a = 0; a < actions; a++) {
+    float* ss = sum + static_cast<size_t>(a) * n;
+    const float* s = sigma + static_cast<size_t>(a) * n;
+    for (int i = 0; i < n; i++) ss[i] += update.strategyWeight * reach[i] * s[i];
+  }
+}
+
+/**
+ * One player's half of an alternating iteration: p's counterfactual values
+ * against the opponent's current strategy, updating p's regrets and the
+ * opponent's average. Only p's values and the opponent's reach are needed, so
+ * a traversal costs about half of computing both, and each player responds to
+ * the other's newest regrets.
+ */
+void cfrNode(Engine& e, int node, int p, const float* oppReach, float* out, const Update& update) {
+  const uint8_t t = e.type[node];
+  if (t == kFold || t == kShowdownTable || t == kShowdownRiver) return terminalValues(e, node, p, oppReach, out);
+  if (t == kChance) {
+    return dealChance(e, node, p, oppReach, out, [&e, p, &update](int child, const float* reach, float* values) {
+      cfrNode(e, child, p, reach, values, update);
+    });
+  }
+
+  const size_t mark = arenaOf(e).top;
+  const int start = e.childStart[node], count = e.childCount[node];
+  const int nS = e.players[p].n, nA = e.players[t].n;
+  float* regret = e.regret.data() + e.storage[node];
+  float* sigma = arenaOf(e).take(static_cast<size_t>(count) * nA);
+  float* scratch = arenaOf(e).take(std::max(nA, nS));
+  regretMatch(regret, count, nA, sigma, scratch);
+  std::fill(out, out + nS, 0.0f);
+
+  if (t == p) {
+    float* actionValues = arenaOf(e).take(static_cast<size_t>(count) * nS);
+    for (int a = 0; a < count; a++) {
+      const float* s = sigma + static_cast<size_t>(a) * nS;
+      float* av = actionValues + static_cast<size_t>(a) * nS;
+      cfrNode(e, e.children[start + a], p, oppReach, av, update);
+      for (int i = 0; i < nS; i++) out[i] += s[i] * av[i];
+    }
+    updateRegrets(regret, actionValues, out, count, nS, update);
+  } else {
+    addToAverage(e.stratSum.data() + e.storage[node], sigma, oppReach, count, nA, update);
+    float* childValues = arenaOf(e).take(nS);
+    for (int a = 0; a < count; a++) {
+      const float* s = sigma + static_cast<size_t>(a) * nA;
+      for (int j = 0; j < nA; j++) scratch[j] = oppReach[j] * s[j];
+      cfrNode(e, e.children[start + a], p, scratch, childValues, update);
       for (int i = 0; i < nS; i++) out[i] += childValues[i];
     }
   }
@@ -558,11 +551,10 @@ void trunkStrategy(const Engine& e, int node, int count, int n, float* sigma, fl
   }
 }
 
-/** Trunk half of solveNode, going down: strategies and reaches at every trunk node; each leaf's reaches into exchangeIn. */
-void trunkForward(Engine& e, int node, const float* r1, const float* r2) {
-  const int n1 = e.players[0].n, n2 = e.players[1].n;
-  std::copy(r1, r1 + n1, trunkReach(e, node, 0));
-  std::copy(r2, r2 + n2, trunkReach(e, node, 1));
+/** Trunk half of cfrNode, going down: strategies and opponent reach at every trunk node; each leaf's opponent reach into exchangeIn. */
+void trunkForward(Engine& e, int node, int p, const float* oppReach) {
+  const int o = 1 - p, nO = e.players[o].n;
+  std::copy(oppReach, oppReach + nO, trunkReach(e, node, o));
   const uint8_t t = e.type[node];
   if (isTerminal(t)) return;
   const size_t mark = arenaOf(e).top;
@@ -572,100 +564,75 @@ void trunkForward(Engine& e, int node, const float* r1, const float* r2) {
     const bool sampled = e.aux[node] == 1;
     const SampledDeal deal = sampled ? sampledDeal(e, node) : SampledDeal{};
     for (int c = 0; c < count; c++) {
-      const uint8_t card = e.childCard[start + c];
       float* in = leafIn(e, e.split.leafSlot[e.children[start + c]]);
-      std::copy(r1, r1 + n1, in);
-      std::copy(r2, r2 + n2, in + n1);
-      if (sampled) {
-        scaleReach(deal, 0, n1, in);
-        scaleReach(deal, 1, n2, in + n1);
-      }
-      zeroWithCard(e.players[0], card, in);
-      zeroWithCard(e.players[1], card, in + n1);
+      std::copy(oppReach, oppReach + nO, in);
+      if (sampled) scaleReach(deal, o, nO, in);
+      zeroWithCard(e.players[o], e.childCard[start + c], in);
     }
     arenaOf(e).top = mark;
     return;
   }
 
-  const int actor = t;
-  const int nA = e.players[actor].n;
+  const int nA = e.players[t].n;
   float* sigma = e.split.sigma.data() + e.split.sigmaOffset[e.split.trunkIndex[node]];
-  float* childReach = arenaOf(e).take(nA);
+  float* scratch = arenaOf(e).take(nA);
   if (isLocked(e, node)) std::copy(lockedSigma(e, node), lockedSigma(e, node) + static_cast<size_t>(count) * nA, sigma);
-  else regretMatch(e.regret.data() + e.storage[node], count, nA, sigma, childReach);
-  const float* rA = actor == 0 ? r1 : r2;
+  else regretMatch(e.regret.data() + e.storage[node], count, nA, sigma, scratch);
   for (int a = 0; a < count; a++) {
-    const float* s = sigma + static_cast<size_t>(a) * nA;
-    for (int i = 0; i < nA; i++) childReach[i] = rA[i] * s[i];
-    if (actor == 0) trunkForward(e, e.children[start + a], childReach, r2);
-    else trunkForward(e, e.children[start + a], r1, childReach);
+    if (t == p) {
+      trunkForward(e, e.children[start + a], p, oppReach);
+    } else {
+      const float* s = sigma + static_cast<size_t>(a) * nA;
+      for (int j = 0; j < nA; j++) scratch[j] = oppReach[j] * s[j];
+      trunkForward(e, e.children[start + a], p, scratch);
+    }
   }
   arenaOf(e).top = mark;
 }
 
-/** Trunk half of solveNode, coming back up: leaf values from exchangeOut, regret and average updates on the trunk. */
-void trunkBackward(Engine& e, int node, float* v1, float* v2, const Update& update) {
-  const int n1 = e.players[0].n, n2 = e.players[1].n;
+/** Trunk half of cfrNode, coming back up: leaf values from exchangeOut, p's regrets and the opponent's average on the trunk. */
+void trunkBackward(Engine& e, int node, int p, float* out, const Update& update) {
+  const Player& self = e.players[p];
+  const int nS = self.n;
   const uint8_t t = e.type[node];
-  if (isTerminal(t)) {
-    terminalValues(e, node, 0, trunkReach(e, node, 1), v1);
-    terminalValues(e, node, 1, trunkReach(e, node, 0), v2);
-    return;
-  }
+  const float* oppReach = trunkReach(e, node, 1 - p);
+  if (isTerminal(t)) return terminalValues(e, node, p, oppReach, out);
   const size_t mark = arenaOf(e).top;
   const int start = e.childStart[node], count = e.childCount[node];
 
   if (t == kChance) {
     const bool sampled = e.aux[node] == 1;
     const SampledDeal deal = sampled ? sampledDeal(e, node) : SampledDeal{};
-    std::fill(v1, v1 + n1, 0.0f);
-    std::fill(v2, v2 + n2, 0.0f);
+    std::fill(out, out + nS, 0.0f);
     for (int c = 0; c < count; c++) {
-      const uint8_t card = e.childCard[start + c];
+      float* values = leafOut(e, e.split.leafSlot[e.children[start + c]]);
+      zeroWithCard(self, e.childCard[start + c], values);
       const float w = e.childWeight[start + c];
-      float* out = leafOut(e, e.split.leafSlot[e.children[start + c]]);
-      zeroWithCard(e.players[0], card, out);
-      zeroWithCard(e.players[1], card, out + n1);
-      for (int i = 0; i < n1; i++) v1[i] += w * out[i];
-      for (int j = 0; j < n2; j++) v2[j] += w * out[n1 + j];
+      for (int i = 0; i < nS; i++) out[i] += w * values[i];
     }
-    if (sampled) {
-      normalizeValues(deal, 0, n1, v1);
-      normalizeValues(deal, 1, n2, v2);
-    }
+    if (sampled) normalizeValues(deal, p, nS, out);
     arenaOf(e).top = mark;
     return;
   }
 
-  const int actor = t;
-  const int nA = actor == 0 ? n1 : n2, nO = actor == 0 ? n2 : n1;
-  const float* rA = trunkReach(e, node, actor);
-  float* vA = actor == 0 ? v1 : v2;
-  float* vO = actor == 0 ? v2 : v1;
+  const int nA = e.players[t].n;
   const float* sigma = e.split.sigma.data() + e.split.sigmaOffset[e.split.trunkIndex[node]];
-  float* actionValues = arenaOf(e).take(static_cast<size_t>(count) * nA);
-  float* otherValues = arenaOf(e).take(nO);
-  std::fill(vA, vA + nA, 0.0f);
-  std::fill(vO, vO + nO, 0.0f);
-  for (int a = 0; a < count; a++) {
-    const float* s = sigma + static_cast<size_t>(a) * nA;
-    float* av = actionValues + static_cast<size_t>(a) * nA;
-    if (actor == 0) trunkBackward(e, e.children[start + a], av, otherValues, update);
-    else trunkBackward(e, e.children[start + a], otherValues, av, update);
-    for (int j = 0; j < nO; j++) vO[j] += otherValues[j];
-    for (int i = 0; i < nA; i++) vA[i] += s[i] * av[i];
-  }
-  float* regret = e.regret.data() + e.storage[node];
-  float* sum = e.stratSum.data() + e.storage[node];
-  for (int a = 0; a < count; a++) {
-    float* r = regret + static_cast<size_t>(a) * nA;
-    float* ss = sum + static_cast<size_t>(a) * nA;
-    const float* av = actionValues + static_cast<size_t>(a) * nA;
-    const float* s = sigma + static_cast<size_t>(a) * nA;
-    for (int i = 0; i < nA; i++) {
-      const float x = r[i] + av[i] - vA[i];
-      r[i] = x * (x > 0 ? update.positiveDiscount : kNegativeRegretDiscount);
-      ss[i] += update.strategyWeight * rA[i] * s[i];
+  std::fill(out, out + nS, 0.0f);
+  if (t == p) {
+    float* actionValues = arenaOf(e).take(static_cast<size_t>(count) * nS);
+    for (int a = 0; a < count; a++) {
+      const float* s = sigma + static_cast<size_t>(a) * nS;
+      float* av = actionValues + static_cast<size_t>(a) * nS;
+      trunkBackward(e, e.children[start + a], p, av, update);
+      for (int i = 0; i < nS; i++) out[i] += s[i] * av[i];
+    }
+    updateRegrets(e.regret.data() + e.storage[node], actionValues, out, count, nS, update);
+  } else {
+    addToAverage(e.stratSum.data() + e.storage[node], sigma, oppReach, count, nA, update);
+    float* childValues = arenaOf(e).take(nS);
+    for (int a = 0; a < count; a++) {
+      trunkBackward(e, e.children[start + a], p, childValues, update);
+      for (int i = 0; i < nS; i++) out[i] += childValues[i];
     }
   }
   arenaOf(e).top = mark;
@@ -826,13 +793,10 @@ void forEachLeaf(Engine& e, const Work& work) {
   drain();
 }
 
-void iterateLeaf(Engine& e, int slot, int t, const Update& update) {
-  const int n1 = e.players[0].n;
-  if (isAverageResetIteration(t))
+void iterateLeaf(Engine& e, int slot, int p, int t, const Update& update) {
+  if (p == 0 && isAverageResetIteration(t))
     std::fill(e.stratSum.begin() + e.split.leafStorageBegin[slot], e.stratSum.begin() + e.split.leafStorageEnd[slot], 0.0f);
-  float* in = leafIn(e, slot);
-  float* out = leafOut(e, slot);
-  solveNode(e, e.split.leafNodes[slot], in, in + n1, out, out + n1, &update);
+  cfrNode(e, e.split.leafNodes[slot], p, leafIn(e, slot), leafOut(e, slot), update);
 }
 
 }  // namespace
@@ -993,19 +957,18 @@ void eng_lock_strategy(Engine* e, int node, const float* strategy) {
   e->split.locked[index] = 1;
 }
 
-/** Iteration t, first trunk half: writes every leaf's reaches (P1 then P2) into exchangeIn. */
-void eng_trunk_forward(Engine* e, int t) {
-  if (isAverageResetIteration(t)) std::fill(e->stratSum.begin(), e->stratSum.begin() + e->split.trunkStorageEnd, 0.0f);
-  trunkForward(*e, 0, e->players[0].weights.data(), e->players[1].weights.data());
+/** Iteration t, player p, first trunk half: writes every leaf's opponent reach into exchangeIn. */
+void eng_trunk_forward(Engine* e, int t, int p) {
+  if (p == 0 && isAverageResetIteration(t)) std::fill(e->stratSum.begin(), e->stratSum.begin() + e->split.trunkStorageEnd, 0.0f);
+  trunkForward(*e, 0, p, e->players[1 - p].weights.data());
   arenaOf(*e).top = 0;
 }
 
-/** Iteration t, second trunk half: leaf values from exchangeOut, trunk regret/average updates. */
-void eng_trunk_backward(Engine* e, int t) {
+/** Iteration t, player p, second trunk half: leaf values from exchangeOut, trunk regret/average updates. */
+void eng_trunk_backward(Engine* e, int t, int p) {
   const Update update = updateFor(t);
-  float* v1 = arenaOf(*e).take(e->players[0].n);
-  float* v2 = arenaOf(*e).take(e->players[1].n);
-  trunkBackward(*e, 0, v1, v2, update);
+  float* values = arenaOf(*e).take(e->players[p].n);
+  trunkBackward(*e, 0, p, values, update);
   arenaOf(*e).top = 0;
 }
 
@@ -1089,14 +1052,15 @@ int eng_set_threads(Engine* e, int threads) {
 /** DCFR iterations on a split engine owning the trunk and every leaf: trunk down, all leaves across the pool, trunk up. */
 void eng_iterate_parallel(Engine* e, int firstT, int count) {
   for (int t = firstT; t < firstT + count; t++) {
-    eng_trunk_forward(e, t);
     const Update update = updateFor(t);
-    forEachLeaf(*e, [e, t, &update](int slot) { iterateLeaf(*e, slot, t, update); });
-    eng_trunk_backward(e, t);
+    for (int p = 0; p < 2; p++) {
+      eng_trunk_forward(e, t, p);
+      forEachLeaf(*e, [e, p, t, &update](int slot) { iterateLeaf(*e, slot, p, t, update); });
+      eng_trunk_backward(e, t, p);
+    }
   }
 }
 
-/** eng_exploitability for a split engine, its leaves evaluated across the pool (same output layout). */
 void eng_exploitability_parallel(Engine* e, double* out) {
   const double pairs = eng_pair_mass(e);
   std::vector<float> root(std::max(e->players[0].n, e->players[1].n));
@@ -1125,13 +1089,11 @@ void eng_exploitability_parallel(Engine* e, double* out) {
 
 /** Runs DCFR iterations t = firstT .. firstT + count - 1 (t counts from 1). */
 void eng_iterate(Engine* e, int firstT, int count) {
-  const int n1 = e->players[0].n, n2 = e->players[1].n;
-  float* v1 = arenaOf(*e).take(n1);
-  float* v2 = arenaOf(*e).take(n2);
+  float* values = arenaOf(*e).take(std::max(e->players[0].n, e->players[1].n));
   for (int t = firstT; t < firstT + count; t++) {
     if (isAverageResetIteration(t)) std::fill(e->stratSum.begin(), e->stratSum.end(), 0.0f);
     const Update update = updateFor(t);
-    solveNode(*e, 0, e->players[0].weights.data(), e->players[1].weights.data(), v1, v2, &update);
+    for (int p = 0; p < 2; p++) cfrNode(*e, 0, p, e->players[1 - p].weights.data(), values, update);
   }
   arenaOf(*e).top = 0;
 }
