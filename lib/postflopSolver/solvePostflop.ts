@@ -22,8 +22,8 @@ interface PostflopSolveInputCommon {
   maxIterations: number;
   /** Stop CFR early once measured exploitability is at or below this (% of pot). Omit to disable early stopping. */
   targetExploitabilityPercent?: number;
-  /** Flop only: look ahead through the river too (FLOP_PRECISE_LOOKAHEAD), for a slower, more accurate solve. */
-  precise?: boolean;
+  /** Flop only: stop the lookahead at the turn (FLOP_FAST_LOOKAHEAD), for a quicker, less accurate solve. */
+  fast?: boolean;
 }
 
 export type PostflopSolveInput =
@@ -50,24 +50,18 @@ export type PostflopSolveInput =
 export const LOOKAHEAD_RIVER_CARDS = 12;
 
 /**
- * Turn cards a flop solve looks ahead into, and river cards under each (0: the
- * lookahead stops at the turn, which is then checked down). Against a K24×M12
- * reference (1.5–3.5 minutes on one thread) on a 251×359-combo flop, turn-only
- * K10–K16 came within 0.7–1.1% of EV (checkdown: 1.6%), but root
- * checking was still 6–10 points off; turn+river lookaheads cost 4–8× more and
- * were no closer — the fixed card sample sways them too much. K10 over K16:
- * a BTN-vs-BB flop in the browser takes 2.6s instead of 4.9s. See the plan doc.
+ * Turn cards a flop solve looks ahead into, and river cards under each.
+ * `npm run accuracy:postflop` prices each lookahead's flop strategy against a
+ * tree with every turn and river, as the pot share both players lose together
+ * (3-bet pots / SRPs, narrowed ranges): this 3.4% / 2.7%, stopping at the turn
+ * with 10 cards 4.3% / 5.2%, with 16 cards 4.4% / 4.3%, with every turn
+ * 2.7% / 3.8%. Rivers are what deep stacks need; more turn cards barely help,
+ * though no sample wins on every board. A BTN-vs-BB flop takes 2.4s in the browser.
  */
-export const FLOP_LOOKAHEAD = { turnCards: 10, riverCards: 0 };
+export const FLOP_LOOKAHEAD = { turnCards: 10, riverCards: 6 };
 
-/**
- * The opt-in slower flop lookahead. `npm run accuracy:postflop` prices each
- * lookahead's flop strategy against a tree with every turn and river: in SRPs
- * this halves FLOP_LOOKAHEAD's loss (2.7% of the pot against 5.4%), where more
- * turn cards barely help (K16 4.6%, every turn 4.1%). In narrow 3-bet pots the
- * gain is smaller (3.6% against 4.2%) and it's not better on every board.
- */
-export const FLOP_PRECISE_LOOKAHEAD = { turnCards: 10, riverCards: 6 };
+/** The opt-in quicker flop lookahead: it stops at the turn, then checks down. The same flop takes 0.7s. */
+export const FLOP_FAST_LOOKAHEAD = { turnCards: 10, riverCards: 0 };
 
 /**
  * How a street's solve looks past its own end, or null when
@@ -75,12 +69,12 @@ export const FLOP_PRECISE_LOOKAHEAD = { turnCards: 10, riverCards: 6 };
  * and the reduced LOOKAHEAD_BET_SIZING menu; each is re-solved with its full
  * menu once its card is picked.
  */
-export function lookaheadOptions(street: PostflopStreet, precise = false): HandTreeOptions | null {
+export function lookaheadOptions(street: PostflopStreet, fast = false): HandTreeOptions | null {
   if (street === "turn") {
     return { dealNextCards: (board) => stratifiedNextCards(board, LOOKAHEAD_RIVER_CARDS), laterStreetSizing: LOOKAHEAD_BET_SIZING };
   }
   if (street === "flop") {
-    const { turnCards, riverCards } = precise ? FLOP_PRECISE_LOOKAHEAD : FLOP_LOOKAHEAD;
+    const { turnCards, riverCards } = fast ? FLOP_FAST_LOOKAHEAD : FLOP_LOOKAHEAD;
     return {
       dealNextCards: (board) => stratifiedNextCards(board, board.length === 3 ? turnCards : riverCards),
       laterStreetSizing: LOOKAHEAD_BET_SIZING,
@@ -165,7 +159,7 @@ function solveWithTables(
   // Flop and turn solves look ahead past their own street (lookaheadOptions),
   // so they're solved against later play instead of checkdown equity.
   const street = streetForBoardLength(input.board.length);
-  const lookahead = lookaheadOptions(street, input.precise);
+  const lookahead = lookaheadOptions(street, input.fast);
   const tree = lookahead
     ? buildHandTree(input.startPot, input.effectiveStackBb, input.board, lookahead)
     : buildStreetTree(input.startPot, input.effectiveStackBb, street);

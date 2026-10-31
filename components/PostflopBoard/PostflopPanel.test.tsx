@@ -320,17 +320,17 @@ describe("PostflopPanel", () => {
     expect(streetBoxSummary()).toEqual([]);
   });
 
-  it("a flop solve is plain by default, precise when ticked, and only the flop offers it", async () => {
+  it("a flop solve looks ahead fully by default, stops at the turn when ticked, and only the flop offers it", async () => {
     solvePostflopInWorker.mockResolvedValue(new Promise(() => {}));
     renderPanel(20);
-    const precise = within(liveStage()).getByRole("checkbox", { name: /Precise flop/ });
-    expect(precise).not.toBeChecked();
+    const fast = within(liveStage()).getByRole("checkbox", { name: /Fast flop/ });
+    expect(fast).not.toBeChecked();
 
-    fireEvent.click(precise);
+    fireEvent.click(fast);
     pickFlopBoard();
 
-    expect(solvePostflopInWorker.mock.calls[0][0]).toMatchObject({ kind: "canonical", precise: true });
-    expect(screen.queryByRole("checkbox", { name: /Precise flop/ })).not.toBeInTheDocument();
+    expect(solvePostflopInWorker.mock.calls[0][0]).toMatchObject({ kind: "canonical", fast: true });
+    expect(screen.queryByRole("checkbox", { name: /Fast flop/ })).not.toBeInTheDocument();
   });
 
   it("a failed solve can be left: the error offers picking a different board, back to the board picker", async () => {
@@ -784,7 +784,7 @@ describe("PostflopPanel", () => {
     pickFlopBoard();
     expect(lastScrolled()).toBe(streetBox("Flop")); // solving: the new street's box
     await screen.findByRole("button", { name: "Check" });
-    expect(lastScrolled()).toBe(activeSeatBox()); // solved: the seat to act
+    await waitFor(() => expect(lastScrolled()).toBe(activeSeatBox())); // solved: the seat to act (the scroll is an effect, after the render)
 
     fireEvent.click(screen.getByRole("button", { name: "Check" }));
     expect(lastScrolled()).toBe(activeSeatBox()); // after an action: the next seat to act
@@ -795,7 +795,7 @@ describe("PostflopPanel", () => {
     fireEvent.click(screen.getByRole("button", { name: "7h" }));
     fireEvent.click(screen.getByRole("button", { name: "Solve turn" }));
     await screen.findByRole("button", { name: "Pick a different turn card" });
-    expect(lastScrolled()).toBe(activeSeatBox());
+    await waitFor(() => expect(lastScrolled()).toBe(activeSeatBox()));
     expect(timeline().at(-2)).toBe("Turn");
     scrollIntoView.mockRestore();
   });

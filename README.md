@@ -58,19 +58,19 @@ npm run test:native   # C++ 테스트 — 같은 SIMD 코드를 AddressSanitizer
 ```
 
 C++ 엔진(`native/solver/engine.cpp`)은 정규화하지 않은 반사실 가치로 카드 제거를 정확히 반영하고,
-턴·리버 카드가 나뉘는 찬스 노드를 지원한다. `lib/postflopSolver/reference/`는 같은 정의를 단순하게 옮긴
+턴·리버 카드가 나뉘는 찬스 노드를 지원하며, 두 플레이어를 번갈아 업데이트한다. `lib/postflopSolver/reference/`는 같은 정의를 단순하게 옮긴
 테스트 전용 TypeScript 구현(정답 기준)이다. 포스트플랍 솔브에는 WebAssembly SIMD가 필요하다(Chrome 91·
 Firefox 89·Safari 16.4 이상). 지원하지 않는 브라우저에는 안내 오류를 표시한다. `cfr.ts`의 TypeScript
 DCFR은 오프라인 프리플랍 생성기(`lib/preflopSolver/solveRfi.ts`)만 쓴다.
 
 플랍·턴 솔브는 다음 스트리트를 샘플 카드와 축소 메뉴로 내다보고, 카드가 정해지면 원래 메뉴로 다시 푼다.
-플랍의 "Precise flop"을 켜면 리버까지 내다본다(BTN vs BB 기준 약 2초 → 약 10초). 내다보기 솔브는 엔진 하나를
-pthread 풀이 공유하며 리프를 큐에서 가져가 푼다. 스레드에는 SharedArrayBuffer가 필요해 `next.config.ts`의
-COOP/COEP 헤더에 의존하고, 헤더가 없으면 1스레드로 돈다.
+플랍은 턴 10장×리버 6장까지 내다보고, "Fast flop"을 켜면 턴까지만 본다(BTN vs BB 기준 약 2.4초 → 약 0.7초).
+내다보기 솔브는 엔진 하나를 pthread 풀이 공유하며 리프를 큐에서 가져가 푼다. 스레드에는 SharedArrayBuffer가
+필요해 `next.config.ts`의 COOP/COEP 헤더에 의존하고, 헤더가 없으면 1스레드로 돈다.
 
 ```bash
 npm run bench:postflop     # 고정 스팟의 속도와 수렴 비교
-npm run accuracy:postflop  # 턴·리버 전체 기준 솔브 대비 내다보기 방식별 손실 (수 시간)
+npm run accuracy:postflop  # 턴·리버 전체 기준 솔브 대비 내다보기 방식별 손실 (약 30분)
 ```
 
 `accuracy:postflop`은 트리가 커서 `NODE_OPTIONS=--max-old-space-size=12000`을 함께 준다.
