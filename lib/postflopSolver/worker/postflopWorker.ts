@@ -33,7 +33,7 @@ self.onmessage = async (event: MessageEvent<PostflopSolveInMessage>) => {
             effectiveStackBb: request.effectiveStackBb,
             maxIterations: request.maxIterations,
             targetExploitabilityPercent: request.targetExploitabilityPercent,
-            precise: request.precise,
+            fast: request.fast,
           }
         : {
             kind: "combos",
