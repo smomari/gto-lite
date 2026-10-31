@@ -320,6 +320,19 @@ describe("PostflopPanel", () => {
     expect(streetBoxSummary()).toEqual([]);
   });
 
+  it("a flop solve is plain by default, precise when ticked, and only the flop offers it", async () => {
+    solvePostflopInWorker.mockResolvedValue(new Promise(() => {}));
+    renderPanel(20);
+    const precise = within(liveStage()).getByRole("checkbox", { name: /Precise flop/ });
+    expect(precise).not.toBeChecked();
+
+    fireEvent.click(precise);
+    pickFlopBoard();
+
+    expect(solvePostflopInWorker.mock.calls[0][0]).toMatchObject({ kind: "canonical", precise: true });
+    expect(screen.queryByRole("checkbox", { name: /Precise flop/ })).not.toBeInTheDocument();
+  });
+
   it("a failed solve can be left: the error offers picking a different board, back to the board picker", async () => {
     solvePostflopInWorker.mockRejectedValueOnce(new Error("solve failed"));
     renderPanel(20);

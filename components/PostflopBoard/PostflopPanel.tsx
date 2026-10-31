@@ -80,6 +80,7 @@ function idleStage(boardLength: number, effectiveStackAtStart: number): StreetSt
 export function PostflopPanel(props: PostflopPanelProps) {
   const [streets, setStreets] = useState<StreetStage[]>([idleStage(3, props.effectiveStackBb)]);
   const [preciseAvgByStage, setPreciseAvgByStage] = useState<Record<number, PreciseAvgState>>({});
+  const [preciseFlop, setPreciseFlop] = useState(false);
   const preciseAbortRef = useRef<{ stageIndex: number; controller: AbortController } | null>(null);
   const solveAbortRef = useRef(new Map<number, AbortController>());
   const [selectedHand, setSelectedHand] = useState<string | null>(null);
@@ -205,6 +206,7 @@ export function PostflopPanel(props: PostflopPanelProps) {
         effectiveStackBb: props.effectiveStackBb,
         maxIterations: DEFAULT_MAX_CFR_ITERATIONS,
         targetExploitabilityPercent: DEFAULT_TARGET_EXPLOITABILITY_PERCENT,
+        precise: preciseFlop,
       };
     } else {
       const prevStage = streets[stageIndex - 1];
@@ -546,6 +548,13 @@ export function PostflopPanel(props: PostflopPanelProps) {
             confirmLabel={`Solve ${live.streetLabel.toLowerCase()}`}
             onConfirm={(cards) => handleBoardConfirm(liveIndex, cards)}
           />
+        )}
+
+        {live.state.kind === "idle" && liveIsFlop && (
+          <label className="flex items-center gap-1.5 text-xs text-zinc-600 dark:text-zinc-400">
+            <input type="checkbox" checked={preciseFlop} onChange={(e) => setPreciseFlop(e.target.checked)} />
+            Precise flop: look ahead to the river too (slower, more accurate)
+          </label>
         )}
 
         {live.state.kind === "solving" && (

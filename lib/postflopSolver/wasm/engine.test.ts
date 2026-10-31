@@ -2,14 +2,14 @@
 import { describe, expect, it } from "vitest";
 import { ALL_HANDS } from "@/lib/handRange/handList";
 import { expandToCombos } from "../combos";
-import { buildHandTree, buildStreetTree, type DecisionNode, type PostflopTreeNode } from "../treeBuilder";
+import { buildHandTree, buildStreetTree, type ChanceNode, type DecisionNode, type PostflopTreeNode } from "../treeBuilder";
 import { LOOKAHEAD_BET_SIZING } from "../betAbstraction";
 import { stratifiedNextCards } from "../nextCardSampling";
 import { createReferenceCfr } from "../reference/referenceCfr";
 import type { ComboRange } from "../types";
 import { loadNodeSolverModule } from "./loadNode";
 import { NativeCfrEngine, runNativeCfr } from "./engine";
-import { FLOP_LOOKAHEAD, LOOKAHEAD_RIVER_CARDS, solvePostflopStreet } from "../solvePostflop";
+import { FLOP_LOOKAHEAD, FLOP_PRECISE_LOOKAHEAD, LOOKAHEAD_RIVER_CARDS, solvePostflopStreet } from "../solvePostflop";
 import { serializeTree } from "../serialize";
 
 /** A small range: the combos of a slice of hands, every `step`th one, with uneven weights. */
@@ -159,6 +159,44 @@ describe("solvePostflopStreet on the C++ engine", () => {
       const checkCheck = (root.actions[0].child as DecisionNode).actions[0].child;
       expect(checkCheck.type).toBe("chance");
       if (checkCheck.type === "chance") expect(checkCheck.children).toHaveLength(FLOP_LOOKAHEAD.turnCards);
+      expect(result.session!.nextStreetEv().size).toBeGreaterThan(0);
+    } finally {
+      result.session?.dispose();
+    }
+  });
+
+  it("go on through sampled rivers in precise mode", async () => {
+    const solver = await loadNodeSolverModule();
+    const hands = (labels: string[]) =>
+      ALL_HANDS.map((h) => ({ hand: h.hand, fold: 0, call: labels.includes(h.hand) ? 1 : 0, raise: 0 }));
+    const result = solvePostflopStreet(
+      {
+        kind: "canonical",
+        board: ["Kh", "7s", "2d"],
+        heroHandFrequencies: hands(["AA", "KK", "AKs", "QJs"]),
+        heroActionWeight: (hf) => hf.call,
+        villainHandFrequencies: hands(["77", "98s", "KQo", "A5s"]),
+        villainActionWeight: (hf) => hf.call,
+        startPot: 7.5,
+        effectiveStackBb: 20,
+        maxIterations: 3000,
+        targetExploitabilityPercent: 0.5,
+        precise: true,
+      },
+      undefined,
+      { solver },
+    );
+    try {
+      expect(result.exploitability.percentOfPot).toBeLessThanOrEqual(0.5);
+      expect(result.exploitability).toBe(result.solution.finalExploitability);
+      const root = result.tree as DecisionNode;
+      expect(result.solution.getAverageStrategy(root)).toHaveLength(result.heroRange.length);
+      // Check-check goes to FLOP_PRECISE_LOOKAHEAD.turnCards sampled turns, and check-check there to its sampled rivers.
+      const flopEnd = (root.actions[0].child as DecisionNode).actions[0].child as ChanceNode;
+      expect(flopEnd.children).toHaveLength(FLOP_PRECISE_LOOKAHEAD.turnCards);
+      const turn = flopEnd.children[0].child as DecisionNode;
+      const turnEnd = (turn.actions[0].child as DecisionNode).actions[0].child as ChanceNode;
+      expect(turnEnd.children).toHaveLength(FLOP_PRECISE_LOOKAHEAD.riverCards);
       expect(result.session!.nextStreetEv().size).toBeGreaterThan(0);
     } finally {
       result.session?.dispose();

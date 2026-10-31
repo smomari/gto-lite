@@ -22,6 +22,8 @@ export type PostflopSolveRequest =
       effectiveStackBb: number;
       maxIterations: number;
       targetExploitabilityPercent?: number;
+      /** See PostflopSolveInput's `precise` — a flop-only option, and only flops are canonical requests. */
+      precise?: boolean;
     }
   | {
       kind: "combos";

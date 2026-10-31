@@ -2,7 +2,7 @@ import { ALL_HANDS } from "../lib/handRange/handList";
 import { LOOKAHEAD_BET_SIZING } from "../lib/postflopSolver/betAbstraction";
 import { expandToCombos } from "../lib/postflopSolver/combos";
 import { stratifiedNextCards } from "../lib/postflopSolver/nextCardSampling";
-import { FLOP_LOOKAHEAD } from "../lib/postflopSolver/solvePostflop";
+import { FLOP_LOOKAHEAD, FLOP_PRECISE_LOOKAHEAD } from "../lib/postflopSolver/solvePostflop";
 import { buildHandTree, buildStreetTree, type DecisionNode, type HandTreeOptions, type PostflopTreeNode } from "../lib/postflopSolver/treeBuilder";
 import type { CfrSolution } from "../lib/postflopSolver/cfr";
 import type { ComboRange } from "../lib/postflopSolver/types";
@@ -54,7 +54,7 @@ const METHODS: { name: string; options: HandTreeOptions | null }[] = [
   { name: "checkdown", options: null },
   { name: `K${FLOP_LOOKAHEAD.turnCards} (app)`, options: sampled(FLOP_LOOKAHEAD.turnCards, FLOP_LOOKAHEAD.riverCards) },
   { name: "K16", options: sampled(16, 0) },
-  { name: "K10xM6", options: sampled(10, 6) },
+  { name: `K${FLOP_PRECISE_LOOKAHEAD.turnCards}xM${FLOP_PRECISE_LOOKAHEAD.riverCards} (precise)`, options: sampled(FLOP_PRECISE_LOOKAHEAD.turnCards, FLOP_PRECISE_LOOKAHEAD.riverCards) },
   { name: "K-all", options: { ...everyCard, lastStreet: "turn" } },
 ];
 
