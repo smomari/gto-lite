@@ -12,8 +12,9 @@ import type { ExploitabilityResult } from "../exploitability";
  * and runout equities from the exact enumeration. Only for small ranges.
  *
  * Values are unnormalized counterfactual values; chance nodes zero the combos
- * holding the dealt card; DCFR α = 1.5, β = 0, γ = 3 with the average reset at
- * 4, 16, 64, … — the same as the engine, so after the same iterations both
+ * holding the dealt card; alternating DCFR (P1, then P2 against P1's updated
+ * regrets) with α = 1.5, β = 0, γ = 3 and the average reset at 4, 16, 64, …
+ * — the same as the engine, so after the same iterations both
  * should agree up to f32 rounding.
  */
 
@@ -130,55 +131,50 @@ function childPosition(pos: Position, node: PostflopTreeNode & { type: "chance" 
   return { board: [...pos.board, card], before1: pos.before1 + node.state.committed.P1, before2: pos.before2 + node.state.committed.P2 };
 }
 
-function solve(
+/** One player's half of an iteration: `p`'s values against the opponent's current strategy, updating `p`'s regrets and the opponent's average. */
+function cfr(
   ctx: Context,
   node: PostflopTreeNode,
   pos: Position,
-  r1: number[],
-  r2: number[],
+  p: 0 | 1,
+  oppReach: number[],
   update: { positiveDiscount: number; weight: number },
-): [number[], number[]] {
-  if (node.type === "terminal-fold" || node.type === "terminal-showdown") return terminalValues(ctx, node, pos, r1, r2);
-
+): number[] {
+  const self = p === 0 ? ctx.hero : ctx.villain;
+  const opp = p === 0 ? ctx.villain : ctx.hero;
+  if (node.type === "terminal-fold" || node.type === "terminal-showdown") {
+    const zeros = self.map(() => 0);
+    return terminalValues(ctx, node, pos, p === 0 ? zeros : oppReach, p === 0 ? oppReach : zeros)[p];
+  }
   if (node.type === "chance") {
     const deal = sampledDeal(node, ctx.hero, ctx.villain);
-    const in1 = deal ? scaleIn(r1, deal.hero, deal.total) : r1;
-    const in2 = deal ? scaleIn(r2, deal.villain, deal.total) : r2;
-    const v1 = ctx.hero.map(() => 0);
-    const v2 = ctx.villain.map(() => 0);
+    const oppIn = deal ? scaleIn(oppReach, p === 0 ? deal.villain : deal.hero, deal.total) : oppReach;
+    const out = self.map(() => 0);
     for (const { card, weight, child } of node.children) {
-      const [c1, c2] = solve(ctx, child, childPosition(pos, node, card), zeroHolding(ctx.hero, in1, card), zeroHolding(ctx.villain, in2, card), update);
-      zeroHolding(ctx.hero, c1, card).forEach((x, i) => (v1[i] += weight * x));
-      zeroHolding(ctx.villain, c2, card).forEach((x, j) => (v2[j] += weight * x));
+      const values = cfr(ctx, child, childPosition(pos, node, card), p, zeroHolding(opp, oppIn, card), update);
+      zeroHolding(self, values, card).forEach((x, i) => (out[i] += weight * x));
     }
-    return deal ? [normalizeOut(v1, deal.hero), normalizeOut(v2, deal.villain)] : [v1, v2];
+    return deal ? normalizeOut(out, p === 0 ? deal.hero : deal.villain) : out;
   }
 
-  const isP1 = node.actor === "P1";
   const regret = ctx.regret.get(node)!;
   const sigma = regretMatch(regret);
-  const rA = isP1 ? r1 : r2;
-  const vA = rA.map(() => 0);
-  const vO = (isP1 ? ctx.villain : ctx.hero).map(() => 0);
-  const actionValues: number[][] = [];
-  node.actions.forEach(({ child }, a) => {
-    const childReach = rA.map((r, i) => r * sigma[i][a]);
-    const [c1, c2] = isP1 ? solve(ctx, child, pos, childReach, r2, update) : solve(ctx, child, pos, r1, childReach, update);
-    const [av, ov] = isP1 ? [c1, c2] : [c2, c1];
-    actionValues.push(av);
-    ov.forEach((x, j) => (vO[j] += x));
-    av.forEach((x, i) => (vA[i] += sigma[i][a] * x));
-  });
+  if ((node.actor === "P1" ? 0 : 1) === p) {
+    const actionValues = node.actions.map(({ child }) => cfr(ctx, child, pos, p, oppReach, update));
+    const values = self.map((_, i) => actionValues.reduce((s, v, a) => s + sigma[i][a] * v[i], 0));
+    for (let i = 0; i < self.length; i++) {
+      for (let a = 0; a < node.actions.length; a++) {
+        const x = regret[i][a] + actionValues[a][i] - values[i];
+        regret[i][a] = x * (x > 0 ? update.positiveDiscount : 0.5);
+      }
+    }
+    return values;
+  }
 
   const sum = ctx.stratSum.get(node)!;
-  for (let i = 0; i < rA.length; i++) {
-    for (let a = 0; a < node.actions.length; a++) {
-      const x = regret[i][a] + actionValues[a][i] - vA[i];
-      regret[i][a] = x * (x > 0 ? update.positiveDiscount : 0.5);
-      sum[i][a] += update.weight * rA[i] * sigma[i][a];
-    }
-  }
-  return isP1 ? [vA, vO] : [vO, vA];
+  oppReach.forEach((r, j) => node.actions.forEach((_, a) => (sum[j][a] += update.weight * r * sigma[j][a])));
+  const children = node.actions.map(({ child }, a) => cfr(ctx, child, pos, p, oppReach.map((r, j) => r * sigma[j][a]), update));
+  return self.map((_, i) => children.reduce((s, v) => s + v[i], 0));
 }
 
 /** Player `p`'s values with the opponent on the average strategy and `p` on it too, or on a best response. */
@@ -245,7 +241,9 @@ export function createReferenceCfr(tree: PostflopTreeNode, board: string[], hero
       for (let t = firstT; t < firstT + count; t++) {
         if (t > 1 && (t & (t - 1)) === 0 && Math.log2(t) % 2 === 0) for (const sum of ctx.stratSum.values()) for (const row of sum) row.fill(0);
         const tAlpha = Math.pow(t, 1.5);
-        solve(ctx, tree, root, w1, w2, { positiveDiscount: tAlpha / (tAlpha + 1), weight: Math.pow(t, 3) });
+        const update = { positiveDiscount: tAlpha / (tAlpha + 1), weight: Math.pow(t, 3) };
+        cfr(ctx, tree, root, 0, w2, update);
+        cfr(ctx, tree, root, 1, w1, update);
       }
     },
     exploitability() {
