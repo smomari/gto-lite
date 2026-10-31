@@ -23,6 +23,8 @@ interface PostflopSolveInputCommon {
   maxIterations: number;
   /** Stop CFR early once measured exploitability is at or below this (% of pot). Omit to disable early stopping. */
   targetExploitabilityPercent?: number;
+  /** Flop only: look ahead through the river too (FLOP_PRECISE_LOOKAHEAD), for a slower, more accurate solve. */
+  precise?: boolean;
 }
 
 export type PostflopSolveInput =
@@ -60,17 +62,26 @@ export const LOOKAHEAD_RIVER_CARDS = 12;
 export const FLOP_LOOKAHEAD = { turnCards: 10, riverCards: 0 };
 
 /**
+ * The opt-in slower flop lookahead. `npm run accuracy:postflop` prices each
+ * lookahead's flop strategy against a tree with every turn and river: in SRPs
+ * this halves FLOP_LOOKAHEAD's loss (2.7% of the pot against 5.4%), where more
+ * turn cards barely help (K16 4.6%, every turn 4.1%). In narrow 3-bet pots the
+ * gain is smaller (3.6% against 4.2%) and it's not better on every board.
+ */
+export const FLOP_PRECISE_LOOKAHEAD = { turnCards: 10, riverCards: 6 };
+
+/**
  * How a street's solve on the C++ engine looks past its own end, or null when
  * it doesn't (the river). Later streets get a stratified sample of their cards
  * and the reduced LOOKAHEAD_BET_SIZING menu; each is re-solved with its full
  * menu once its card is picked.
  */
-export function lookaheadOptions(street: PostflopStreet): HandTreeOptions | null {
+export function lookaheadOptions(street: PostflopStreet, precise = false): HandTreeOptions | null {
   if (street === "turn") {
     return { dealNextCards: (board) => stratifiedNextCards(board, LOOKAHEAD_RIVER_CARDS), laterStreetSizing: LOOKAHEAD_BET_SIZING };
   }
   if (street === "flop") {
-    const { turnCards, riverCards } = FLOP_LOOKAHEAD;
+    const { turnCards, riverCards } = precise ? FLOP_PRECISE_LOOKAHEAD : FLOP_LOOKAHEAD;
     return {
       dealNextCards: (board) => stratifiedNextCards(board, board.length === 3 ? turnCards : riverCards),
       laterStreetSizing: LOOKAHEAD_BET_SIZING,
@@ -163,7 +174,7 @@ function solveWithTables(
   // (lookaheadOptions), so they're solved against later play instead of
   // checkdown equity. The TypeScript engine is single-street only.
   const street = streetForBoardLength(input.board.length);
-  const lookahead = "solver" in engine ? lookaheadOptions(street) : null;
+  const lookahead = "solver" in engine ? lookaheadOptions(street, input.precise) : null;
   const tree = lookahead
     ? buildHandTree(input.startPot, input.effectiveStackBb, input.board, lookahead)
     : buildStreetTree(input.startPot, input.effectiveStackBb, street);
