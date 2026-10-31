@@ -20,14 +20,14 @@ export interface RfiExportFile {
 
 // Resolved from process.cwd() for the same reason loadEquityMatrix.ts is —
 // Next.js's bundler relocates this module's compiled output for the
-// /api/solve route, breaking any path computed relative to __dirname.
-const DEFAULT_PATH = resolve(process.cwd(), "data/preflop/rfi-100bb.json");
+// /api/solve route, breaking any path computed relative to __dirname. The path
+// stays inline in readFileSync for its file tracing, too.
 
 let cached: RfiExportFile | null = null;
 
 /** Node-only: reads the offline-generated RFI solver-export data from disk. */
-export function loadRfiExport(path: string = DEFAULT_PATH): RfiExportFile {
+export function loadRfiExport(): RfiExportFile {
   if (cached) return cached;
-  cached = JSON.parse(readFileSync(path, "utf-8")) as RfiExportFile;
+  cached = JSON.parse(readFileSync(resolve(process.cwd(), "data/preflop/rfi-100bb.json"), "utf-8")) as RfiExportFile;
   return cached;
 }

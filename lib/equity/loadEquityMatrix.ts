@@ -8,7 +8,8 @@ export type EquityMatrix = Record<string, Record<string, number>>;
 // computed relative to __dirname at runtime. process.cwd() is reliably the
 // project root under `next dev`, `next start`, and Vercel's serverless runtime,
 // same as it is when this file is loaded directly by tsx scripts or Vitest.
-const DEFAULT_PATH = resolve(process.cwd(), "data/equity/allin-equity-169x169.json");
+// The path stays inline in readFileSync so the bundler's file tracing sees exactly
+// this file — a path passed in makes it deploy the whole project with the route.
 
 let cached: EquityMatrix | null = null;
 
@@ -18,9 +19,9 @@ let cached: EquityMatrix | null = null;
  * scripts — never imported by client components, since the raw matrix does not
  * need to ship to the browser.
  */
-export function loadEquityMatrix(path: string = DEFAULT_PATH): EquityMatrix {
+export function loadEquityMatrix(): EquityMatrix {
   if (cached) return cached;
-  const raw = readFileSync(path, "utf-8");
+  const raw = readFileSync(resolve(process.cwd(), "data/equity/allin-equity-169x169.json"), "utf-8");
   cached = JSON.parse(raw) as EquityMatrix;
   return cached;
 }

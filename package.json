@@ -18,7 +18,7 @@
     "test:native": "native/test-wasm.sh"
   },
   "dependencies": {
-    "next": "16.3.3",
+    "next": "16.4.3",
     "phe": "^0.6.0",
     "react": "19.2.8",
     "react-dom": "19.2.8"
@@ -33,7 +33,7 @@
     "@types/react-dom": "^19",
     "@vitejs/plugin-react": "^6.1.0",
     "eslint": "^9",
-    "eslint-config-next": "16.3.3",
+    "eslint-config-next": "16.4.3",
     "jsdom": "^30.0.1",
     "poker-evaluator": "^2.1.1",
     "tailwindcss": "^4",
