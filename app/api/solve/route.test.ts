@@ -40,6 +40,13 @@ describe("POST /api/solve", () => {
     expect(body.code).toBe("INVALID_STACK");
   });
 
+  it("rejects a 1bb stack, where an all-in can't raise and the action never closes", async () => {
+    const res = await POST(makeRequest({ effectiveStackBb: 1, actionPath: [] }));
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.code).toBe("INVALID_STACK");
+  });
+
   it("rejects a malformed action path", async () => {
     const res = await POST(
       makeRequest({ effectiveStackBb: 100, actionPath: [{ actor: "NOTASEAT", action: "fold" }] }),
@@ -84,7 +91,7 @@ describe("POST /api/solve", () => {
     expect(utgNode.sizeBb).toBe(2.8); // OOP deep size at 100bb
     const bbNode = body.actionPath.find((n: { actor: string }) => n.actor === "BB");
     expect(bbNode.label).toBe("3bet");
-    expect(bbNode.sizeBb).toBe(8.4); // 2.8 * 3 (IP reactive)
+    expect(bbNode.sizeBb).toBe(11.2); // 2.8 * 4 (BB is OOP reacting to UTG)
     expect(body.source).toBe("heuristic-approx"); // facing a 3-bet, outside solver-export's RFI-only coverage
   });
 });

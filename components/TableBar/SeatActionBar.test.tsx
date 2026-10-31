@@ -80,6 +80,24 @@ describe("SeatActionBar", () => {
     expect(onRevisit).toHaveBeenCalledWith(4);
   });
 
+  it("shows no Allin button when the seat is facing an all-in", () => {
+    render(
+      <SeatActionBar
+        stackBb={20}
+        actionPath={[{ actor: "UTG", action: "allin", label: "allin", sizeBb: 20 }]}
+        activeSeat="UTG1"
+        availableActions={{ fold: true, call: { label: "Call", amountBb: 20 }, raise: null, allin: null }}
+        loading={false}
+        onAction={noop}
+        onRevisit={noop}
+        onQuickAction={noop}
+      />,
+    );
+    const active = screen.getAllByTestId("seat-box").find((b) => b.getAttribute("data-kind") === "active")!;
+    expect(active).toHaveTextContent("Call");
+    expect(active).not.toHaveTextContent("Allin");
+  });
+
   it("the seat row is non-wrapping and horizontally scrollable, never stacking to a new row", () => {
     const { container } = render(
       <SeatActionBar

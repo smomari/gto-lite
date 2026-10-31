@@ -87,17 +87,19 @@ function ActionButtons({ actions, onClick, compact }: ActionButtonsProps) {
           Raise {actions.raise.toBb}bb
         </button>
       )}
-      <button
-        type="button"
-        onClick={() => onClick("allin")}
-        className={`${base} ${
-          compact
-            ? "text-red-500 hover:bg-red-50 hover:text-red-700 dark:text-red-400 dark:hover:bg-red-950/30 dark:hover:text-red-300"
-            : "bg-red-100 text-red-900 hover:bg-red-200 dark:bg-red-950/50 dark:text-red-300 dark:hover:bg-red-950/70"
-        }`}
-      >
-        Allin {actions.allin.toBb}bb
-      </button>
+      {actions.allin && (
+        <button
+          type="button"
+          onClick={() => onClick("allin")}
+          className={`${base} ${
+            compact
+              ? "text-red-500 hover:bg-red-50 hover:text-red-700 dark:text-red-400 dark:hover:bg-red-950/30 dark:hover:text-red-300"
+              : "bg-red-100 text-red-900 hover:bg-red-200 dark:bg-red-950/50 dark:text-red-300 dark:hover:bg-red-950/70"
+          }`}
+        >
+          Allin {actions.allin.toBb}bb
+        </button>
+      )}
     </>
   );
 }

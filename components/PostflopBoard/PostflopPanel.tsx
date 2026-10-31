@@ -558,7 +558,20 @@ export function PostflopPanel(props: PostflopPanelProps) {
           />
         )}
 
-        {live.state.kind === "error" && <p className="text-sm text-red-600 dark:text-red-400">Error: {live.state.message}</p>}
+        {live.state.kind === "error" && (
+          <>
+            <p className="text-sm text-red-600 dark:text-red-400">Error: {live.state.message}</p>
+            <div>
+              <button
+                type="button"
+                onClick={() => handlePickDifferentBoard(liveIndex)}
+                className="text-xs text-zinc-500 underline hover:text-zinc-900 dark:hover:text-zinc-100"
+              >
+                {liveIsFlop ? "Pick a different board" : `Pick a different ${live.streetLabel.toLowerCase()} card`}
+              </button>
+            </div>
+          </>
+        )}
 
         {live.state.kind === "done" && live.currentNode && renderDoneContent(live, liveIndex, live.state, live.currentNode)}
       </div>

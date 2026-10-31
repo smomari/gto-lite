@@ -22,7 +22,8 @@ export interface AvailableActions {
   fold: true;
   call: CallOption | null;
   raise: RaiseOption | null;
-  allin: AllinOption;
+  /** Null when facing an all-in: there's nothing left to raise, so Call already puts the whole stack in. */
+  allin: AllinOption | null;
 }
 
 export interface SolveResponse extends RangeScenario {

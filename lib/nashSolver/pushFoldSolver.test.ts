@@ -96,6 +96,26 @@ describe("solvePushFold (real 20bb equity matrix — directional regression)", (
     expect(shovedCombos).toBeLessThan(1326 * 0.7);
   });
 
+  it("treats one opponent behind as the heads-up default", () => {
+    expect(solvePushFold(matrix, { effectiveStackBb: 20, opponentsBehind: 1 })).toEqual(result);
+  });
+
+  it("shoves a narrower range with more opponents left to act", () => {
+    const shovedCombos = (opponentsBehind: number) => {
+      const { shoveFrequency } = solvePushFold(matrix, { effectiveStackBb: 20, opponentsBehind });
+      return ALL_HANDS.reduce((sum, h) => sum + h.combos * (shoveFrequency.get(h.hand) ?? 0), 0);
+    };
+    expect(shovedCombos(2)).toBeLessThan(shovedCombos(1));
+    expect(shovedCombos(7)).toBeLessThan(shovedCombos(2));
+  });
+
+  it("stops at its iteration cap on a spot that cycles instead of converging", () => {
+    const cycling = solvePushFold(matrix, { effectiveStackBb: 28, opponentsBehind: 7 });
+    expect(cycling.converged).toBe(false);
+    expect(cycling.iterations).toBe(300);
+    expect(cycling.shoveFrequency.get("AA")!).toBeGreaterThan(CLEARLY_SHOVES);
+  });
+
   it("keeps every hand's frequency within [0, 1]", () => {
     for (const h of ALL_HANDS) {
       const freq = result.shoveFrequency.get(h.hand) ?? 0;

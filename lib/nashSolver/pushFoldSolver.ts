@@ -40,6 +40,8 @@ export interface PushFoldParams {
   bigBlind?: number;
   /** Single BB-posted ante covering the whole table (the modern MTT convention). */
   bbAnte?: number;
+  /** Players left to act behind the shover, each of whom can call. Default 1: heads-up. */
+  opponentsBehind?: number;
   maxIterations?: number;
 }
 
@@ -54,6 +56,13 @@ export interface PushFoldResult {
 
 const DAMPING = 0.1;
 const CONVERGENCE_EPSILON = 0.05;
+/**
+ * Spots that converge do so within about 120 iterations. A few deep ones (7 of
+ * 49 from 25–100bb) settle into a small cycle instead, where 2000 iterations
+ * were no better than 300 — about 0.3–1.2 points of total range either way —
+ * and took 4.5s, on a request path.
+ */
+const MAX_ITERATIONS = 300;
 
 /**
  * Fixed-point best-response solve for a 2-player shove/fold subgame, updating
@@ -72,6 +81,11 @@ const CONVERGENCE_EPSILON = 0.05;
  * Chip-EV only (no ICM); models the pot as both effective stacks plus the two
  * blinds and a single BB-posted ante as dead money — an accepted MVP-level
  * simplification of the exact seats/antes involved in any real hand.
+ *
+ * `opponentsBehind` is what separates UTG from the SB: the shove only takes
+ * the dead money if all of them fold. Each calls independently with the same
+ * range, and a called shove is played against one caller — multiway all-ins
+ * aren't modeled, nor do callers tighten for players still behind them.
  */
 export function solvePushFold(
   matrix: EquityMatrix,
@@ -82,7 +96,8 @@ export function solvePushFold(
     smallBlind = SMALL_BLIND_BB,
     bigBlind = BIG_BLIND_BB,
     bbAnte = BB_ANTE_BB,
-    maxIterations = 2000,
+    opponentsBehind = 1,
+    maxIterations = MAX_ITERATIONS,
   } = params;
   const deadMoney = smallBlind + bigBlind + bbAnte;
   const potIfCalled = 2 * S + deadMoney;
@@ -107,13 +122,14 @@ export function solvePushFold(
     }
 
     const callProb = rangeWeight(callRange) / TOTAL_COMBOS;
+    const allFoldProb = Math.pow(1 - callProb, opponentsBehind);
     const shoveBestResponse: FrequencyMap = new Map();
     for (const h of ALL_HANDS) {
       const ev =
         callProb === 0
           ? deadMoney
-          : (1 - callProb) * deadMoney +
-            callProb * (weightedEquityVsRange(matrix, h.hand, callRange) * potIfCalled - S);
+          : allFoldProb * deadMoney +
+            (1 - allFoldProb) * (weightedEquityVsRange(matrix, h.hand, callRange) * potIfCalled - S);
       shoveBestResponse.set(h.hand, ev > 0 ? 1 : 0);
     }
 

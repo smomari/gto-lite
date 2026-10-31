@@ -98,7 +98,32 @@ describe("replayActionPath — legal sequences", () => {
     expect(utgNodes).toHaveLength(2);
     expect(utgNodes[0].sizeBb).toBe(2.8); // UTG's own open: OOP deep size (100bb stack)
     expect(utgNodes[1].label).toBe("4bet");
-    expect(utgNodes[1].sizeBb).toBe(33.6); // BB's 3bet (2.8*3=8.4) re-raised 4x (UTG OOP vs BB) = 33.6
+    expect(utgNodes[1].sizeBb).toBe(33.6); // BB's 3bet (2.8*4=11.2, BB OOP) re-raised 3x (UTG IP vs BB) = 33.6
+  });
+
+  it("normalizes an allin facing an all-in into a call", () => {
+    const folds = ["UTG1", "LJ", "HJ", "CO", "BTN", "SB"] as const;
+    const result = replayActionPath(
+      [
+        { actor: "UTG", action: "allin" },
+        ...folds.map((actor) => ({ actor, action: "fold" as const })),
+        { actor: "BB", action: "allin" },
+      ],
+      20,
+    );
+    expect(result.status).toBe("resolved");
+    if (result.status !== "resolved") throw new Error("expected resolved");
+    expect(result.reason).toBe("action-closed");
+    const bbNode = result.canonicalActionPath.find((n) => n.actor === "BB")!;
+    expect(bbNode.action).toBe("call");
+    expect(bbNode.sizeBb).toBe(20);
+  });
+
+  it("closes the action at the minimum 2bb stack when everyone goes all-in", () => {
+    const seats = ["UTG", "UTG1", "LJ", "HJ", "CO", "BTN", "SB", "BB"] as const;
+    const result = replayActionPath(seats.map((actor) => ({ actor, action: "allin" as const })), 2);
+    expect(result.status).toBe("resolved");
+    if (result.status === "resolved") expect(result.reason).toBe("action-closed");
   });
 
   it("normalizes a raise that would collapse into an allin, rather than rejecting it", () => {

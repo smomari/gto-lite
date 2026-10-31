@@ -1,6 +1,6 @@
 import type { Position } from "@/types/rangeData";
 import type { AvailableActions } from "@/types/solveApi";
-import { seatIndex } from "@/lib/actionTree/seatOrder";
+import { postflopSeatIndex, seatIndex } from "@/lib/actionTree/seatOrder";
 import type { PotState } from "./potState";
 import {
   BIG_BLIND_BB,
@@ -53,7 +53,7 @@ export function computeRawRaiseTo(
       ? interpolateOpenRaiseBb(OPEN_RAISE_OOP_SHALLOW_BB, OPEN_RAISE_OOP_DEEP_BB, effectiveStackBb)
       : interpolateOpenRaiseBb(OPEN_RAISE_IP_SHALLOW_BB, OPEN_RAISE_IP_DEEP_BB, effectiveStackBb);
   }
-  const isIP = seatIndex(activeSeat) > seatIndex(potState.lastAggressor);
+  const isIP = postflopSeatIndex(activeSeat) > postflopSeatIndex(potState.lastAggressor);
   const multiplier = isIP ? REACTIVE_RAISE_IP_MULTIPLIER : REACTIVE_RAISE_OOP_MULTIPLIER;
   // Round for the same reason interpolateOpenRaiseBb does — now that opening
   // sizes can be non-integer bb amounts, multiplying them by an integer
@@ -88,6 +88,6 @@ export function computeAvailableActions(
     fold: true,
     call,
     raise,
-    allin: { toBb: effectiveStackBb },
+    allin: potState.currentBetToCall < effectiveStackBb ? { toBb: effectiveStackBb } : null,
   };
 }

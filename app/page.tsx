@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { StackSizeControl } from "@/components/TableBar/StackSizeControl";
 import { SeatActionBar } from "@/components/TableBar/SeatActionBar";
 import { ActionSummaryTiles } from "@/components/ActionSummaryTiles";
@@ -39,6 +39,10 @@ export default function Home() {
   // entering the flop is the response at its last decision. Only a stack
   // change invalidates these; undo/replay just looks up a different key.
   const [rangeByPathKey, setRangeByPathKey] = useState<Record<string, SolveResponse>>({});
+  const [rangeLoadFailed, setRangeLoadFailed] = useState(false);
+  // Quick-action range fetches still in flight: their keys don't include the
+  // stack, so a stack change has to cancel them or they'd land in its new map.
+  const rangeFetchesRef = useRef(new Set<AbortController>());
   const [streetBarSlot, setStreetBarSlot] = useState<HTMLDivElement | null>(null);
 
   const requestKey = JSON.stringify({ stackBb, requestPath });
@@ -78,9 +82,12 @@ export default function Home() {
   }, [stackBb, requestPath]);
 
   function handleStackChange(next: number) {
+    for (const controller of rangeFetchesRef.current) controller.abort();
+    rangeFetchesRef.current.clear();
     setStackBb(next);
     setRequestPath([]);
     setRangeByPathKey({});
+    setRangeLoadFailed(false);
   }
 
   function handleAction(action: ActionType) {
@@ -90,6 +97,7 @@ export default function Home() {
 
   function handleRevisit(globalIndex: number) {
     setRequestPath(requestPath.slice(0, globalIndex));
+    setRangeLoadFailed(false);
   }
 
   function handleQuickAction(target: Position, action: ActionType) {
@@ -100,15 +108,21 @@ export default function Home() {
     // The quick-action shortcut skips ever making `target` the active seat in
     // its own render, so its decision-point range would otherwise never be
     // captured — fetch it directly so a postflop hand-off has it, just like a
-    // seat reached one click at a time. Fire-and-forget: a failed fetch only
-    // means that range isn't available yet.
-    solveNode({ effectiveStackBb: stackBb, actionPath: prefixPath })
+    // seat reached one click at a time. Not awaited: the hand moves on, and a
+    // failed fetch only shows up if the hand-off ends up needing this range.
+    const controller = new AbortController();
+    rangeFetchesRef.current.add(controller);
+    solveNode({ effectiveStackBb: stackBb, actionPath: prefixPath }, controller.signal)
       .then((data) => {
+        if (controller.signal.aborted) return;
         if (data.heroPosition === target) {
           setRangeByPathKey((prev) => ({ ...prev, [actionPathKey(data.actionPath)]: data }));
         }
       })
-      .catch(() => {});
+      .catch(() => {
+        if (!controller.signal.aborted) setRangeLoadFailed(true);
+      })
+      .finally(() => rangeFetchesRef.current.delete(controller));
 
     setRequestPath([...prefixPath, { actor: target, action }]);
   }
@@ -179,9 +193,11 @@ export default function Home() {
 
               {current.reason === "action-closed" && (
                 <p className="text-xs text-zinc-400 dark:text-zinc-600">
-                  {handoff.liveSeats.length === 2
-                    ? "Loading both players' ranges…"
-                    : "Postflop solving needs exactly 2 live players (Phase 1 doesn't support multiway yet)."}
+                  {handoff.liveSeats.length !== 2
+                    ? "Postflop solving needs exactly 2 live players (Phase 1 doesn't support multiway yet)."
+                    : rangeLoadFailed
+                      ? "Couldn't load a player's range. Undo a seat above to try again."
+                      : "Loading both players' ranges…"}
                 </p>
               )}
             </>

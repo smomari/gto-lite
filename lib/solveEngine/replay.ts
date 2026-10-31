@@ -66,6 +66,9 @@ export function replayActionPath(
         action = "allin";
       }
     }
+    // Facing an all-in, going all-in is just calling — same chips, and only
+    // "call" has a frequency in the range this seat is drawn from.
+    if (action === "allin" && state.currentBetToCall >= effectiveStackBb) action = "call";
 
     state = applyAction(state, node.actor, action, { effectiveStackBb, raiseToBb });
 
