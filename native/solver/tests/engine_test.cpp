@@ -24,6 +24,7 @@ void eng_exploitability(Engine* e, double* out);
 void eng_node_ev(Engine* e, int node, const float* reach1, const float* reach2, double* out);
 void eng_average_strategy(Engine* e, int node, float* out);
 void eng_partition(Engine* e, int leafCount, const int32_t* leafNodes);
+void eng_lock_strategy(Engine* e, int node, const float* strategy);
 int eng_set_threads(Engine* e, int threads);
 void eng_iterate_parallel(Engine* e, int firstT, int count);
 void eng_exploitability_parallel(Engine* e, double* out);
@@ -327,7 +328,7 @@ void checkThreads() {
   t.link(p1Bets, t.add(FOLD, pot + bet, bet, 0, 0));
   t.link(p1Bets, chance(pot + 2 * bet, bet));
 
-  Tree copy = t;  // flatten() is one-shot
+  Tree copy = t, lockedTree = t;  // flatten() is one-shot
   Engine* whole = build(t, hero, villain);
   Engine* threaded = build(copy, hero, villain);
   for (int c = 0; c < 3; c++) {
@@ -350,6 +351,27 @@ void checkThreads() {
   eng_average_strategy(threaded, root, sb.data());
   CHECK(sa == sb, "root strategy differs between one thread and three");
   std::printf("  3 threads = 1 thread          exploitability %.4f%% of pot\n", b[1]);
+
+  // Locked to always checking the root: the node keeps that strategy, the
+  // best response can't leave it, and the locked player can't gain from it.
+  Engine* locked = build(lockedTree, hero, villain);
+  for (int c = 0; c < 3; c++) eng_add_river_board(locked, hs[c].data(), vs[c].data());
+  eng_partition(locked, static_cast<int>(leaves.size()), leaves.data());
+  std::vector<float> alwaysCheck(sa.size(), 0.0f);
+  for (int i = 0; i < hero.n(); i++) alwaysCheck[static_cast<size_t>(i) * 2] = 1;
+  eng_lock_strategy(locked, root, alwaysCheck.data());
+  eng_iterate_parallel(locked, 1, 3000);
+  double c[6];
+  eng_exploitability_parallel(locked, c);
+  std::vector<float> sc(sa.size());
+  eng_average_strategy(locked, root, sc.data());
+  CHECK(sc == alwaysCheck, "locked root should report the locked strategy");
+  CHECK(c[1] < 0.5, "locked game exploitability %.4f%% of pot", c[1]);
+  eng_iterate(whole, 71, 2930);
+  eng_exploitability(whole, a);
+  CHECK(c[4] < a[4] + 0.02, "locked EV %.4f above free EV %.4f", c[4], a[4]);
+  std::printf("  locked root                   EV %.4f (free %.4f), exploitability %.4f%% of pot\n", c[4], a[4], c[1]);
+  eng_destroy(locked);
   eng_destroy(whole);
   eng_destroy(threaded);
 }

@@ -48,6 +48,7 @@ export interface SolverModule {
 
   /** Split solves: eng_partition, then a pthread pool working through the leaves (threaded builds; one thread otherwise). */
   _eng_partition(engine: number, leafCount: number, leafNodes: number): void;
+  _eng_lock_strategy(engine: number, node: number, strategy: number): void;
   _eng_set_threads(engine: number, threads: number): number;
   _eng_iterate_parallel(engine: number, firstT: number, count: number): void;
   _eng_exploitability_parallel(engine: number, out: number): void;

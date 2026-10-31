@@ -88,6 +88,35 @@ describe("solveThreadedSession", () => {
     }
   });
 
+  it("plays a locked strategy, and loses nothing locked to its own equilibrium", async () => {
+    const solver = await loadNodeThreadedSolverModule(4);
+    const options = { maxIterations: 1500 };
+    const free = solveThreadedSession(solver, input, options, undefined, 4);
+    const root = tree as DecisionNode;
+    const heroNodes = trunkDecisions(tree).filter((node) => node.actor === "P1");
+    const own = solveThreadedSession(
+      solver,
+      input,
+      options,
+      undefined,
+      4,
+      heroNodes.map((node) => ({ node, strategy: free.solution.getAverageStrategy(node) })),
+    );
+    const alwaysFirstAction = hero.map(() => root.actions.map((_, a) => (a === 0 ? 1 : 0)));
+    const pure = solveThreadedSession(solver, input, options, undefined, 4, [{ node: root, strategy: alwaysFirstAction }]);
+    try {
+      const freeEv = free.solution.finalExploitability!.p1ActualBb;
+      expect(Math.abs(own.solution.finalExploitability!.p1ActualBb - freeEv)).toBeLessThan(0.05);
+      expect(pure.solution.getAverageStrategy(root)).toEqual(alwaysFirstAction);
+      expect(pure.solution.finalExploitability!.p1ActualBb).toBeLessThan(freeEv + 0.05);
+      expect(pure.solution.finalExploitability!.percentOfPot).toBeLessThan(1);
+    } finally {
+      free.dispose();
+      own.dispose();
+      pure.dispose();
+    }
+  });
+
   it("releases its threads, so a later solve can use them again", async () => {
     const solver = await loadNodeThreadedSolverModule(4);
     for (let round = 0; round < 3; round++) {
