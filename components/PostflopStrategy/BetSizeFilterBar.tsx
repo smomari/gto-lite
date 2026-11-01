@@ -1,6 +1,5 @@
 import { formatPercent } from "@/lib/format";
 import type { SerializedCombo, SerializedDecisionNode } from "@/types/postflopSolver";
-import { readableTextColor } from "./postflopColorLegend";
 
 interface BetSizeFilterBarProps {
   node: SerializedDecisionNode;
@@ -33,24 +32,35 @@ export function BetSizeFilterBar({ node, range, colors, isolatedActionIndex, onI
   const frequencies = actionFrequencies(node, range);
 
   return (
-    <div className="flex flex-wrap gap-2">
-      {node.actions.map((a, i) => {
-        const isActive = isolatedActionIndex === i;
-        const dimmed = isolatedActionIndex !== null && !isActive;
-        return (
-          <button
-            key={i}
-            type="button"
-            onClick={() => onIsolateChange(isActive ? null : i)}
-            className={`rounded px-3 py-1.5 text-sm font-medium transition pointer-coarse:min-h-9 ${dimmed ? "opacity-40" : ""} ${
-              isActive ? "ring-2 ring-emerald-500 ring-offset-1" : ""
-            }`}
-            style={{ backgroundColor: colors[i], color: readableTextColor(colors[i]) }}
-          >
-            {a.label} · {formatPercent(frequencies[i])}
-          </button>
-        );
-      })}
+    <div className="flex flex-col gap-2">
+      <div className="grid grid-cols-2 gap-1 sm:flex">
+        {node.actions.map((a, i) => {
+          const isActive = isolatedActionIndex === i;
+          const dimmed = isolatedActionIndex !== null && !isActive;
+          return (
+            <button
+              key={i}
+              type="button"
+              aria-label={`${a.label} · ${formatPercent(frequencies[i])}`}
+              onClick={() => onIsolateChange(isActive ? null : i)}
+              className={`min-w-0 flex-1 rounded-md px-2 py-1 text-left transition pointer-coarse:min-h-9 ${dimmed ? "opacity-40" : ""} ${
+                isActive ? "bg-raised shadow-[inset_0_0_0_1px_var(--color-line-strong)]" : "hover:bg-surface"
+              }`}
+            >
+              <span className="flex items-center gap-1.5 truncate text-xs text-ink-muted">
+                <span className="h-2 w-2 shrink-0 rounded-[2px]" style={{ backgroundColor: colors[i] }} />
+                {a.label}
+              </span>
+              <span className="mt-0.5 block font-mono text-xl font-medium tabular-nums text-ink">{formatPercent(frequencies[i])}</span>
+            </button>
+          );
+        })}
+      </div>
+      <div className="flex h-1 overflow-hidden rounded-[1px] bg-raised">
+        {node.actions.map((a, i) =>
+          frequencies[i] > 0 ? <div key={i} style={{ flex: `${frequencies[i]} 0 0`, backgroundColor: colors[i] }} /> : null,
+        )}
+      </div>
     </div>
   );
 }

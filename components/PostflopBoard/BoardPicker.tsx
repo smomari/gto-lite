@@ -29,7 +29,7 @@ export function BoardPicker({ count, excludedCards = [], title, confirmLabel, on
 
   return (
     <div className="flex flex-col gap-3">
-      <p className="text-sm text-zinc-500 dark:text-zinc-400">
+      <p className="text-sm text-ink-muted">
         {title} ({selected.length}/{count}).
       </p>
 
@@ -40,7 +40,7 @@ export function BoardPicker({ count, excludedCards = [], title, confirmLabel, on
       </div>
 
       {/* One row per suit (suit-outer, rank-inner) so same-suit cards line up, unlike an alphabetical rank-major list. */}
-      <div className="grid gap-px sm:gap-1" style={{ gridTemplateColumns: "repeat(13, minmax(0, 1fr))" }}>
+      <div className="grid gap-px sm:gap-1 lg:max-w-[480px]" style={{ gridTemplateColumns: "repeat(13, minmax(0, 1fr))" }}>
         {SUITS.flatMap((suit) =>
           RANKS.map((rank) => {
             const card = `${rank}${suit}`;
@@ -54,8 +54,8 @@ export function BoardPicker({ count, excludedCards = [], title, confirmLabel, on
                 disabled={isExcluded || (!isSelected && selected.length >= count)}
                 onClick={() => toggleCard(card)}
                 className={`rounded p-px transition disabled:opacity-30 sm:p-0.5 ${
-                  isSelected ? "ring-2 ring-emerald-500" : ""
-                } ${isExcluded ? "grayscale" : "hover:brightness-95 dark:hover:brightness-125"}`}
+                  isSelected ? "ring-[1.5px] ring-accent" : ""
+                } ${isExcluded ? "grayscale" : "hover:brightness-125"}`}
               >
                 <CardChip card={card} size="fluid" />
               </button>
@@ -68,7 +68,7 @@ export function BoardPicker({ count, excludedCards = [], title, confirmLabel, on
         type="button"
         disabled={selected.length !== count}
         onClick={() => onConfirm(selected)}
-        className="self-start rounded bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-40"
+        className="self-start rounded bg-accent px-3 py-1.5 text-sm font-medium text-canvas disabled:opacity-40 pointer-coarse:min-h-11"
       >
         {confirmLabel}
       </button>

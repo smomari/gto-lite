@@ -37,7 +37,7 @@ export function StackSizeControl({ value, onChange, compact }: StackSizeControlP
 
   return (
     <div className="flex flex-wrap items-center gap-3">
-      <span className="text-sm font-medium text-zinc-500 dark:text-zinc-400">Effective stack</span>
+      <span className="text-sm font-medium text-ink-muted">Effective stack</span>
       <input
         type="range"
         min={STACK_MIN_BB}
@@ -48,7 +48,7 @@ export function StackSizeControl({ value, onChange, compact }: StackSizeControlP
         className="w-48"
       />
       {numberInput}
-      <span className="text-sm text-zinc-500 dark:text-zinc-400">bb</span>
+      <span className="text-sm text-ink-muted">bb</span>
     </div>
   );
 }

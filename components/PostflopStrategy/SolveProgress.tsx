@@ -14,7 +14,7 @@ export function SolveProgress({ phase, done, total, exploitabilityPercent, targe
   if (phase === "cfr") {
     return (
       <div className="flex flex-col gap-1">
-        <div className="flex justify-between text-xs text-zinc-500 dark:text-zinc-400">
+        <div className="flex justify-between text-xs text-ink-muted">
           <span>Running CFR…</span>
           <span>
             {exploitabilityPercent !== undefined
@@ -23,8 +23,8 @@ export function SolveProgress({ phase, done, total, exploitabilityPercent, targe
             {targetExploitabilityPercent !== undefined && ` (target ${targetExploitabilityPercent.toFixed(2)}%)`}
           </span>
         </div>
-        <div className="h-1.5 w-full overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800">
-          <div className="h-full w-full animate-pulse bg-emerald-500" />
+        <div className="h-1 w-full overflow-hidden rounded-[1px] bg-raised">
+          <div className="h-full w-full animate-pulse bg-accent" />
         </div>
       </div>
     );
@@ -34,12 +34,12 @@ export function SolveProgress({ phase, done, total, exploitabilityPercent, targe
 
   return (
     <div className="flex flex-col gap-1">
-      <div className="flex justify-between text-xs text-zinc-500 dark:text-zinc-400">
+      <div className="flex justify-between text-xs text-ink-muted">
         <span>Computing showdown equities…</span>
-        <span>{pct}%</span>
+        <span className="font-mono tabular-nums">{pct}%</span>
       </div>
-      <div className="h-1.5 w-full overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800">
-        <div className="h-full bg-emerald-500 transition-all" style={{ width: `${pct}%` }} />
+      <div className="h-1 w-full overflow-hidden rounded-[1px] bg-raised">
+        <div className="h-full bg-accent transition-all" style={{ width: `${pct}%` }} />
       </div>
     </div>
   );

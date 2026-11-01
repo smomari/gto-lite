@@ -12,7 +12,7 @@ interface PostflopTerminalMessageProps {
 export function PostflopTerminalMessage({ node, heroLabel, villainLabel, showdownMessage }: PostflopTerminalMessageProps) {
   const winnerLabel = node.winner === "P1" ? heroLabel : villainLabel;
   return (
-    <p className="text-sm text-zinc-500 dark:text-zinc-400">
+    <p className="text-sm text-ink-muted">
       {node.type === "terminal-fold"
         ? `${winnerLabel} wins uncontested — pot ${node.potBb.toFixed(1)}bb.`
         : showdownMessage(node.potBb)}

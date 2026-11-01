@@ -1,4 +1,5 @@
 import { formatPercent } from "@/lib/format";
+import { readableTextColor } from "./postflopColorLegend";
 
 interface PostflopHandCellProps {
   hand: string;
@@ -29,7 +30,7 @@ export function PostflopHandCell({
   // actionFrequencies/actionLabels/colors come in least-aggressive-first
   // order (fold, check, call, bet(s), raise(s), allin — treeBuilder.ts's
   // push order); reversed so the most aggressive action's segment renders
-  // on top, matching the preflop grid.
+  // first, matching the preflop grid.
   const segments = actionFrequencies
     .map((value, i) => ({ label: actionLabels[i], value, color: colors[i] }))
     .filter((s) => s.value > 0)
@@ -40,6 +41,10 @@ export function PostflopHandCell({
     .filter((line): line is string => line !== null);
   const tooltip = inRange ? [hand, ...tooltipLines].join("\n") : `${hand}\nNot in range`;
 
+  // The label sits on whichever action fills most of the cell, unless one is isolated (a faint fill on the dark cell).
+  const dominantColor = segments.reduce((a, b) => (b.value > a.value ? b : a), { value: 0, color: "#1a1e24", label: "" }).color;
+  const labelColor = isolatedActionIndex !== null ? "#f9fafb" : readableTextColor(dominantColor);
+
   const isolatedColor = isolatedActionIndex !== null ? colors[isolatedActionIndex] : null;
   const isolatedValue = isolatedActionIndex !== null ? (actionFrequencies[isolatedActionIndex] ?? 0) : null;
 
@@ -48,14 +53,14 @@ export function PostflopHandCell({
       type="button"
       disabled={!inRange}
       onClick={onClick}
-      className={`relative h-full w-full overflow-hidden rounded-[2px] border disabled:cursor-default ${
-        isSelected ? "border-emerald-500 ring-2 ring-emerald-500" : "border-black/10 dark:border-white/10"
+      className={`relative block h-full w-full overflow-hidden rounded-[2px] disabled:cursor-default ${inRange ? "bg-raised" : "bg-sunken"} ${
+        isSelected ? "ring-[1.5px] ring-accent" : ""
       }`}
       title={tooltip}
       data-hand={hand}
       data-testid="postflop-hand-cell"
     >
-      <div className="flex h-full w-full flex-col bg-zinc-200 dark:bg-zinc-800">
+      <div className="flex h-full w-full">
         {inRange &&
           isolatedColor === null &&
           segments.map((s) => <div key={s.label} style={{ flex: `${s.value} 0 0`, backgroundColor: s.color }} />)}
@@ -68,9 +73,8 @@ export function PostflopHandCell({
         )}
       </div>
       <span
-        className={`pointer-events-none absolute inset-0 flex items-center justify-center text-[9px] font-medium sm:text-[10px] ${
-          inRange ? "text-white [text-shadow:0_1px_2px_rgb(0_0_0_/_0.7)]" : "text-zinc-400 dark:text-zinc-600"
-        }`}
+        className={`pointer-events-none absolute inset-0 flex items-center justify-center text-[9px] font-medium sm:text-[10px] ${inRange ? "" : "text-ink-faint"}`}
+        style={inRange ? { color: labelColor } : undefined}
       >
         {hand}
       </span>

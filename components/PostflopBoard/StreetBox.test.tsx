@@ -27,7 +27,7 @@ describe("StreetBox", () => {
     );
     const box = screen.getByTestId("street-box");
     expect(box).toBeDisabled();
-    expect(box.className).toContain("border-emerald-500");
+    expect(box).toHaveAttribute("data-status", "live");
     fireEvent.click(box);
     expect(onClick).not.toHaveBeenCalled();
   });

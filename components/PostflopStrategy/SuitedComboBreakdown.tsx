@@ -28,7 +28,7 @@ interface SuitedComboBreakdownProps {
 export function SuitedComboBreakdown({ selectedHand, node, range, board, colors, heroLabel, villainLabel }: SuitedComboBreakdownProps) {
   if (!selectedHand || !node) {
     return (
-      <p className="text-sm text-zinc-500 dark:text-zinc-400">Click a hand in the grid to see its live suited combos.</p>
+      <p className="text-sm text-ink-muted">Select a hand to see its live suited combos.</p>
     );
   }
 
@@ -39,7 +39,7 @@ export function SuitedComboBreakdown({ selectedHand, node, range, board, colors,
 
   if (liveCombos.length === 0) {
     return (
-      <p className="text-sm text-zinc-500 dark:text-zinc-400">All combos of {selectedHand} are blocked by the board.</p>
+      <p className="text-sm text-ink-muted">All combos of {selectedHand} are blocked by the board.</p>
     );
   }
 
@@ -48,7 +48,9 @@ export function SuitedComboBreakdown({ selectedHand, node, range, board, colors,
 
   return (
     <div className="flex flex-col gap-3">
-      <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">{selectedHand} by suit</p>
+      <p className="flex items-baseline justify-between text-base font-semibold text-ink">
+        {selectedHand} <span className="text-xs font-normal text-ink-muted">by suit</span>
+      </p>
       {liveCombos.map((combo) => {
         const key = comboKey(combo.cards);
         const idx = comboIndex.get(key);
@@ -61,19 +63,19 @@ export function SuitedComboBreakdown({ selectedHand, node, range, board, colors,
                 <CardChip card={combo.cards[1]} size="sm" />
               </div>
               {!inRange && (
-                <span className="text-xs text-zinc-400 dark:text-zinc-600">Not in {actorLabel}&apos;s range here</span>
+                <span className="text-xs text-ink-faint">Not in {actorLabel}&apos;s range here</span>
               )}
             </div>
             {inRange && idx !== undefined && (
               <>
-                <div className="flex h-3 w-full overflow-hidden rounded-sm bg-zinc-200 dark:bg-zinc-800">
+                <div className="flex h-1 w-full overflow-hidden rounded-[1px] bg-raised">
                   {node.actions.map((a, i) => {
                     const value = node.strategy[idx][i];
                     if (value <= 0) return null;
                     return <div key={a.label} style={{ flex: `${value} 0 0`, backgroundColor: colors[i] }} />;
                   })}
                 </div>
-                <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-zinc-600 dark:text-zinc-400">
+                <div className="flex flex-wrap gap-x-3 gap-y-0.5 font-mono text-xs tabular-nums text-ink-muted">
                   {node.actions.map((a, i) => {
                     const value = node.strategy[idx][i];
                     if (value <= 0) return null;

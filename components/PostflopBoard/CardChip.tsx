@@ -1,11 +1,10 @@
 const SUIT_SYMBOLS: Record<string, string> = { s: "♠", h: "♥", d: "♦", c: "♣" };
 
-/** Club deliberately uses `green-*`, not `emerald-*` — this app already uses emerald to mean "selected/confirm" (see BoardPicker's selection ring, confirm buttons), so reusing it for a suit color would make "selected" and "clubs" visually ambiguous. */
 const SUIT_COLORS: Record<string, string> = {
-  s: "bg-zinc-200 text-zinc-900 dark:bg-zinc-700 dark:text-zinc-50",
-  h: "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300",
-  d: "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300",
-  c: "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300",
+  s: "text-[#d5d8dc]",
+  h: "text-[#e27d7d]",
+  d: "text-[#7fa6e0]",
+  c: "text-[#7cc49b]",
 };
 
 const SIZE_CLASSES = {
@@ -34,7 +33,7 @@ export function CardChip({ card, size = "sm" }: CardChipProps) {
     return (
       <div
         aria-hidden
-        className={`flex flex-col items-center justify-center rounded border border-dashed border-zinc-300 dark:border-zinc-700 ${sizeClasses}`}
+        className={`flex flex-col items-center justify-center rounded border border-dashed border-line-strong ${sizeClasses}`}
       />
     );
   }
@@ -42,7 +41,7 @@ export function CardChip({ card, size = "sm" }: CardChipProps) {
   const rank = card[0];
   const suit = card[1];
   const symbol = SUIT_SYMBOLS[suit] ?? suit;
-  const colorClasses = SUIT_COLORS[suit] ?? "bg-zinc-200 text-zinc-900 dark:bg-zinc-700 dark:text-zinc-50";
+  const colorClasses = `bg-raised ring-1 ring-inset ring-line-strong ${SUIT_COLORS[suit] ?? "text-ink"}`;
 
   return (
     <div
