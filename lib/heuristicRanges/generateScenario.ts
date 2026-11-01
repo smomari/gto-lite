@@ -4,6 +4,10 @@ import type { HandFrequency } from "@/types/rangeData";
 import {
   MIX_BUFFER,
   FIRST_IN_WIDTHS_BY_STACK,
+  JAM_MIN_STACK_BB,
+  JAM_MAX_STACK_BB,
+  JAM_MAX_SHARE,
+  RAISE_KEEP_SHARE,
   BB_VS_LIMP_VALUE_WIDTH,
   BB_VS_LIMP_BLUFF_WIDTH,
   COLD_CALL_BASE,
@@ -77,6 +81,18 @@ export function openWidthFor(seatIdx: number, effectiveStackBb: number): number 
   return firstInWidth((a) => a.widths[seatIdx], effectiveStackBb);
 }
 
+function jamShareFor(effectiveStackBb: number): number {
+  const depth = (JAM_MAX_STACK_BB - effectiveStackBb) / (JAM_MAX_STACK_BB - JAM_MIN_STACK_BB);
+  return clamp(depth, 0, 1) * JAM_MAX_SHARE;
+}
+
+/** Splits a hand's raising frequency into raise and jam, per jamShareFor. Above its stacks the hand is left without an `allin` key. */
+function withJams(hand: HandFrequency, percentile: number, raiseWidth: number, effectiveStackBb: number): HandFrequency {
+  const jamShare = jamShareFor(effectiveStackBb);
+  if (jamShare === 0 || percentile <= raiseWidth * RAISE_KEEP_SHARE) return hand;
+  return { ...hand, raise: hand.raise * (1 - jamShare), allin: hand.raise * jamShare };
+}
+
 /** Opening decision: two-way, open (raise) or fold. */
 export function generateOpeningScenario(
   ranking: PercentileRanking,
@@ -87,7 +103,7 @@ export function generateOpeningScenario(
   return handFrequencies(ranking, (p) => {
     const raise = softInclude(p, threshold);
     return { fold: 1 - raise, call: 0, raise };
-  });
+  }).map((h) => withJams(h, ranking.get(h.hand) ?? 1, threshold, effectiveStackBb));
 }
 
 /** SB folded to: raises its best hands, limps most of the rest, folds the bottom. */
@@ -98,7 +114,7 @@ export function generateSbFirstInScenario(ranking: PercentileRanking, effectiveS
     const play = softInclude(p, playThreshold);
     const raise = softInclude(p, raiseThreshold);
     return { fold: 1 - play, call: play - raise, raise };
-  });
+  }).map((h) => withJams(h, ranking.get(h.hand) ?? 1, raiseThreshold, effectiveStackBb));
 }
 
 export interface FacingRaiseParams {

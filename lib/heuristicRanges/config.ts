@@ -18,6 +18,16 @@ export const FIRST_IN_WIDTHS_BY_STACK = [
   { stackBb: 40, widths: [0.16, 0.18, 0.22, 0.28, 0.36, 0.5, 0.42], sbPlay: 0.82, sbRaise: 0.24 },
   { stackBb: 100, widths: [0.13, 0.15, 0.19, 0.25, 0.32, 0.46, 0.44], sbPlay: 0.85, sbRaise: 0.1 },
 ];
+/**
+ * Between the push/fold stacks and JAM_MAX_STACK_BB, a share of each first-in
+ * raising range jams instead, growing as the stack shrinks and reaching
+ * JAM_MAX_SHARE at JAM_MIN_STACK_BB. The top RAISE_KEEP_SHARE of the range
+ * always raises: premiums want action, the middle wants the blinds.
+ */
+export const JAM_MIN_STACK_BB = 16;
+export const JAM_MAX_STACK_BB = 25;
+export const JAM_MAX_SHARE = 0.4;
+export const RAISE_KEEP_SHARE = 0.3;
 /** Share of combos BB raises over a limp. Heavier on value than a 3-bet: there are only so many suited bluffs. */
 export const BB_VS_LIMP_VALUE_WIDTH = 0.34;
 export const BB_VS_LIMP_BLUFF_WIDTH = 0.12;

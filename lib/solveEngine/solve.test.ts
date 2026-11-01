@@ -12,11 +12,14 @@ function combosWith(hands: HandFrequency[], freq: (h: HandFrequency) => number):
 }
 
 describe("solveActiveSeat", () => {
-  it("opens with raises, not shoves, above the flat Nash threshold", () => {
+  it("opens mostly with raises above the flat Nash threshold", () => {
     const result = solveActiveSeat(matrix, "BTN", initialPotState(), 20);
     expect(result.source).toBe("heuristic-approx");
-    expect(combosWith(result.hands, (h) => h.allin ?? 0)).toBe(0);
-    expect(combosWith(result.hands, (h) => h.raise) / 1326).toBeCloseTo(0.42, 1);
+    const raises = combosWith(result.hands, (h) => h.raise);
+    const jams = combosWith(result.hands, (h) => h.allin ?? 0);
+    expect(jams).toBeGreaterThan(0);
+    expect(jams).toBeLessThan(raises / 3);
+    expect((raises + jams) / 1326).toBeCloseTo(0.42, 1);
   });
 
   it("defends the BB against a button open with most of its hands, far more than the seats that don't close the action", () => {
@@ -80,8 +83,8 @@ describe("solveActiveSeat", () => {
     for (const stackBb of [20, 40, 100]) {
       const result = solveActiveSeat(matrix, "SB", foldedToSb(stackBb), stackBb);
       expect(result.source).toBe("heuristic-approx");
-      for (const h of result.hands) expect(h.fold + h.call + h.raise).toBeCloseTo(1, 6);
-      const raises = combosWith(result.hands, (h) => h.raise);
+      for (const h of result.hands) expect(h.fold + h.call + h.raise + (h.allin ?? 0)).toBeCloseTo(1, 6);
+      const raises = combosWith(result.hands, (h) => h.raise + (h.allin ?? 0));
       const limps = combosWith(result.hands, (h) => h.call);
       expect(limps).toBeGreaterThan(raises);
       expect((raises + limps) / 1326).toBeGreaterThan(0.75);
