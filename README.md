@@ -23,7 +23,7 @@ npm run dev
 - `lib/solveEngine/actionSizing.ts` — 레이즈 사이즈 자동 계산(오픈: 앞쪽 포지션 4bb/뒤쪽
   3bb, 리레이즈: 포스트플랍에서 마지막 공격자보다 뒤에 행동(IP)하면 이전 베팅의 3배, 앞(OOP)이면 4배
   — SB·BB는 항상 OOP 쪽).
-- `lib/solveEngine/classify.ts` — 스택이 얕거나(≤25bb) 팟 대비 남은 스택이 적으면 Nash
+- `lib/solveEngine/classify.ts` — 스택이 얕거나(≤15bb) 팟 대비 남은 스택이 적으면 Nash
   push/fold 솔버(`lib/nashSolver/pushFoldSolver.ts`)로, 아니면 근사 레인지 엔진
   (`lib/heuristicRanges/`)으로 라우팅.
 - `lib/equity/loadEquityMatrix.ts` — 169×169 all-in equity 매트릭스(오프라인 생성, 커밋됨)를

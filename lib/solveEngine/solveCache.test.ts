@@ -1,16 +1,16 @@
 import { describe, expect, it } from "vitest";
 import { loadEquityMatrix } from "@/lib/equity/loadEquityMatrix";
-import { computePercentileRanking } from "@/lib/equity/handStrength";
+import { computePlayabilityRanking } from "@/lib/equity/handStrength";
 import { solvePushFold } from "@/lib/nashSolver/pushFoldSolver";
-import { getPercentileRanking, getPushFoldResult } from "./solveCache";
+import { getPlayabilityRanking, getPushFoldResult } from "./solveCache";
 
 const matrix = loadEquityMatrix();
 
-describe("getPercentileRanking", () => {
+describe("getPlayabilityRanking", () => {
   it("returns the same computed ranking on repeat calls", () => {
-    const first = getPercentileRanking(matrix);
-    expect(getPercentileRanking(matrix)).toBe(first);
-    expect(first).toEqual(computePercentileRanking(matrix));
+    const first = getPlayabilityRanking(matrix);
+    expect(getPlayabilityRanking(matrix)).toBe(first);
+    expect(first).toEqual(computePlayabilityRanking(matrix));
   });
 });
 

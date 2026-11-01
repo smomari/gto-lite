@@ -1,10 +1,14 @@
-import { ALL_HANDS } from "@/lib/handRange/handList";
+import { RANKS } from "@/lib/cards";
+import { ALL_HANDS, TOTAL_COMBOS, type CanonicalHand } from "@/lib/handRange/handList";
 import type { HandFrequency } from "@/types/rangeData";
 import {
   MIX_BUFFER,
-  OPEN_THRESHOLD_MIN,
-  OPEN_THRESHOLD_MAX,
-  SB_OPEN_DISCOUNT,
+  OPEN_WIDTHS_BY_STACK,
+  COLD_CALL_BASE,
+  COLD_CALL_PER_SEAT_BEHIND,
+  COLD_CALL_OOP_MULTIPLIER,
+  THREE_BET_WIDTH_RATIO,
+  THREE_BET_VALUE_SHARE,
   BASE_CONTINUE_THRESHOLD,
   RAISE_DEPTH_TIGHTEN_FACTOR,
   IP_CONTINUE_MULTIPLIER,
@@ -50,24 +54,28 @@ function handFrequencies(
   });
 }
 
-/**
- * Opening percentile threshold for a given seat, by seat index (0=UTG..5=BTN).
- * `seatIndex === 6` (SB) is a discount off BTN's value rather than continuing
- * the linear ramp, since SB conventionally opens tighter than BTN despite
- * sitting "later" in raw seat order. BB (index 7) never opens.
- */
-function openThresholdForSeatIndex(seatIdx: number): number {
-  const btnThreshold = OPEN_THRESHOLD_MIN + (OPEN_THRESHOLD_MAX - OPEN_THRESHOLD_MIN) * (5 / 5);
-  if (seatIdx === 6) return btnThreshold * SB_OPEN_DISCOUNT;
-  if (seatIdx < 0 || seatIdx > 5) {
-    throw new Error(`openThresholdForSeatIndex: seat index ${seatIdx} cannot open`);
+/** Share of combos seat `seatIdx` (0=UTG..6=SB) opens at this stack. BB (index 7) never opens. */
+export function openWidthFor(seatIdx: number, effectiveStackBb: number): number {
+  if (seatIdx < 0 || seatIdx > 6) {
+    throw new Error(`openWidthFor: seat index ${seatIdx} cannot open`);
   }
-  return OPEN_THRESHOLD_MIN + (OPEN_THRESHOLD_MAX - OPEN_THRESHOLD_MIN) * (seatIdx / 5);
+  const anchors = OPEN_WIDTHS_BY_STACK;
+  const upperIndex = anchors.findIndex((a) => a.stackBb >= effectiveStackBb);
+  if (upperIndex === 0) return anchors[0].widths[seatIdx];
+  if (upperIndex === -1) return anchors[anchors.length - 1].widths[seatIdx];
+  const lower = anchors[upperIndex - 1];
+  const upper = anchors[upperIndex];
+  const t = (effectiveStackBb - lower.stackBb) / (upper.stackBb - lower.stackBb);
+  return lower.widths[seatIdx] + (upper.widths[seatIdx] - lower.widths[seatIdx]) * t;
 }
 
 /** Opening decision: two-way, open (raise) or fold. */
-export function generateOpeningScenario(ranking: PercentileRanking, seatIdx: number): HandFrequency[] {
-  const threshold = openThresholdForSeatIndex(seatIdx);
+export function generateOpeningScenario(
+  ranking: PercentileRanking,
+  seatIdx: number,
+  effectiveStackBb: number,
+): HandFrequency[] {
+  const threshold = openWidthFor(seatIdx, effectiveStackBb);
   return handFrequencies(ranking, (p) => {
     const raise = softInclude(p, threshold);
     return { fold: 1 - raise, call: 0, raise };
@@ -83,18 +91,33 @@ export interface FacingRaiseParams {
   potBb: number;
   /** Amount (bb) hero must add to call the current bet. */
   amountOwedBb: number;
+  /** Share of combos the last aggressor's opening seat opens. */
+  aggressorOpenWidth: number;
+  /** Seats left to act after hero; 0 means hero closes the action. */
+  seatsBehind: number;
 }
 
-function continueThresholdFor(params: FacingRaiseParams): number {
+function potOddsAdjustFor(params: FacingRaiseParams): number {
   const potOddsRatio = params.amountOwedBb / (params.potBb + params.amountOwedBb);
-  const potOddsAdjust = clamp(
-    POT_ODDS_REFERENCE_RATIO / potOddsRatio,
-    POT_ODDS_MIN_ADJUST,
-    POT_ODDS_MAX_ADJUST,
-  );
+  return clamp(POT_ODDS_REFERENCE_RATIO / potOddsRatio, POT_ODDS_MIN_ADJUST, POT_ODDS_MAX_ADJUST);
+}
+
+/** A seat that closes the action has no squeeze to fear; the others keep a share that shrinks with each seat behind. */
+function vsOpenContinueThreshold(params: FacingRaiseParams): number {
+  const seatShare =
+    params.seatsBehind === 0
+      ? 1
+      : COLD_CALL_BASE *
+        Math.pow(COLD_CALL_PER_SEAT_BEHIND, params.seatsBehind - 2) *
+        (params.isIP ? 1 : COLD_CALL_OOP_MULTIPLIER);
+  // The square root keeps a cheap call from pulling in nearly every hand: price matters less than the opener's range here.
+  return clamp(Math.sqrt(params.aggressorOpenWidth * potOddsAdjustFor(params)) * seatShare, 0.01, 0.95);
+}
+
+function vsReraiseContinueThreshold(params: FacingRaiseParams): number {
   const depthFactor = Math.pow(RAISE_DEPTH_TIGHTEN_FACTOR, params.raiseDepth - 1);
   const positionMultiplier = params.isIP ? IP_CONTINUE_MULTIPLIER : OOP_CONTINUE_MULTIPLIER;
-  return clamp(BASE_CONTINUE_THRESHOLD * depthFactor * positionMultiplier * potOddsAdjust, 0.01, 0.95);
+  return clamp(BASE_CONTINUE_THRESHOLD * depthFactor * positionMultiplier * potOddsAdjustFor(params), 0.01, 0.95);
 }
 
 function raiseFractionFor(params: FacingRaiseParams): number {
@@ -103,16 +126,52 @@ function raiseFractionFor(params: FacingRaiseParams): number {
   return clamp(RAISE_FRACTION_BASE + ipBonus - depthPenalty, RAISE_FRACTION_MIN, RAISE_FRACTION_MAX);
 }
 
+/** Suited hands with a draw to the nuts or a straight: what a 3-bet bluffs with instead of the next-best value hands. */
+function isThreeBetBluffCandidate(h: CanonicalHand): boolean {
+  if (h.type !== "suited") return false;
+  const low = RANKS.indexOf(h.rankLow);
+  return h.rankHigh === "A" ? low >= RANKS.indexOf("5") : low - RANKS.indexOf(h.rankHigh) <= 3;
+}
+
+/** Bluff frequency per hand: the best candidates outside the value range until `bluffWidth` of all combos is filled. */
+function threeBetBluffs(ranking: PercentileRanking, valueThreshold: number, bluffWidth: number): Map<string, number> {
+  const candidates = ALL_HANDS.filter(
+    (h) => isThreeBetBluffCandidate(h) && (ranking.get(h.hand) ?? 1) > valueThreshold - MIX_BUFFER / 2,
+  ).sort((a, b) => (ranking.get(a.hand) ?? 1) - (ranking.get(b.hand) ?? 1));
+  const bluffs = new Map<string, number>();
+  let combosLeft = bluffWidth * TOTAL_COMBOS;
+  for (const h of candidates) {
+    if (combosLeft <= 0) break;
+    bluffs.set(h.hand, Math.min(1, combosLeft / h.combos));
+    combosLeft -= h.combos;
+  }
+  return bluffs;
+}
+
+function generateVsOpenScenario(ranking: PercentileRanking, params: FacingRaiseParams): HandFrequency[] {
+  const continueThreshold = vsOpenContinueThreshold(params);
+  const threeBetWidth = Math.min(params.aggressorOpenWidth * THREE_BET_WIDTH_RATIO, continueThreshold);
+  const valueThreshold = threeBetWidth * THREE_BET_VALUE_SHARE;
+  const bluffs = threeBetBluffs(ranking, valueThreshold, threeBetWidth - valueThreshold);
+  return ALL_HANDS.map((h) => {
+    const percentile = ranking.get(h.hand) ?? 1;
+    const raise = Math.max(softInclude(percentile, valueThreshold), bluffs.get(h.hand) ?? 0);
+    const call = Math.max(softInclude(percentile, continueThreshold) - raise, 0);
+    return { hand: h.hand, fold: 1 - raise - call, call, raise };
+  });
+}
+
 /**
- * Facing a raise: three-way decision (fold/call/re-raise). Reused for every
- * raise depth (vs-open, vs-3bet, vs-4bet, ...) via `params.raiseDepth` rather
- * than a distinct function per named scenario.
+ * Facing a raise: three-way decision (fold/call/re-raise). An open uses the
+ * opener's width; deeper spots (vs-3bet, vs-4bet, ...) share one formula via
+ * `params.raiseDepth` rather than a distinct function per named scenario.
  */
 export function generateFacingRaiseScenario(
   ranking: PercentileRanking,
   params: FacingRaiseParams,
 ): HandFrequency[] {
-  const continueThreshold = continueThresholdFor(params);
+  if (params.raiseDepth === 1) return generateVsOpenScenario(ranking, params);
+  const continueThreshold = vsReraiseContinueThreshold(params);
   const raiseFraction = raiseFractionFor(params);
   const raiseThreshold = continueThreshold * raiseFraction;
   return handFrequencies(ranking, (p) => {

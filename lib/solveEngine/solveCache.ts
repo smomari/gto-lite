@@ -1,5 +1,5 @@
 import type { EquityMatrix } from "@/lib/equity/loadEquityMatrix";
-import { computePercentileRanking } from "@/lib/equity/handStrength";
+import { computePlayabilityRanking } from "@/lib/equity/handStrength";
 import { solvePushFold, type PushFoldResult } from "@/lib/nashSolver/pushFoldSolver";
 
 /**
@@ -11,10 +11,10 @@ import { solvePushFold, type PushFoldResult } from "@/lib/nashSolver/pushFoldSol
 const rankingByMatrix = new WeakMap<EquityMatrix, Map<string, number>>();
 const pushFoldByMatrix = new WeakMap<EquityMatrix, Map<string, PushFoldResult>>();
 
-export function getPercentileRanking(matrix: EquityMatrix): Map<string, number> {
+export function getPlayabilityRanking(matrix: EquityMatrix): Map<string, number> {
   let ranking = rankingByMatrix.get(matrix);
   if (!ranking) {
-    ranking = computePercentileRanking(matrix);
+    ranking = computePlayabilityRanking(matrix);
     rankingByMatrix.set(matrix, ranking);
   }
   return ranking;

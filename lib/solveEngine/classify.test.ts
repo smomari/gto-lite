@@ -3,7 +3,8 @@ import { shouldUseNash } from "./classify";
 
 describe("shouldUseNash", () => {
   it("always Nash at or under the flat stack threshold, regardless of pot", () => {
-    expect(shouldUseNash(25, 25, 2.5, false)).toBe(true);
+    expect(shouldUseNash(15, 15, 2.5, false)).toBe(true);
+    expect(shouldUseNash(16, 16, 2.5, false)).toBe(false);
     expect(shouldUseNash(10, 10, 2.5, false)).toBe(true);
   });
 

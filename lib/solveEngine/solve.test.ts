@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { loadEquityMatrix } from "@/lib/equity/loadEquityMatrix";
 import { HAND_BY_LABEL } from "@/lib/handRange/handList";
-import type { HandFrequency } from "@/types/rangeData";
-import { initialPotState, applyAction } from "./potState";
+import type { HandFrequency, Position } from "@/types/rangeData";
+import { initialPotState, applyAction, type PotState } from "./potState";
 import { solveActiveSeat } from "./solve";
 
 const matrix = loadEquityMatrix();
@@ -12,8 +12,30 @@ function combosWith(hands: HandFrequency[], freq: (h: HandFrequency) => number):
 }
 
 describe("solveActiveSeat", () => {
+  it("opens with raises, not shoves, above the flat Nash threshold", () => {
+    const result = solveActiveSeat(matrix, "BTN", initialPotState(), 20);
+    expect(result.source).toBe("heuristic-approx");
+    expect(combosWith(result.hands, (h) => h.allin ?? 0)).toBe(0);
+    expect(combosWith(result.hands, (h) => h.raise) / 1326).toBeCloseTo(0.42, 1);
+  });
+
+  it("defends the BB against a button open with most of its hands, far more than the seats that don't close the action", () => {
+    const state = (...seats: Position[]) =>
+      seats.reduce(
+        (s, seat) =>
+          seat === "BTN"
+            ? applyAction(s, seat, "raise", { effectiveStackBb: 40, raiseToBb: 2 })
+            : applyAction(s, seat, "fold", { effectiveStackBb: 40 }),
+        initialPotState(),
+      );
+    const fold = (seat: Position, s: PotState) => combosWith(solveActiveSeat(matrix, seat, s, 40).hands, (h) => h.fold) / 1326;
+    const toSb = state("UTG", "UTG1", "LJ", "HJ", "CO", "BTN");
+    expect(fold("BB", applyAction(toSb, "SB", "fold", { effectiveStackBb: 40 }))).toBeLessThan(0.3);
+    expect(fold("SB", toSb)).toBeGreaterThan(0.6);
+  });
+
   it("routes a shallow-stack opening spot to Nash and produces allin-only frequencies", () => {
-    const result = solveActiveSeat(matrix, "UTG", initialPotState(), 20);
+    const result = solveActiveSeat(matrix, "UTG", initialPotState(), 15);
     expect(result.source).toBe("nash-shove-fold");
     for (const h of result.hands) {
       expect(h.call).toBe(0);
