@@ -54,7 +54,7 @@ export type PostflopSolveInput =
  */
 export const FLOP_LOOKAHEAD = { turnCards: 16, riverCards: 6 };
 
-/** The opt-in quicker flop lookahead: stratified turns, then a checkdown. The same flop takes 1.3s. */
+/** The opt-in quicker flop lookahead: stratified turns, then a checkdown. The same flop takes 1.1s. */
 export const FLOP_FAST_LOOKAHEAD = { turnCards: 10, riverCards: 0 };
 
 /**
