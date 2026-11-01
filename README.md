@@ -27,6 +27,7 @@ npm run dev
 - `lib/solveEngine/classify.ts` — 스택이 얕거나(≤15bb) 팟 대비 남은 스택이 적으면 Nash
   push/fold 솔버(`lib/nashSolver/pushFoldSolver.ts`)로, 아니면 근사 레인지 엔진
   (`lib/heuristicRanges/`)으로 라우팅.
+- 16~25bb 첫 액션은 레이즈 위주이고, 스택이 얕을수록 범위 중간 핸드의 일부가 올인으로 바뀐다.
 - `lib/equity/loadEquityMatrix.ts` — 169×169 all-in equity 매트릭스(오프라인 생성, 커밋됨)를
   읽어 위 두 엔진에 공급.
 

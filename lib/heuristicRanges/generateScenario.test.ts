@@ -73,6 +73,30 @@ describe("generateOpeningScenario", () => {
   });
 });
 
+describe("first-in jams", () => {
+  const allinCombos = (hands: ReturnType<typeof generateOpeningScenario>) =>
+    hands.reduce((sum, h) => sum + (h.allin ?? 0) * (ALL_HANDS.find((a) => a.hand === h.hand)?.combos ?? 0), 0);
+
+  it("jams nothing at 25bb and more the closer the stack gets to push/fold", () => {
+    expect(allinCombos(generateOpeningScenario(ranking, 5, 25))).toBe(0);
+    expect(allinCombos(generateOpeningScenario(ranking, 5, 16))).toBeGreaterThan(allinCombos(generateOpeningScenario(ranking, 5, 20)));
+    expect(allinCombos(generateOpeningScenario(ranking, 5, 20))).toBeGreaterThan(0);
+  });
+
+  it("keeps premiums raising and leaves the frequencies summing to 1", () => {
+    const hands = generateOpeningScenario(ranking, 5, 16);
+    expect(hands.find((h) => h.hand === "AA")!.allin ?? 0).toBe(0);
+    for (const h of hands) expect(h.fold + h.call + h.raise + (h.allin ?? 0)).toBeCloseTo(1, 6);
+  });
+
+  it("applies to SB's raises too, not its limps", () => {
+    const hands = generateSbFirstInScenario(ranking, 18);
+    expect(allinCombos(hands)).toBeGreaterThan(0);
+    for (const h of hands) expect(h.fold + h.call + h.raise + (h.allin ?? 0)).toBeCloseTo(1, 6);
+    expect(hands.find((h) => h.hand === "76s")!.allin ?? 0).toBe(0);
+  });
+});
+
 describe("generateSbFirstInScenario", () => {
   it("raises the top, limps the middle, folds the bottom", () => {
     const hands = generateSbFirstInScenario(ranking, 40);
