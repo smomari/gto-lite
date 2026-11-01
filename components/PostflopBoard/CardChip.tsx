@@ -11,6 +11,8 @@ const SUIT_COLORS: Record<string, string> = {
 const SIZE_CLASSES = {
   sm: "h-9 w-7 text-xs gap-0",
   md: "h-11 w-9 text-sm gap-0.5",
+  /** `sm` on a desktop; on a small screen it fills its grid cell, so all 13 ranks fit the width. */
+  fluid: "h-9 w-7 text-xs gap-0 max-lg:aspect-[7/9] max-lg:h-auto max-lg:w-full",
 } as const;
 
 interface CardChipProps {

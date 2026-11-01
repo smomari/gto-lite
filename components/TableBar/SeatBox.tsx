@@ -47,8 +47,8 @@ interface ActionButtonsProps {
 
 function ActionButtons({ actions, onClick, compact }: ActionButtonsProps) {
   const base = compact
-    ? "rounded px-1.5 py-0.5 text-left text-xs"
-    : "rounded px-2 py-1 text-left text-xs font-medium";
+    ? "rounded px-1.5 py-0.5 text-left text-xs pointer-coarse:min-h-9"
+    : "rounded px-2 py-1 text-left text-xs font-medium pointer-coarse:min-h-9";
   return (
     <>
       {actions.fold && (

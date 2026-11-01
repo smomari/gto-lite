@@ -142,7 +142,7 @@ export default function Home() {
   const postflopActive = !!(p1 && p2);
 
   return (
-    <div className="mx-auto flex h-screen w-full max-w-6xl flex-col gap-2 overflow-hidden px-6 py-3">
+    <div className="mx-auto flex min-h-dvh w-full max-w-6xl flex-col gap-2 px-2 py-2 sm:px-4 lg:h-dvh lg:min-h-0 lg:overflow-hidden lg:px-6 lg:py-3">
       <StackSizeControl value={stackBb} onChange={handleStackChange} compact />
 
       <SeatActionBar
@@ -168,7 +168,7 @@ export default function Home() {
       )}
 
       {current?.kind === "resolved" && handoff && (
-        <div className="flex flex-1 min-h-0 flex-col gap-3">
+        <div className="flex flex-col gap-3 lg:min-h-0 lg:flex-1">
           {!postflopActive && (
             <>
               <p className="text-sm text-zinc-500 dark:text-zinc-400">
@@ -220,7 +220,7 @@ export default function Home() {
       )}
 
       {current?.kind === "success" && (
-        <section className="flex flex-1 min-h-0 flex-col gap-2 overflow-hidden">
+        <section className="flex flex-col gap-2 lg:min-h-0 lg:flex-1 lg:overflow-hidden">
           <div className="flex items-center gap-3">
             <SourceBadge source={current.data.source} />
             <span className="text-sm text-zinc-500 dark:text-zinc-400">
@@ -230,7 +230,7 @@ export default function Home() {
             </span>
           </div>
           <ActionSummaryTiles hands={current.data.hands} />
-          <div className="min-h-0 flex-1">
+          <div className="lg:min-h-0 lg:flex-1">
             <RangeGrid scenario={current.data} />
           </div>
         </section>

@@ -5,11 +5,14 @@ import { ACTION_COLORS } from "./colorLegend";
 interface HandCellProps {
   hand: string;
   frequency?: HandFrequency;
+  /** Shown as selected on small screens, where a tap stands in for the hover tooltip. */
+  isSelected: boolean;
+  onClick: () => void;
 }
 
 const FALLBACK: Omit<HandFrequency, "hand"> = { fold: 1, call: 0, raise: 0 };
 
-export function HandCell({ hand, frequency }: HandCellProps) {
+export function HandCell({ hand, frequency, isSelected, onClick }: HandCellProps) {
   const freq = frequency ?? { hand, ...FALLBACK };
   const allin = freq.allin ?? 0;
 
@@ -25,8 +28,12 @@ export function HandCell({ hand, frequency }: HandCellProps) {
   }`;
 
   return (
-    <div
-      className="relative h-full w-full overflow-hidden rounded-[2px] border border-black/10 dark:border-white/10"
+    <button
+      type="button"
+      onClick={onClick}
+      className={`relative block h-full w-full cursor-default overflow-hidden rounded-[2px] border border-black/10 dark:border-white/10 ${
+        isSelected ? "max-lg:ring-2 max-lg:ring-emerald-500" : ""
+      }`}
       title={tooltip}
       data-hand={hand}
       data-testid="hand-cell"
@@ -39,6 +46,6 @@ export function HandCell({ hand, frequency }: HandCellProps) {
       <span className="pointer-events-none absolute inset-0 flex items-center justify-center text-[9px] font-medium text-white [text-shadow:0_1px_2px_rgb(0_0_0_/_0.7)] sm:text-[10px]">
         {hand}
       </span>
-    </div>
+    </button>
   );
 }

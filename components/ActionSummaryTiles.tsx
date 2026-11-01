@@ -24,14 +24,14 @@ export function ActionSummaryTiles({ hands }: { hands: HandFrequency[] }) {
       {tiles.map((key) => (
         <div
           key={key}
-          className="min-w-[120px] flex-1 rounded-lg p-3"
+          className="min-w-0 flex-1 rounded-lg p-2 lg:min-w-[120px] lg:p-3"
           style={{ backgroundColor: `${ACTION_COLORS[key]}22` }}
         >
           <div className="text-sm font-medium" style={{ color: ACTION_COLORS[key] }}>
             {ACTION_LABELS[key]}
           </div>
-          <div className="mt-1 flex items-baseline justify-between">
-            <span className="text-2xl font-semibold text-zinc-900 dark:text-zinc-100">
+          <div className="mt-1 flex flex-wrap items-baseline justify-between gap-x-2">
+            <span className="text-xl font-semibold text-zinc-900 dark:text-zinc-100 lg:text-2xl">
               {formatPercent(combos[key] / TOTAL_COMBOS)}
             </span>
             <span className="text-xs text-zinc-500 dark:text-zinc-400">{combos[key].toFixed(1)} combos</span>

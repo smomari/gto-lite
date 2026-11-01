@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { RangeGrid } from "./RangeGrid";
 import { ALL_HANDS } from "@/lib/handRange/handList";
 import type { RangeScenario } from "@/types/rangeData";
@@ -25,6 +25,18 @@ describe("RangeGrid", () => {
   it("renders exactly 169 hand cells", () => {
     render(<RangeGrid scenario={makeScenario()} />);
     expect(screen.getAllByTestId("hand-cell")).toHaveLength(169);
+  });
+
+  it("shows a tapped hand's frequencies, and clears them on a second tap", () => {
+    render(<RangeGrid scenario={makeScenario()} />);
+    const detail = screen.getByTestId("hand-detail");
+    const aces = screen.getAllByTestId("hand-cell").find((c) => c.getAttribute("data-hand") === "AA")!;
+
+    fireEvent.click(within(aces.parentElement!).getByText("AA"));
+    expect(detail).toHaveTextContent("AA: Raise 100");
+
+    fireEvent.click(aces);
+    expect(detail).toHaveTextContent("Tap a hand for its frequencies.");
   });
 
   it("gives the raised hand a fully raise-colored bar", () => {

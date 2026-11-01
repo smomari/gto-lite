@@ -68,6 +68,7 @@ export function PostflopRangeGrid({ range, node, colors, isolatedActionIndex, se
           />
         );
       }}
+      hideLegendOnSmallScreens
     />
   );
 }
