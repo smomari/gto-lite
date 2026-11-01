@@ -3,7 +3,7 @@ import { resolve } from "node:path";
 import { ALL_HANDS } from "../lib/handRange/handList";
 import { LOOKAHEAD_BET_SIZING, streetForBoardLength } from "../lib/postflopSolver/betAbstraction";
 import { expandToCombos, filterBlockedCombos } from "../lib/postflopSolver/combos";
-import { stratifiedNextCards } from "../lib/postflopSolver/nextCardSampling";
+import { clusteredNextCards, stratifiedNextCards } from "../lib/postflopSolver/nextCardSampling";
 import { buildHandTree, buildStreetTree, dealEveryCard, type DecisionNode, type HandTreeOptions, type PostflopTreeNode } from "../lib/postflopSolver/treeBuilder";
 import type { CfrSolution } from "../lib/postflopSolver/cfr";
 import type { EquityTable } from "../lib/postflopSolver/terminalEquity";
@@ -24,10 +24,12 @@ import type { SolverModule } from "../lib/postflopSolver/wasm/solverModule";
 // that player's EV drops by, in % of the pot, is what the flop strategy costs.
 // "reference" locks the reference's own strategy: its loss is the noise floor.
 //   NODE_OPTIONS=--max-old-space-size=12000 npm run accuracy:postflop [-- --spots a,b --methods c,d]
-// A method names its turn and river cards: K10, K10xM6, Kall, K10xMall; a turn
-// spot only has rivers: M12, Mall. "checkdown" stops at the street's end. The
-// real-* spots are the app's own BTN-vs-BB ranges, weights and all; a turn one
-// narrows them by a check-check on the flop.
+// A method names its turn and river cards: K10, K10xM6, Kall, K10xMall, stratified
+// or, with C for K, clustered (the app's flop, C16xM6); a turn spot only has
+// rivers: M12, Mall. "checkdown" stops at the street's end. The
+// real-* spots are a BTN-vs-BB line with its real weights, from before the BB's
+// defense widened: at today's 704×566 combos the reference would pass WASM's
+// 4GB. A turn spot narrows them by a check-check on the flop.
 
 type HandWeights = Record<string, number>;
 
@@ -65,6 +67,9 @@ const SPOTS: Spot[] = [
   { name: "real-twotone", board: ["Jh", "Th", "5c"], ...REAL_SPOT },
   { name: "real-monotone", board: ["Ah", "9h", "4h"], ...REAL_SPOT },
   { name: "real-paired", board: ["8s", "8d", "3c"], ...REAL_SPOT },
+  { name: "real-holdout-dry", board: ["Qd", "9c", "4s"], ...REAL_SPOT },
+  { name: "real-holdout-twotone", board: ["Ts", "9s", "3h"], ...REAL_SPOT },
+  { name: "real-holdout-low", board: ["6d", "5d", "4c"], ...REAL_SPOT },
   { name: "real-turn-dry", board: ["Kh", "7s", "2d", "9c"], ...REAL_SPOT },
   { name: "real-turn-flushdraw", board: ["Kh", "7h", "2d", "4c"], ...REAL_SPOT },
   { name: "real-turn-paired", board: ["Kh", "7s", "2d", "7c"], ...REAL_SPOT },
@@ -72,18 +77,20 @@ const SPOTS: Spot[] = [
 
 const everyCard: HandTreeOptions = { laterStreetSizing: LOOKAHEAD_BET_SIZING };
 
-const FLOP_METHODS = ["checkdown", "K10", "K16", "K10xM6", "Kall"];
+const FLOP_METHODS = ["checkdown", "K10", "K10xM6", "C16xM6", "Kall"];
 const TURN_METHODS = ["checkdown", "M6", "M12", "M24"];
 
-function methodOptions(name: string): HandTreeOptions | null {
+function methodOptions(name: string, features?: (card: string) => Float32Array): HandTreeOptions | null {
   if (name === "checkdown") return null;
-  const match = /^(?:K(\d+|all))?x?(?:M(\d+|all))?$/.exec(name);
+  const match = /^(?:([KC])(\d+|all))?x?(?:M(\d+|all))?$/.exec(name);
   if (!match) throw new Error(`unknown method ${name}`);
-  const [, turns, rivers] = match;
+  const [, picker, turns, rivers] = match;
   return {
     dealNextCards: (board) => {
       const count = board.length === 3 ? turns : rivers;
-      return count === "all" ? dealEveryCard(board) : stratifiedNextCards(board, Number(count));
+      if (count === "all") return dealEveryCard(board);
+      if (board.length === 3 && picker === "C") return clusteredNextCards(board, Number(count), features!);
+      return stratifiedNextCards(board, Number(count));
     },
     laterStreetSizing: LOOKAHEAD_BET_SIZING,
     lastStreet: rivers ? "river" : "turn",
@@ -264,7 +271,8 @@ async function main() {
     console.log(["reference", "", "", "", "", "", "", "", ...losses(reference.tree, referenceStrategy), ""].join(" | "));
     for (const name of argList("--methods") ?? (isFlop ? FLOP_METHODS : TURN_METHODS)) {
       console.error(name);
-      const solved = solve(solver, tables, spot, hero, villain, methodOptions(name), APP_TARGET_PERCENT);
+      const features = runout ? (card: string) => runout.turnFeatures(card, hero, villain) : undefined;
+      const solved = solve(solver, tables, spot, hero, villain, methodOptions(name, features), APP_TARGET_PERCENT);
       const report = solved.session.solution.finalExploitability!;
       const freq = rootFrequencies(solved.tree as DecisionNode, solved.session.solution, hero);
       const freqDiff = Math.max(...freq.map((f, k) => Math.abs(f - refFreq[k])));

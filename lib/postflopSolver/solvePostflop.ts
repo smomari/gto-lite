@@ -4,7 +4,7 @@ import type { BoardCards, ComboRange } from "./types";
 import { expandToCombos, filterBlockedCombos } from "./combos";
 import { buildEquityTable, type EquityTable } from "./terminalEquity";
 import { LOOKAHEAD_BET_SIZING, streetForBoardLength, type PostflopStreet } from "./betAbstraction";
-import { stratifiedNextCards } from "./nextCardSampling";
+import { clusteredNextCards, stratifiedNextCards } from "./nextCardSampling";
 import { buildHandTree, buildStreetTree, type HandTreeOptions, type PostflopTreeNode } from "./treeBuilder";
 import type { CfrSolution } from "./cfr";
 import type { ExploitabilityResult } from "./exploitability";
@@ -43,34 +43,40 @@ export type PostflopSolveInput =
     });
 
 /**
- * Turn cards a flop solve looks ahead into, and river cards under each.
+ * Turn cards a flop solve looks ahead into, chosen for how they play against
+ * these ranges (clusteredNextCards), and stratified river cards under each.
  * `npm run accuracy:postflop` prices each lookahead's flop strategy against a
- * tree with every turn and river, as the pot share both players lose together
- * (3-bet pots / SRPs, narrowed ranges): this 3.4% / 2.7%, stopping at the turn
- * with 10 cards 4.3% / 5.2%, with 16 cards 4.4% / 4.3%, with every turn
- * 2.7% / 3.8%. Rivers are what deep stacks need; more turn cards barely help,
- * though no sample wins on every board. A BTN-vs-BB flop takes 2.4s in the browser.
+ * tree with every turn and river, as the pot share both players lose together.
+ * Against 10 stratified turns, 16 clustered ones took a BTN-vs-BB spot from
+ * 1.76% to 1.27%, narrowed SRPs from 2.65% to 2.06% and 3-bet pots from 3.44% to
+ * 2.09%, better on all 10 boards, and 3.35% to 1.59% on 3 boards held back from
+ * tuning. 12 cards made one worse. A BTN-vs-BB flop takes about 6s in the browser.
  */
-export const FLOP_LOOKAHEAD = { turnCards: 10, riverCards: 6 };
+export const FLOP_LOOKAHEAD = { turnCards: 16, riverCards: 6 };
 
-/** The opt-in quicker flop lookahead: it stops at the turn, then checks down. The same flop takes 0.7s. */
+/** The opt-in quicker flop lookahead: stratified turns, then a checkdown. The same flop takes 1.3s. */
 export const FLOP_FAST_LOOKAHEAD = { turnCards: 10, riverCards: 0 };
 
 /**
  * How a street's solve looks past its own end, or null when it doesn't (the
  * river). Later streets get the reduced LOOKAHEAD_BET_SIZING menu, and under a
- * flop a stratified sample of their cards; each is re-solved with its full menu
- * once its card is picked.
+ * flop a sample of their cards; each is re-solved with its full menu once its
+ * card is picked. `turnFeatures` lets a full flop lookahead cluster its turns.
  */
-export function lookaheadOptions(street: PostflopStreet, fast = false): HandTreeOptions | null {
+export function lookaheadOptions(street: PostflopStreet, fast = false, turnFeatures?: (card: string) => Float32Array): HandTreeOptions | null {
   if (street === "turn") {
     // Every river: on BTN-vs-BB turns it loses 0.1–0.3% of the pot against 12 sampled rivers' 1–2.5%, for about 1s.
     return { laterStreetSizing: LOOKAHEAD_BET_SIZING };
   }
   if (street === "flop") {
     const { turnCards, riverCards } = fast ? FLOP_FAST_LOOKAHEAD : FLOP_LOOKAHEAD;
+    // Every line that closes the flop deals the same turns, and choosing them is the costly part.
+    let clusteredTurns: ReturnType<typeof clusteredNextCards> | undefined;
     return {
-      dealNextCards: (board) => stratifiedNextCards(board, board.length === 3 ? turnCards : riverCards),
+      dealNextCards: (board) => {
+        if (board.length === 3 && turnFeatures && !fast) return (clusteredTurns ??= clusteredNextCards(board, turnCards, turnFeatures));
+        return stratifiedNextCards(board, board.length === 3 ? turnCards : riverCards);
+      },
       laterStreetSizing: LOOKAHEAD_BET_SIZING,
       lastStreet: riverCards > 0 ? "river" : "turn",
     };
@@ -153,7 +159,7 @@ function solveWithTables(
   // Flop and turn solves look ahead past their own street (lookaheadOptions),
   // so they're solved against later play instead of checkdown equity.
   const street = streetForBoardLength(input.board.length);
-  const lookahead = lookaheadOptions(street, input.fast);
+  const lookahead = lookaheadOptions(street, input.fast, runout ? (card) => runout.turnFeatures(card, heroRange, villainRange) : undefined);
   const tree = lookahead
     ? buildHandTree(input.startPot, input.effectiveStackBb, input.board, lookahead)
     : buildStreetTree(input.startPot, input.effectiveStackBb, street);

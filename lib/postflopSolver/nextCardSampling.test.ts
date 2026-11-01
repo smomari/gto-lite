@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { sampleNextCards, stratifiedNextCards, DEFAULT_PRECISE_SAMPLE_COUNT, MAX_PRECISE_SAMPLE_COUNT } from "./nextCardSampling";
+import { clusteredNextCards, sampleNextCards, stratifiedNextCards, DEFAULT_PRECISE_SAMPLE_COUNT, MAX_PRECISE_SAMPLE_COUNT } from "./nextCardSampling";
 
 describe("sampleNextCards", () => {
   it("returns exactly `count` cards, none overlapping the used cards", () => {
@@ -68,5 +68,43 @@ describe("stratifiedNextCards", () => {
 
   it("is deterministic", () => {
     expect(stratifiedNextCards(board, 12)).toEqual(stratifiedNextCards(board, 12));
+  });
+});
+
+describe("clusteredNextCards", () => {
+  const board = ["Kh", "7s", "2d"];
+  const rank = (card: string) => "23456789TJQKA".indexOf(card[0]);
+
+  it("weighs each card for the cards it stands for, summing like every card dealt", () => {
+    const dealt = clusteredNextCards(board, 8, (card) => Float32Array.of(rank(card)));
+    expect(dealt).toHaveLength(8);
+    expect(new Set(dealt.map((d) => d.card)).size).toBe(8);
+    expect(dealt.reduce((sum, d) => sum + d.weight, 0)).toBeCloseTo(49 / 45, 6);
+  });
+
+  it("groups cards by their features: ranks here, so no two chosen cards share one", () => {
+    const dealt = clusteredNextCards(board, 13, (card) => Float32Array.of(rank(card)));
+    expect(new Set(dealt.map((d) => d.card[0])).size).toBe(13);
+  });
+
+  it("ignores a combo that sees only one of two cards (NaN)", () => {
+    const features = (card: string) => Float32Array.of(card === "As" ? NaN : rank(card), rank(card));
+    const dealt = clusteredNextCards(board, 13, features);
+    expect(new Set(dealt.map((d) => d.card[0])).size).toBe(13);
+  });
+
+  it("keeps suits near their share of the deck, though features can't tell them apart", () => {
+    const dealt = clusteredNextCards(board, 13, (card) => Float32Array.of(rank(card)));
+    for (const suit of "shdc") expect(dealt.filter((d) => d.card[1] === suit).length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("still returns distinct cards when every card looks the same", () => {
+    const dealt = clusteredNextCards(board, 6, () => Float32Array.of(1));
+    expect(new Set(dealt.map((d) => d.card)).size).toBe(6);
+    expect(dealt.reduce((sum, d) => sum + d.weight, 0)).toBeCloseTo(49 / 45, 6);
+  });
+
+  it("deals every card when asked for at least that many", () => {
+    expect(clusteredNextCards(board, 49, () => Float32Array.of(1))).toEqual(stratifiedNextCards(board, 49));
   });
 });
