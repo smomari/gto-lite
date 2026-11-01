@@ -143,7 +143,10 @@ export default function Home() {
 
   return (
     <div className="mx-auto flex min-h-dvh w-full max-w-6xl flex-col gap-2 px-2 py-2 sm:px-4 lg:h-dvh lg:min-h-0 lg:overflow-hidden lg:px-6 lg:py-3">
-      <StackSizeControl value={stackBb} onChange={handleStackChange} compact />
+      <header className="flex items-center justify-between border-b border-line pb-2">
+        <span className="text-sm font-semibold tracking-tight text-ink">gtoLite</span>
+        <StackSizeControl value={stackBb} onChange={handleStackChange} compact />
+      </header>
 
       <SeatActionBar
         stackBb={stackBb}
@@ -221,9 +224,9 @@ export default function Home() {
 
       {current?.kind === "success" && (
         <section className="flex flex-col gap-2 lg:min-h-0 lg:flex-1 lg:overflow-hidden">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center justify-between gap-3">
             <SourceBadge source={current.data.source} />
-            <span className="text-sm text-zinc-500 dark:text-zinc-400">
+            <span className="font-mono text-xs tabular-nums text-ink-muted">
               Pot {current.data.potBb.toFixed(1)}bb
               {current.data.availableActions.call &&
                 ` · to call ${current.data.availableActions.call.amountBb.toFixed(1)}bb`}

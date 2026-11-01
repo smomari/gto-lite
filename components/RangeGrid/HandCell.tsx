@@ -27,23 +27,32 @@ export function HandCell({ hand, frequency, isSelected, onClick }: HandCellProps
     allin ? ` / All-in ${formatPercent(allin)}` : ""
   }`;
 
+  // A hand that's all fold is out of the range: let it sink so the range reads at a glance.
+  const inRange = freq.fold < 1;
+
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`relative block h-full w-full cursor-default overflow-hidden rounded-[2px] border border-black/10 dark:border-white/10 ${
-        isSelected ? "max-lg:ring-2 max-lg:ring-emerald-500" : ""
+      className={`relative block h-full w-full cursor-default overflow-hidden rounded-[2px] ${inRange ? "bg-raised" : "bg-sunken"} ${
+        isSelected ? "max-lg:ring-[1.5px] max-lg:ring-accent" : ""
       }`}
       title={tooltip}
       data-hand={hand}
       data-testid="hand-cell"
     >
-      <div className="flex h-full w-full flex-col">
-        {segments.map((s) => (
-          <div key={s.key} style={{ flex: `${s.value} 0 0`, backgroundColor: s.color }} />
-        ))}
-      </div>
-      <span className="pointer-events-none absolute inset-0 flex items-center justify-center text-[9px] font-medium text-white [text-shadow:0_1px_2px_rgb(0_0_0_/_0.7)] sm:text-[10px]">
+      {inRange && (
+        <div className="flex h-full w-full">
+          {segments.map((s) => (
+            <div key={s.key} style={{ flex: `${s.value} 0 0`, backgroundColor: s.color }} />
+          ))}
+        </div>
+      )}
+      <span
+        className={`pointer-events-none absolute inset-0 flex items-center justify-center text-[9px] font-medium sm:text-[10px] ${
+          inRange ? "text-white" : "text-ink-faint"
+        }`}
+      >
         {hand}
       </span>
     </button>

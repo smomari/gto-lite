@@ -44,7 +44,7 @@ describe("buildActionColorScale", () => {
   it("fold/check/call/allin keep their fixed type-level colors", () => {
     const actions = [action("fold", "Fold"), action("check", "Check"), action("call", "Call"), action("allin", "Allin 50bb")];
     const colors = buildActionColorScale(actions);
-    expect(colors).toEqual(["#9ca3af", "#60a5fa", "#3b82f6", "#7f1d1d"]);
+    expect(colors).toEqual(["#2a2f37", "#4f7fb8", "#3f6ca3", "#9c3a3a"]);
   });
 
   it("a single bet size still gets a valid color (no division by zero)", () => {
@@ -60,6 +60,6 @@ describe("readableTextColor", () => {
   });
 
   it("returns light text for a dark background", () => {
-    expect(readableTextColor("#7f1d1d")).toBe("#f9fafb");
+    expect(readableTextColor("#9c3a3a")).toBe("#f9fafb");
   });
 });

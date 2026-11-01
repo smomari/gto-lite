@@ -43,7 +43,7 @@ export function SeatActionBar({
   }, [activeSeat, actionPath.length, loading]);
 
   return (
-    <div ref={rowRef} className="flex flex-nowrap items-start gap-2 overflow-x-auto pb-1">
+    <div ref={rowRef} className="flex flex-nowrap items-start gap-1 overflow-x-auto border-b border-line pb-2">
       {actionPath.map((entry, globalIndex) => (
         <SeatBox
           key={`h-${globalIndex}`}

@@ -19,8 +19,8 @@ export function StackSizeControl({ value, onChange, compact }: StackSizeControlP
         const next = Math.min(STACK_MAX_BB, Math.max(STACK_MIN_BB, Number(e.target.value) || STACK_MIN_BB));
         onChange(next);
       }}
-      className={`rounded-md border border-zinc-300 bg-transparent dark:border-zinc-600 ${
-        compact ? "w-16 px-1.5 py-0.5 text-base lg:w-14 lg:text-xs" : "w-16 px-2 py-1 text-base lg:text-sm"
+      className={`rounded border border-line-strong bg-transparent font-mono tabular-nums text-ink ${
+        compact ? "w-16 px-1.5 py-0.5 text-[16px] lg:w-14 lg:text-xs" : "w-16 px-2 py-1 text-[16px] lg:text-sm"
       }`}
     />
   );
@@ -28,9 +28,9 @@ export function StackSizeControl({ value, onChange, compact }: StackSizeControlP
   if (compact) {
     return (
       <div className="flex items-center gap-1.5">
-        <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">Stack</span>
+        <span className="text-xs text-ink-muted">Stack</span>
         {numberInput}
-        <span className="text-xs text-zinc-500 dark:text-zinc-400">bb</span>
+        <span className="text-xs text-ink-muted">bb</span>
       </div>
     );
   }

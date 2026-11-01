@@ -36,10 +36,10 @@ export function HandMatrixGrid({ renderCell, legend, detail, hideLegendOnSmallSc
         {HAND_MATRIX.flatMap((row) => row.map((hand) => <Fragment key={hand}>{renderCell(hand)}</Fragment>))}
       </div>
       {detail}
-      <div className={`flex-wrap gap-4 text-sm text-zinc-700 dark:text-zinc-300 ${hideLegendOnSmallScreens ? "hidden lg:flex" : "flex"}`}>
+      <div className={`flex-wrap gap-3 text-xs text-ink-muted ${hideLegendOnSmallScreens ? "hidden lg:flex" : "flex"}`}>
         {legend.map((item) => (
           <div key={item.key} className="flex items-center gap-1.5">
-            <span className="inline-block h-3 w-3 rounded-sm" style={{ backgroundColor: item.color }} />
+            <span className="inline-block h-2 w-2 rounded-[2px] ring-1 ring-line-strong" style={{ backgroundColor: item.color }} />
             <span>{item.label}</span>
           </div>
         ))}

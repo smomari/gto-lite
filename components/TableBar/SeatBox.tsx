@@ -46,60 +46,28 @@ interface ActionButtonsProps {
 }
 
 function ActionButtons({ actions, onClick, compact }: ActionButtonsProps) {
-  const base = compact
-    ? "rounded px-1.5 py-0.5 text-left text-xs pointer-coarse:min-h-9"
-    : "rounded px-2 py-1 text-left text-xs font-medium pointer-coarse:min-h-9";
+  const base = `rounded px-2 py-1 text-left text-xs font-medium pointer-coarse:min-h-9 ${
+    compact ? "hover:bg-raised" : "bg-raised hover:bg-line-strong"
+  }`;
   return (
     <>
       {actions.fold && (
-        <button
-          type="button"
-          onClick={() => onClick("fold")}
-          className={`${base} ${
-            compact
-              ? "text-zinc-400 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-500 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
-              : "bg-zinc-100 text-zinc-700 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
-          }`}
-        >
+        <button type="button" onClick={() => onClick("fold")} className={`${base} text-ink-muted hover:text-ink`}>
           Fold
         </button>
       )}
       {actions.call && (
-        <button
-          type="button"
-          onClick={() => onClick("call")}
-          className={`${base} ${
-            compact
-              ? "text-blue-500 hover:bg-blue-50 hover:text-blue-700 dark:text-blue-400 dark:hover:bg-blue-950/40 dark:hover:text-blue-300"
-              : "bg-blue-100 text-blue-800 hover:bg-blue-200 dark:bg-blue-900/40 dark:text-blue-300 dark:hover:bg-blue-900/60"
-          }`}
-        >
+        <button type="button" onClick={() => onClick("call")} className={`${base} text-[#7fa6e0]`}>
           {actions.call.label}
         </button>
       )}
       {actions.raise && (
-        <button
-          type="button"
-          onClick={() => onClick("raise")}
-          className={`${base} ${
-            compact
-              ? "text-orange-500 hover:bg-orange-50 hover:text-orange-700 dark:text-orange-400 dark:hover:bg-orange-950/40 dark:hover:text-orange-300"
-              : "bg-orange-100 text-orange-800 hover:bg-orange-200 dark:bg-orange-900/40 dark:text-orange-300 dark:hover:bg-orange-900/60"
-          }`}
-        >
+        <button type="button" onClick={() => onClick("raise")} className={`${base} text-[#d3a24a]`}>
           Raise {actions.raise.toBb}bb
         </button>
       )}
       {actions.allin && (
-        <button
-          type="button"
-          onClick={() => onClick("allin")}
-          className={`${base} ${
-            compact
-              ? "text-red-500 hover:bg-red-50 hover:text-red-700 dark:text-red-400 dark:hover:bg-red-950/30 dark:hover:text-red-300"
-              : "bg-red-100 text-red-900 hover:bg-red-200 dark:bg-red-950/50 dark:text-red-300 dark:hover:bg-red-950/70"
-          }`}
-        >
+        <button type="button" onClick={() => onClick("allin")} className={`${base} text-[#d98a82]`}>
           Allin {actions.allin.toBb}bb
         </button>
       )}
@@ -117,17 +85,17 @@ export function SeatBox(props: SeatBoxProps) {
       data-testid="seat-box"
       data-kind={props.kind}
       data-position={position}
-      className={`flex shrink-0 min-w-[130px] flex-col gap-1.5 rounded-lg border p-2.5 ${
+      className={`flex shrink-0 flex-col gap-1 rounded-md p-2 ${
         isActive
-          ? "border-emerald-500 ring-1 ring-emerald-500"
+          ? "min-w-[120px] bg-surface shadow-[inset_0_0_0_1px_var(--color-line-strong),inset_2px_0_0_var(--color-accent)]"
           : isFolded
-            ? "border-zinc-200 opacity-50 dark:border-zinc-800"
-            : "border-zinc-300 dark:border-zinc-700"
+            ? "min-w-[76px] opacity-60"
+            : "min-w-[92px]"
       }`}
     >
-      <div className="flex items-baseline justify-between text-sm">
-        <span className="font-semibold text-zinc-900 dark:text-zinc-100">{position}</span>
-        <span className="text-zinc-500 dark:text-zinc-400">{stackBb}bb</span>
+      <div className="flex items-baseline justify-between gap-2 text-xs">
+        <span className="font-semibold text-ink">{position}</span>
+        <span className="font-mono tabular-nums text-ink-faint">{stackBb}</span>
       </div>
 
       {props.kind === "history" && (
@@ -135,7 +103,7 @@ export function SeatBox(props: SeatBoxProps) {
           <button
             type="button"
             onClick={props.onRevisit}
-            className="rounded px-1.5 py-0.5 text-left text-xs text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
+            className="rounded py-0.5 text-left text-xs text-ink-muted hover:text-ink"
             title="Click to undo back to this point"
           >
             {describeAction(props.action)}
@@ -146,7 +114,7 @@ export function SeatBox(props: SeatBoxProps) {
       {props.kind === "active" && (
         <div className="flex flex-col gap-1">
           {props.loading ? (
-            <span className="text-xs text-zinc-400">...</span>
+            <span className="text-xs text-ink-faint">...</span>
           ) : (
             props.availableActions && (
               <ActionButtons actions={props.availableActions} onClick={props.onAction} compact={false} />
@@ -160,7 +128,7 @@ export function SeatBox(props: SeatBoxProps) {
           {props.quickActions ? (
             <ActionButtons actions={props.quickActions} onClick={props.onQuickAction} compact={true} />
           ) : (
-            <span className="text-xs text-zinc-300 dark:text-zinc-600">—</span>
+            <span className="text-xs text-ink-faint">—</span>
           )}
         </div>
       )}

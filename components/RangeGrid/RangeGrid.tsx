@@ -40,7 +40,7 @@ export function RangeGrid({ scenario }: RangeGridProps) {
       )}
       legend={LEGEND}
       detail={
-        <p data-testid="hand-detail" className="min-h-5 text-sm text-zinc-700 dark:text-zinc-300 lg:hidden">
+        <p data-testid="hand-detail" className="min-h-5 font-mono text-sm tabular-nums text-ink-muted lg:hidden">
           {selected ? `${selected.hand}: ${frequencyLine(selected)}` : "Tap a hand for its frequencies."}
         </p>
       }

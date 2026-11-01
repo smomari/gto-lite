@@ -2,12 +2,12 @@ import type { PostflopActionType } from "@/lib/postflopSolver/potState";
 import type { SerializedDecisionAction } from "@/types/postflopSolver";
 
 export const POSTFLOP_ACTION_COLORS: Record<PostflopActionType, string> = {
-  fold: "#9ca3af",
-  check: "#60a5fa",
-  call: "#3b82f6",
-  bet: "#f97316",
-  raise: "#dc2626",
-  allin: "#7f1d1d",
+  fold: "#2a2f37",
+  check: "#4f7fb8",
+  call: "#3f6ca3",
+  bet: "#c4692f",
+  raise: "#b84f48",
+  allin: "#9c3a3a",
 };
 
 /**
@@ -19,8 +19,8 @@ export const POSTFLOP_ACTION_COLORS: Record<PostflopActionType, string> = {
  * size, on top of adjacent same-type sizes being visually distinct from
  * each other (the original bug: every bet size shared one fixed orange).
  */
-export const BET_COLOR_RAMP = ["#fde68a", "#fbbf24", "#f97316", "#ea580c", "#9a3412"];
-export const RAISE_COLOR_RAMP = ["#fca5a5", "#f87171", "#ef4444", "#dc2626", "#991b1b"];
+export const BET_COLOR_RAMP = ["#e0be78", "#d3a24a", "#c98838", "#c4692f", "#a8502a"];
+export const RAISE_COLOR_RAMP = ["#d98a82", "#c96a60", "#b84f48", "#a34440", "#7e2f30"];
 
 function sampleRamp(ramp: string[], position: number, total: number): string {
   if (total <= 1) return ramp[Math.floor(ramp.length / 2)];
