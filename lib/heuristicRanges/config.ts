@@ -7,12 +7,22 @@ export const MIX_BUFFER = 0.03;
 // value rather than continuing the linear ramp, since SB is a blind and
 // conventionally opens tighter than BTN despite sitting "later" in raw seat
 // order. BB (index 7) never opens (nothing to solve — see rotation.ts).
-export const OPEN_THRESHOLD_MIN = 0.12; // UTG
-export const OPEN_THRESHOLD_MAX = 0.45; // BTN
-export const SB_OPEN_DISCOUNT = 0.9;
+/** Share of combos each seat opens (UTG..SB), interpolated between these stacks and flat outside them. */
+export const OPEN_WIDTHS_BY_STACK = [
+  { stackBb: 20, widths: [0.13, 0.15, 0.18, 0.24, 0.33, 0.42, 0.42] },
+  { stackBb: 40, widths: [0.16, 0.18, 0.22, 0.28, 0.36, 0.5, 0.42] },
+  { stackBb: 100, widths: [0.13, 0.15, 0.19, 0.25, 0.32, 0.46, 0.44] },
+];
+/** Share of the BB's continuing range that a cold caller keeps: IP, with two seats behind. */
+export const COLD_CALL_BASE = 0.65;
+export const COLD_CALL_PER_SEAT_BEHIND = 0.9;
+export const COLD_CALL_OOP_MULTIPLIER = 0.6;
+/** 3-bet width as a share of the opener's width, and how much of it is value. */
+export const THREE_BET_WIDTH_RATIO = 0.3;
+export const THREE_BET_VALUE_SHARE = 0.6;
 
 // --- Facing-a-raise continuing threshold ----------------------------------
-export const BASE_CONTINUE_THRESHOLD = 0.3; // neutral vs-single-raise continue %, before adjustment
+export const BASE_CONTINUE_THRESHOLD = 0.3; // neutral continue %, before adjustment, facing a re-raise
 export const RAISE_DEPTH_TIGHTEN_FACTOR = 0.55; // multiplied in per extra raise depth beyond 1
 export const IP_CONTINUE_MULTIPLIER = 1.15;
 export const OOP_CONTINUE_MULTIPLIER = 0.85;

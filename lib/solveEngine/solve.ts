@@ -2,12 +2,12 @@ import type { HandFrequency, Position, RangeSource } from "@/types/rangeData";
 import type { EquityMatrix } from "@/lib/equity/loadEquityMatrix";
 import { ALL_HANDS } from "@/lib/handRange/handList";
 import { SEAT_ORDER, postflopSeatIndex, seatIndex } from "@/lib/actionTree/seatOrder";
-import { generateOpeningScenario, generateFacingRaiseScenario } from "@/lib/heuristicRanges/generateScenario";
+import { generateOpeningScenario, generateFacingRaiseScenario, openWidthFor } from "@/lib/heuristicRanges/generateScenario";
 import { loadRfiExport } from "@/lib/preflopSolver/loadRfiExport";
 import type { PotState } from "./potState";
 import { shouldUseNash } from "./classify";
 import { RFI_EXPORT_STACK_BB } from "./constants";
-import { getPercentileRanking, getPushFoldResult } from "./solveCache";
+import { getPlayabilityRanking, getPushFoldResult } from "./solveCache";
 
 export interface SolvedNode {
   hands: HandFrequency[];
@@ -57,9 +57,9 @@ export function solveActiveSeat(
     };
   }
 
-  const ranking = getPercentileRanking(matrix);
+  const ranking = getPlayabilityRanking(matrix);
   if (!hasOpener) {
-    return { source: "heuristic-approx", hands: generateOpeningScenario(ranking, seatIndex(activeSeat)) };
+    return { source: "heuristic-approx", hands: generateOpeningScenario(ranking, seatIndex(activeSeat), effectiveStackBb) };
   }
 
   const lastAggressor = potState.lastAggressor!;
@@ -71,6 +71,8 @@ export function solveActiveSeat(
       isIP: postflopSeatIndex(activeSeat) > postflopSeatIndex(lastAggressor),
       potBb: potState.potBb,
       amountOwedBb,
+      aggressorOpenWidth: openWidthFor(Math.min(seatIndex(lastAggressor), 6), effectiveStackBb),
+      seatsBehind: Math.max(0, SEAT_ORDER.length - 1 - seatIndex(activeSeat)),
     }),
   };
 }

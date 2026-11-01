@@ -11,7 +11,7 @@ export const STACK_MAX_BB = 100;
 export const RFI_EXPORT_STACK_BB = 100;
 
 /** Always route to the Nash push/fold solver at or under this effective stack. */
-export const NASH_FLAT_STACK_THRESHOLD_BB = 25;
+export const NASH_FLAT_STACK_THRESHOLD_BB = 15;
 /** Route to Nash when facing a raise and remaining-stack/pot is at or under this ratio. */
 export const NASH_SPR_THRESHOLD = 1;
 
