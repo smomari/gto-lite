@@ -20,9 +20,12 @@ function labelForRaiseDepth(depth: number): string {
   return RAISE_DEPTH_LABEL[depth] ?? `${depth + 1}bet`;
 }
 
-function canonicalLabel(action: ActionType, state: PotState): string {
+function canonicalLabel(action: ActionType, actor: Position, state: PotState): string {
   if (action === "fold") return "fold";
-  if (action === "call") return "call";
+  if (action === "call") {
+    if (state.lastAggressor !== null) return "call";
+    return actor === "BB" ? "check" : "limp";
+  }
   if (action === "allin") return "allin";
   return labelForRaiseDepth(state.raiseDepth);
 }
@@ -48,8 +51,10 @@ export function replayActionPath(
       return { status: "invalid", reason: `expected ${next.seat} to act, got ${node.actor}` };
     }
 
-    const legalActions: ActionType[] =
-      state.lastAggressor === null ? ["fold", "raise", "allin"] : ["fold", "call", "raise", "allin"];
+    const available = computeAvailableActions(node.actor, state, effectiveStackBb);
+    const legalActions: ActionType[] = ["raise", "allin"];
+    if (available.fold) legalActions.push("fold");
+    if (available.call) legalActions.push("call");
     if (!legalActions.includes(node.action)) {
       return { status: "invalid", reason: `${node.action} is illegal for ${node.actor} in this state` };
     }
@@ -57,7 +62,6 @@ export function replayActionPath(
     let action = node.action;
     let raiseToBb: number | undefined;
     if (action === "raise") {
-      const available = computeAvailableActions(node.actor, state, effectiveStackBb);
       if (available.raise) {
         raiseToBb = available.raise.toBb;
       } else {
@@ -75,7 +79,7 @@ export function replayActionPath(
     canonicalActionPath.push({
       actor: node.actor,
       action,
-      label: canonicalLabel(action, state),
+      label: canonicalLabel(action, node.actor, state),
       sizeBb: action === "fold" ? undefined : state.committed[node.actor],
     });
   }

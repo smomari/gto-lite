@@ -85,6 +85,23 @@ describe("computeRawRaiseTo — reactive raises", () => {
 });
 
 describe("computeAvailableActions", () => {
+  const limped = () => applyAction(initialPotState(), "SB", "call", { effectiveStackBb: 40 });
+
+  it("offers SB a half-bb limp in an unraised pot, but no other seat, and not at push/fold stacks", () => {
+    expect(computeAvailableActions("SB", initialPotState(), 16).call).toEqual({ label: "Limp", amountBb: 0.5 });
+    expect(computeAvailableActions("SB", initialPotState(), 15).call).toBeNull();
+    expect(computeAvailableActions("BTN", initialPotState(), 40).call).toBeNull();
+  });
+
+  it("gives BB a free check and a 3.5bb raise behind a limp, and no fold", () => {
+    expect(computeAvailableActions("BB", limped(), 40)).toEqual({
+      fold: false,
+      call: { label: "Check", amountBb: 0 },
+      raise: { toBb: 3.5 },
+      allin: { toBb: 40 },
+    });
+  });
+
   it("offers Fold/Raise/Allin but no Call for the opening decision", () => {
     const actions = computeAvailableActions("UTG", initialPotState(), 100);
     expect(actions.fold).toBe(true);

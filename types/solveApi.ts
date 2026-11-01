@@ -6,7 +6,7 @@ export interface SolveRequest {
 }
 
 export interface CallOption {
-  label: "Call" | "Check";
+  label: "Call" | "Check" | "Limp";
   amountBb: number;
 }
 
@@ -19,7 +19,8 @@ export interface AllinOption {
 }
 
 export interface AvailableActions {
-  fold: true;
+  /** False only when checking is free: nothing to fold to. */
+  fold: boolean;
   call: CallOption | null;
   raise: RaiseOption | null;
   /** Null when facing an all-in: there's nothing left to raise, so Call already puts the whole stack in. */

@@ -20,17 +20,32 @@ describe("POST /api/solve", () => {
     expect(body.availableActions.fold).toBe(true);
     expect(body.availableActions.call).toBeNull();
     expect(body.potBb).toBe(2.5);
-    expect(body.source).toBe("heuristic-approx"); // solver-export only covers SB (see Phase C-1 plan doc)
+    expect(body.source).toBe("heuristic-approx");
   });
 
-  it("returns solver-export data for SB's opening spot, the one genuinely 2-player-correct RFI position", async () => {
+  it("offers SB a limp when folded to it", async () => {
     const actionPath = ["UTG", "UTG1", "LJ", "HJ", "CO", "BTN"].map((actor) => ({ actor, action: "fold" }));
     const res = await POST(makeRequest({ effectiveStackBb: 100, actionPath }));
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.heroPosition).toBe("SB");
-    expect(body.source).toBe("solver-export");
-    expect(body.hands).toHaveLength(169);
+    expect(body.source).toBe("heuristic-approx");
+    expect(body.availableActions.call).toEqual({ label: "Limp", amountBb: 0.5 });
+  });
+
+  it("closes the hand when BB checks behind a limp", async () => {
+    const actionPath = [
+      ...["UTG", "UTG1", "LJ", "HJ", "CO", "BTN"].map((actor) => ({ actor, action: "fold" })),
+      { actor: "SB", action: "call" },
+      { actor: "BB", action: "call" },
+    ];
+    const res = await POST(makeRequest({ effectiveStackBb: 40, actionPath }));
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.code).toBe("HAND_RESOLVED");
+    expect(body.reason).toBe("action-closed");
+    expect(body.actionPath.slice(-2).map((n: { label: string }) => n.label)).toEqual(["limp", "check"]);
+    expect(body.potBb).toBe(3);
   });
 
   it("rejects an out-of-range effective stack", async () => {

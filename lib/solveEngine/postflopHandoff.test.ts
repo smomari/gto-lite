@@ -120,6 +120,15 @@ describe("resolvePostflopHandoff", () => {
     expect(matchup?.[0]).toMatchObject({ actionKey: "call", remainingBb: 91.6, hands: [{ hand: "UTG@8" }] });
   });
 
+  it("limped pot: SB's limps against BB's checks, SB first", () => {
+    const path = [step("UTG", "fold"), ...foldsUtg1ToHj, step("CO", "fold"), step("BTN", "fold"), step("SB", "call"), step("BB", "call")];
+    const { matchup } = resolvePostflopHandoff(path, { SB: 1, BB: 1 }, 40, capture(path));
+
+    expect(matchup?.map((s) => s.seat)).toEqual(["SB", "BB"]);
+    expect(matchup?.[0]).toMatchObject({ actionKey: "call", remainingBb: 39, hands: [{ hand: "SB@6" }] });
+    expect(matchup?.[1]).toMatchObject({ actionKey: "call", remainingBb: 39, hands: [{ hand: "BB@7" }] });
+  });
+
   it("no matchup until both live seats' ranges have arrived", () => {
     const path = [step("UTG", "raise"), ...foldsUtg1ToHj, step("CO", "call"), step("BTN", "fold"), step("SB", "fold"), step("BB", "fold")];
     const ranges = capture(path);

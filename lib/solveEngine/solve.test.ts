@@ -60,7 +60,7 @@ describe("solveActiveSeat", () => {
     expect(calls("UTG")).toBeLessThan(calls("SB"));
   });
 
-  it("routes a 100bb opening spot to the heuristic engine and produces raise-only frequencies (non-SB — solver-export only covers SB, see Phase C-1 plan doc)", () => {
+  it("routes a 100bb opening spot to the heuristic engine and produces raise-only frequencies (non-SB — SB splits three ways)", () => {
     const result = solveActiveSeat(matrix, "BTN", initialPotState(), 100);
     expect(result.source).toBe("heuristic-approx");
     for (const h of result.hands) {
@@ -70,26 +70,44 @@ describe("solveActiveSeat", () => {
     }
   });
 
-  it("routes SB's 100bb opening spot to the Phase C-1 solver-export data (the one genuinely 2-player-correct RFI spot)", () => {
-    const result = solveActiveSeat(matrix, "SB", initialPotState(), 100);
-    expect(result.source).toBe("solver-export");
-    for (const h of result.hands) {
-      expect(h.call).toBe(0);
-      expect(h.allin ?? 0).toBe(0);
-      expect(h.fold + h.raise).toBeCloseTo(1, 6);
+  const foldedToSb = (stackBb: number) =>
+    (["UTG", "UTG1", "LJ", "HJ", "CO", "BTN"] as Position[]).reduce(
+      (state, seat) => applyAction(state, seat, "fold", { effectiveStackBb: stackBb }),
+      initialPotState(),
+    );
+
+  it("splits SB's first-in range into raises, limps and folds, mostly limps", () => {
+    for (const stackBb of [20, 40, 100]) {
+      const result = solveActiveSeat(matrix, "SB", foldedToSb(stackBb), stackBb);
+      expect(result.source).toBe("heuristic-approx");
+      for (const h of result.hands) expect(h.fold + h.call + h.raise).toBeCloseTo(1, 6);
+      const raises = combosWith(result.hands, (h) => h.raise);
+      const limps = combosWith(result.hands, (h) => h.call);
+      expect(limps).toBeGreaterThan(raises);
+      expect((raises + limps) / 1326).toBeGreaterThan(0.75);
+      expect(result.hands.find((h) => h.hand === "AA")!.raise).toBeCloseTo(1, 6);
     }
-    const aa = result.hands.find((h) => h.hand === "AA")!;
-    expect(aa.raise).toBeGreaterThan(0.9);
   });
 
-  it("falls back to the heuristic engine for SB's opening spot at a stack depth the solver-export data doesn't cover", () => {
-    const result = solveActiveSeat(matrix, "SB", initialPotState(), 99);
-    expect(result.source).toBe("heuristic-approx");
-    for (const h of result.hands) {
-      expect(h.call).toBe(0);
-      expect(h.allin ?? 0).toBe(0);
-      expect(h.fold + h.raise).toBeCloseTo(1, 6);
-    }
+  it("stays push/fold for SB at the Nash stacks, where limping isn't offered", () => {
+    const result = solveActiveSeat(matrix, "SB", foldedToSb(15), 15);
+    expect(result.source).toBe("nash-shove-fold");
+    expect(combosWith(result.hands, (h) => h.call)).toBe(0);
+  });
+
+  it("has BB raise or check behind a limp, never fold", () => {
+    const limped = applyAction(foldedToSb(40), "SB", "call", { effectiveStackBb: 40 });
+    const result = solveActiveSeat(matrix, "BB", limped, 40);
+    expect(combosWith(result.hands, (h) => h.fold)).toBe(0);
+    expect(combosWith(result.hands, (h) => h.raise) / 1326).toBeCloseTo(0.4, 1);
+    expect(result.hands.find((h) => h.hand === "AA")!.raise).toBeCloseTo(1, 6);
+  });
+
+  it("treats SB as closing the action against BB's raise over a limp", () => {
+    const limped = applyAction(foldedToSb(40), "SB", "call", { effectiveStackBb: 40 });
+    const raised = applyAction(limped, "BB", "raise", { effectiveStackBb: 40, raiseToBb: 3.5 });
+    const result = solveActiveSeat(matrix, "SB", raised, 40);
+    expect(combosWith(result.hands, (h) => h.fold) / 1326).toBeLessThan(0.5);
   });
 
   it("produces call+raise summing correctly with fold for a deep-stack facing-raise spot", () => {
