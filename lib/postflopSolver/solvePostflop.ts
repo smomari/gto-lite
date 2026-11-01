@@ -43,13 +43,6 @@ export type PostflopSolveInput =
     });
 
 /**
- * River cards a turn solve looks ahead into — see stratifiedNextCards. On a
- * 251×359-combo turn, 12 cards came within 1.2 points of check frequency and
- * 0.7% of EV of all 48 (8 cards: 4 points over on checking, 3% under on EV).
- */
-export const LOOKAHEAD_RIVER_CARDS = 12;
-
-/**
  * Turn cards a flop solve looks ahead into, and river cards under each.
  * `npm run accuracy:postflop` prices each lookahead's flop strategy against a
  * tree with every turn and river, as the pot share both players lose together
@@ -64,14 +57,15 @@ export const FLOP_LOOKAHEAD = { turnCards: 10, riverCards: 6 };
 export const FLOP_FAST_LOOKAHEAD = { turnCards: 10, riverCards: 0 };
 
 /**
- * How a street's solve looks past its own end, or null when
- * it doesn't (the river). Later streets get a stratified sample of their cards
- * and the reduced LOOKAHEAD_BET_SIZING menu; each is re-solved with its full
- * menu once its card is picked.
+ * How a street's solve looks past its own end, or null when it doesn't (the
+ * river). Later streets get the reduced LOOKAHEAD_BET_SIZING menu, and under a
+ * flop a stratified sample of their cards; each is re-solved with its full menu
+ * once its card is picked.
  */
 export function lookaheadOptions(street: PostflopStreet, fast = false): HandTreeOptions | null {
   if (street === "turn") {
-    return { dealNextCards: (board) => stratifiedNextCards(board, LOOKAHEAD_RIVER_CARDS), laterStreetSizing: LOOKAHEAD_BET_SIZING };
+    // Every river: on BTN-vs-BB turns it loses 0.1–0.3% of the pot against 12 sampled rivers' 1–2.5%, for about 1s.
+    return { laterStreetSizing: LOOKAHEAD_BET_SIZING };
   }
   if (street === "flop") {
     const { turnCards, riverCards } = fast ? FLOP_FAST_LOOKAHEAD : FLOP_LOOKAHEAD;

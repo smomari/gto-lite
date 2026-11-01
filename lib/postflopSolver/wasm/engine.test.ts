@@ -9,7 +9,7 @@ import { createReferenceCfr } from "../reference/referenceCfr";
 import type { ComboRange } from "../types";
 import { loadNodeSolverModule } from "./loadNode";
 import { NativeCfrEngine, runNativeCfr } from "./engine";
-import { FLOP_FAST_LOOKAHEAD, FLOP_LOOKAHEAD, LOOKAHEAD_RIVER_CARDS, solvePostflopStreet } from "../solvePostflop";
+import { FLOP_FAST_LOOKAHEAD, FLOP_LOOKAHEAD, solvePostflopStreet } from "../solvePostflop";
 import { serializeTree } from "../serialize";
 
 /** A small range: the combos of a slice of hands, every `step`th one, with uneven weights. */
@@ -204,7 +204,7 @@ describe("solvePostflopStreet on the C++ engine", () => {
 });
 
 describe("turn solves on the C++ engine", () => {
-  it("look ahead into a sample of rivers, keep the engine open for reading, and value each street change", async () => {
+  it("look ahead into every river, keep the engine open for reading, and value each street change", async () => {
     const solver = await loadNodeSolverModule();
     const hands = (labels: string[]) =>
       ALL_HANDS.map((h) => ({ hand: h.hand, fold: 0, call: labels.includes(h.hand) ? 1 : 0, raise: 0 }));
@@ -230,8 +230,8 @@ describe("turn solves on the C++ engine", () => {
       const nextStreetEv = session.nextStreetEv();
       expect(nextStreetEv.size).toBeGreaterThan(0);
       for (const [chance, ev] of nextStreetEv) {
-        expect(chance.children).toHaveLength(LOOKAHEAD_RIVER_CARDS); // a stratified sample of the river
-        // Zero-sum around the dead money, up to the sampled deal's second-order renormalization error.
+        expect(chance.children).toHaveLength(48);
+        // Zero-sum around the dead money.
         expect(Math.abs(ev.heroEvBb + ev.villainEvBb - startPot)).toBeLessThan(startPot * 0.01);
       }
       // A river street under a chance node serializes from the live engine.
