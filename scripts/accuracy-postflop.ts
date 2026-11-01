@@ -111,6 +111,8 @@ interface Tables {
   equityTableFor?: (board: string[]) => Float32Array | undefined;
 }
 
+type StrategyOf = (node: DecisionNode) => number[][];
+
 interface Solved {
   tree: PostflopTreeNode;
   session: NativeSolveSession;
@@ -149,13 +151,13 @@ function rootFrequencies(node: DecisionNode, solution: CfrSolution, range: Combo
 }
 
 /** Reach-weighted total variation from the reference over the root street's decisions, for each player: 0 = same strategy, 1 = disjoint. */
-function strategyDistance(reference: Solved, method: Solved, hero: ComboRange, villain: ComboRange): number[] {
+function strategyDistance(tree: PostflopTreeNode, reference: StrategyOf, method: Solved, hero: ComboRange, villain: ComboRange): number[] {
   const distance = [0, 0];
   const mass = [0, 0];
   const walk = (a: PostflopTreeNode, b: PostflopTreeNode, reach: number[][]) => {
     if (a.type !== "decision" || b.type !== "decision") return;
     const p = a.actor === "P1" ? 0 : 1;
-    const want = reference.session.solution.getAverageStrategy(a);
+    const want = reference(a);
     const got = method.session.solution.getAverageStrategy(b);
     reach[p].forEach((r, i) => {
       distance[p] += (r * want[i].reduce((sum, x, k) => sum + Math.abs(x - got[i][k]), 0)) / 2;
@@ -167,19 +169,19 @@ function strategyDistance(reference: Solved, method: Solved, hero: ComboRange, v
       walk(child, b.actions[k].child, next);
     });
   };
-  walk(reference.tree, method.tree, [hero.map((c) => c.weight), villain.map((c) => c.weight)]);
+  walk(tree, method.tree, [hero.map((c) => c.weight), villain.map((c) => c.weight)]);
   return distance.map((d, p) => d / mass[p]);
 }
 
 /** One player's root-street strategy from `solved`, as locks on the same decisions of the reference tree. */
-function rootStreetLocks(reference: PostflopTreeNode, solved: Solved, actor: "P1" | "P2"): StrategyLock[] {
+function rootStreetLocks(reference: PostflopTreeNode, tree: PostflopTreeNode, strategyOf: StrategyOf, actor: "P1" | "P2"): StrategyLock[] {
   const locks: StrategyLock[] = [];
   const walk = (a: PostflopTreeNode, b: PostflopTreeNode) => {
     if (a.type !== "decision" || b.type !== "decision") return;
-    if (a.actor === actor) locks.push({ node: a, strategy: solved.session.solution.getAverageStrategy(b) });
+    if (a.actor === actor) locks.push({ node: a, strategy: strategyOf(b) });
     a.actions.forEach(({ child }, k) => walk(child, b.actions[k].child));
   };
-  walk(reference, solved.tree);
+  walk(reference, tree);
   return locks;
 }
 
@@ -240,23 +242,33 @@ async function main() {
     console.log(`root ${root.actions.map((a, k) => `${a.action} ${percent(refFreq[k])}`).join(" · ")}, OOP EV ${refReport.p1ActualBb.toFixed(3)}bb`);
     console.log(`IP after check: ${afterCheckFrequencies(reference, villain)}`);
     console.log("method | sec | root freq max diff (pts) | OOP EV diff (% pot) | IP EV diff (% pot) | OOP strategy distance | IP strategy distance | exploitable | OOP loss (% pot) | IP loss (% pot) | IP after check");
-    /** What keeping `solved`'s root-street strategy costs each player against the reference, in % of the pot. */
-    const losses = (solved: Solved) =>
+    // Every solve below shares the WASM memory limit, so keep only the reference's root-street strategies.
+    const rootStreet = new Map<DecisionNode, number[][]>();
+    (function keep(node: PostflopTreeNode) {
+      if (node.type !== "decision") return;
+      rootStreet.set(node, reference.session.solution.getAverageStrategy(node));
+      node.actions.forEach(({ child }) => keep(child));
+    })(reference.tree);
+    reference.session.dispose();
+    const referenceStrategy: StrategyOf = (node) => rootStreet.get(node)!;
+
+    /** What keeping `tree`'s root-street strategy costs each player against the reference, in % of the pot. */
+    const losses = (tree: PostflopTreeNode, strategyOf: StrategyOf) =>
       (["P1", "P2"] as const).map((actor) => {
-        const locked = solve(solver, tables, spot, hero, villain, everyCard, LOCKED_TARGET_PERCENT, reference.tree, rootStreetLocks(reference.tree, solved, actor));
+        const locked = solve(solver, tables, spot, hero, villain, everyCard, LOCKED_TARGET_PERCENT, reference.tree, rootStreetLocks(reference.tree, tree, strategyOf, actor));
         const report = locked.session.solution.finalExploitability!;
         locked.session.dispose();
         const drop = actor === "P1" ? refReport.p1ActualBb - report.p1ActualBb : refReport.p2ActualBb - report.p2ActualBb;
         return ((100 * drop) / spot.startPot).toFixed(2);
       });
-    console.log(["reference", "", "", "", "", "", "", "", ...losses(reference), ""].join(" | "));
+    console.log(["reference", "", "", "", "", "", "", "", ...losses(reference.tree, referenceStrategy), ""].join(" | "));
     for (const name of argList("--methods") ?? (isFlop ? FLOP_METHODS : TURN_METHODS)) {
       console.error(name);
       const solved = solve(solver, tables, spot, hero, villain, methodOptions(name), APP_TARGET_PERCENT);
       const report = solved.session.solution.finalExploitability!;
       const freq = rootFrequencies(solved.tree as DecisionNode, solved.session.solution, hero);
       const freqDiff = Math.max(...freq.map((f, k) => Math.abs(f - refFreq[k])));
-      const [oop, ip] = strategyDistance(reference, solved, hero, villain);
+      const [oop, ip] = strategyDistance(reference.tree, referenceStrategy, solved, hero, villain);
       console.log(
         [
           name,
@@ -267,13 +279,12 @@ async function main() {
           percent(oop),
           percent(ip),
           `${report.percentOfPot.toFixed(2)}%`,
-          ...losses(solved),
+          ...losses(solved.tree, (node) => solved.session.solution.getAverageStrategy(node)),
           afterCheckFrequencies(solved, villain),
         ].join(" | "),
       );
       solved.session.dispose();
     }
-    reference.session.dispose();
     runout?.dispose();
   }
   process.exit(0);
