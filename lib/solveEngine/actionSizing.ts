@@ -1,10 +1,12 @@
 import type { Position } from "@/types/rangeData";
-import type { AvailableActions } from "@/types/solveApi";
+import type { AvailableActions, CallOption } from "@/types/solveApi";
 import { postflopSeatIndex, seatIndex } from "@/lib/actionTree/seatOrder";
 import type { PotState } from "./potState";
 import {
   BIG_BLIND_BB,
   STACK_MAX_BB,
+  LIMP_RAISE_TO_BB,
+  NASH_FLAT_STACK_THRESHOLD_BB,
   OPEN_RAISE_SCALING_MIN_STACK_BB,
   OPEN_RAISE_IP_SHALLOW_BB,
   OPEN_RAISE_IP_DEEP_BB,
@@ -48,6 +50,7 @@ export function computeRawRaiseTo(
   effectiveStackBb: number,
 ): number {
   if (potState.lastAggressor === null) {
+    if (activeSeat === "BB") return LIMP_RAISE_TO_BB;
     const idx = seatIndex(activeSeat);
     return isFirstHalf(idx)
       ? interpolateOpenRaiseBb(OPEN_RAISE_OOP_SHALLOW_BB, OPEN_RAISE_OOP_DEEP_BB, effectiveStackBb)
@@ -60,6 +63,22 @@ export function computeRawRaiseTo(
   // multiplier can still leak binary-float noise (e.g. 2.8 * 3 === 8.399999999999999).
   const raw = (potState.lastAggressorRaiseToBb ?? BIG_BLIND_BB) * multiplier;
   return Number(raw.toFixed(1));
+}
+
+/**
+ * Only the blinds can enter an unraised pot: SB limps, or BB checks behind it.
+ * Limping stops at the push/fold stacks, whose Nash ranges have no limp in them.
+ */
+function callOptionFor(
+  activeSeat: Position,
+  potState: PotState,
+  effectiveStackBb: number,
+  amountOwed: number,
+): CallOption | null {
+  if (potState.lastAggressor !== null) return { label: amountOwed === 0 ? "Check" : "Call", amountBb: amountOwed };
+  if (activeSeat === "BB") return { label: "Check", amountBb: 0 };
+  if (activeSeat === "SB" && effectiveStackBb > NASH_FLAT_STACK_THRESHOLD_BB) return { label: "Limp", amountBb: amountOwed };
+  return null;
 }
 
 export function computeAvailableActions(
@@ -79,14 +98,10 @@ export function computeAvailableActions(
       : null;
 
   const amountOwed = potState.currentBetToCall - (potState.committed[activeSeat] ?? 0);
-  const call =
-    potState.lastAggressor === null
-      ? null
-      : { label: (amountOwed === 0 ? "Check" : "Call") as "Check" | "Call", amountBb: amountOwed };
 
   return {
-    fold: true,
-    call,
+    fold: !(potState.lastAggressor === null && activeSeat === "BB"),
+    call: callOptionFor(activeSeat, potState, effectiveStackBb, amountOwed),
     raise,
     allin: potState.currentBetToCall < effectiveStackBb ? { toBb: effectiveStackBb } : null,
   };

@@ -2,7 +2,13 @@ import { describe, expect, it } from "vitest";
 import { ALL_HANDS, TOTAL_COMBOS } from "@/lib/handRange/handList";
 import { loadEquityMatrix } from "@/lib/equity/loadEquityMatrix";
 import { computePlayabilityRanking } from "@/lib/equity/handStrength";
-import { generateOpeningScenario, generateFacingRaiseScenario, openWidthFor } from "./generateScenario";
+import {
+  generateBbVsLimpScenario,
+  generateFacingRaiseScenario,
+  generateOpeningScenario,
+  generateSbFirstInScenario,
+  openWidthFor,
+} from "./generateScenario";
 
 const ranking = computePlayabilityRanking(loadEquityMatrix());
 
@@ -64,6 +70,37 @@ describe("generateOpeningScenario", () => {
     const btn = comboWeightedRaiseFrequency(generateOpeningScenario(ranking, 5, 100));
     const sb = comboWeightedRaiseFrequency(generateOpeningScenario(ranking, 6, 100));
     expect(sb).toBeLessThan(btn);
+  });
+});
+
+describe("generateSbFirstInScenario", () => {
+  it("raises the top, limps the middle, folds the bottom", () => {
+    const hands = generateSbFirstInScenario(ranking, 40);
+    const byHand = new Map(hands.map((h) => [h.hand, h]));
+    for (const h of hands) expect(h.fold + h.call + h.raise).toBeCloseTo(1, 6);
+    expect(byHand.get("AA")!.raise).toBe(1);
+    expect(byHand.get("76s")!.call).toBe(1);
+    expect(byHand.get("72o")!.fold).toBe(1);
+  });
+
+  it("raises more at 40bb than at 100bb", () => {
+    expect(comboWeightedRaiseFrequency(generateSbFirstInScenario(ranking, 40))).toBeGreaterThan(
+      comboWeightedRaiseFrequency(generateSbFirstInScenario(ranking, 100)),
+    );
+  });
+});
+
+describe("generateBbVsLimpScenario", () => {
+  it("raises value and suited bluffs, checks the rest, and never folds", () => {
+    const hands = generateBbVsLimpScenario(ranking);
+    const byHand = new Map(hands.map((h) => [h.hand, h]));
+    for (const h of hands) {
+      expect(h.fold).toBe(0);
+      expect(h.call + h.raise).toBeCloseTo(1, 6);
+    }
+    expect(byHand.get("AA")!.raise).toBe(1);
+    expect(byHand.get("54s")!.raise).toBe(1);
+    expect(byHand.get("72o")!.call).toBe(1);
   });
 });
 

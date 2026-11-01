@@ -98,6 +98,27 @@ describe("SeatActionBar", () => {
     expect(active).not.toHaveTextContent("Allin");
   });
 
+  it("shows Limp on the seat's history box and no Fold when checking is free", () => {
+    const folds = (["UTG", "UTG1", "LJ", "HJ", "CO", "BTN"] as const).map((actor) => ({ actor, action: "fold", label: "fold" }) as ActionNode);
+    render(
+      <SeatActionBar
+        stackBb={40}
+        actionPath={[...folds, { actor: "SB", action: "call", label: "limp", sizeBb: 1 }]}
+        activeSeat="BB"
+        availableActions={{ fold: false, call: { label: "Check", amountBb: 0 }, raise: { toBb: 3.5 }, allin: { toBb: 40 } }}
+        loading={false}
+        onAction={noop}
+        onRevisit={noop}
+        onQuickAction={noop}
+      />,
+    );
+    const boxes = screen.getAllByTestId("seat-box");
+    expect(boxes.find((b) => b.getAttribute("data-position") === "SB")).toHaveTextContent("Limp");
+    const active = boxes.find((b) => b.getAttribute("data-kind") === "active")!;
+    expect(active).toHaveTextContent("Check");
+    expect(active).not.toHaveTextContent("Fold");
+  });
+
   it("the seat row is non-wrapping and horizontally scrollable, never stacking to a new row", () => {
     const { container } = render(
       <SeatActionBar

@@ -30,7 +30,8 @@ function describeAction(entry: ActionNode): string {
     case "fold":
       return "Fold";
     case "call":
-      return "Call";
+      if (entry.label === "limp") return "Limp";
+      return entry.label === "check" ? "Check" : "Call";
     case "raise":
       return `Raise ${entry.sizeBb}bb`;
     case "allin":
@@ -50,17 +51,19 @@ function ActionButtons({ actions, onClick, compact }: ActionButtonsProps) {
     : "rounded px-2 py-1 text-left text-xs font-medium";
   return (
     <>
-      <button
-        type="button"
-        onClick={() => onClick("fold")}
-        className={`${base} ${
-          compact
-            ? "text-zinc-400 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-500 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
-            : "bg-zinc-100 text-zinc-700 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
-        }`}
-      >
-        Fold
-      </button>
+      {actions.fold && (
+        <button
+          type="button"
+          onClick={() => onClick("fold")}
+          className={`${base} ${
+            compact
+              ? "text-zinc-400 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-500 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
+              : "bg-zinc-100 text-zinc-700 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
+          }`}
+        >
+          Fold
+        </button>
+      )}
       {actions.call && (
         <button
           type="button"

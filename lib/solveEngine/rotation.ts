@@ -27,11 +27,14 @@ export function nextLiveSeatAfter(pos: Position | null, foldedSeats: Set<Positio
  * BB-specific special case is needed; it falls out of the general rule.
  * "action-closed" fires when the rotation returns to `lastAggressor` without
  * a new raise having reopened it (2+ live seats remain, but there's nothing
- * left for this preflop-only tool to solve).
+ * left for this preflop-only tool to solve). With no raise at all it fires
+ * once BB checks behind SB's limp: BB is the last seat in an unraised pot.
  */
 export function computeNextActor(state: PotState): NextActorResult {
   const liveSeats = SEAT_ORDER.filter((s) => !state.foldedSeats.has(s));
   if (liveSeats.length === 1) return { type: "resolved", reason: "uncontested" };
+
+  if (state.lastAggressor === null && state.lastActor === "BB") return { type: "resolved", reason: "action-closed" };
 
   const candidate = nextLiveSeatAfter(state.lastActor, state.foldedSeats);
   if (state.lastAggressor !== null && candidate === state.lastAggressor) {

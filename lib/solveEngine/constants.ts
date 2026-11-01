@@ -28,6 +28,9 @@ export const OPEN_RAISE_IP_DEEP_BB = 2.5; // CO, BTN, SB at STACK_MAX_BB
 export const OPEN_RAISE_OOP_SHALLOW_BB = 2.3; // UTG, UTG1, LJ, HJ at/below the scaling threshold
 export const OPEN_RAISE_OOP_DEEP_BB = 2.8; // UTG, UTG1, LJ, HJ at STACK_MAX_BB
 
+/** BB's raise-to size over a limp. */
+export const LIMP_RAISE_TO_BB = 3.5;
+
 /** Reactive raise-to size, as a multiple of the previous aggressor's raise-to amount. */
 export const REACTIVE_RAISE_IP_MULTIPLIER = 3; // raiser acts after the last aggressor postflop
 export const REACTIVE_RAISE_OOP_MULTIPLIER = 4; // raiser acts before the last aggressor postflop

@@ -3,12 +3,14 @@ import { ALL_HANDS, TOTAL_COMBOS, type CanonicalHand } from "@/lib/handRange/han
 import type { HandFrequency } from "@/types/rangeData";
 import {
   MIX_BUFFER,
-  OPEN_WIDTHS_BY_STACK,
+  FIRST_IN_WIDTHS_BY_STACK,
+  BB_VS_LIMP_VALUE_WIDTH,
+  BB_VS_LIMP_BLUFF_WIDTH,
   COLD_CALL_BASE,
   COLD_CALL_PER_SEAT_BEHIND,
   COLD_CALL_OOP_MULTIPLIER,
   THREE_BET_WIDTH_RATIO,
-  THREE_BET_VALUE_SHARE,
+  RAISE_VALUE_SHARE,
   BASE_CONTINUE_THRESHOLD,
   RAISE_DEPTH_TIGHTEN_FACTOR,
   IP_CONTINUE_MULTIPLIER,
@@ -54,19 +56,25 @@ function handFrequencies(
   });
 }
 
+type FirstInWidths = (typeof FIRST_IN_WIDTHS_BY_STACK)[number];
+
+function firstInWidth(pick: (anchor: FirstInWidths) => number, effectiveStackBb: number): number {
+  const anchors = FIRST_IN_WIDTHS_BY_STACK;
+  const upperIndex = anchors.findIndex((a) => a.stackBb >= effectiveStackBb);
+  if (upperIndex === 0) return pick(anchors[0]);
+  if (upperIndex === -1) return pick(anchors[anchors.length - 1]);
+  const lower = anchors[upperIndex - 1];
+  const upper = anchors[upperIndex];
+  const t = (effectiveStackBb - lower.stackBb) / (upper.stackBb - lower.stackBb);
+  return pick(lower) + (pick(upper) - pick(lower)) * t;
+}
+
 /** Share of combos seat `seatIdx` (0=UTG..6=SB) opens at this stack. BB (index 7) never opens. */
 export function openWidthFor(seatIdx: number, effectiveStackBb: number): number {
   if (seatIdx < 0 || seatIdx > 6) {
     throw new Error(`openWidthFor: seat index ${seatIdx} cannot open`);
   }
-  const anchors = OPEN_WIDTHS_BY_STACK;
-  const upperIndex = anchors.findIndex((a) => a.stackBb >= effectiveStackBb);
-  if (upperIndex === 0) return anchors[0].widths[seatIdx];
-  if (upperIndex === -1) return anchors[anchors.length - 1].widths[seatIdx];
-  const lower = anchors[upperIndex - 1];
-  const upper = anchors[upperIndex];
-  const t = (effectiveStackBb - lower.stackBb) / (upper.stackBb - lower.stackBb);
-  return lower.widths[seatIdx] + (upper.widths[seatIdx] - lower.widths[seatIdx]) * t;
+  return firstInWidth((a) => a.widths[seatIdx], effectiveStackBb);
 }
 
 /** Opening decision: two-way, open (raise) or fold. */
@@ -79,6 +87,17 @@ export function generateOpeningScenario(
   return handFrequencies(ranking, (p) => {
     const raise = softInclude(p, threshold);
     return { fold: 1 - raise, call: 0, raise };
+  });
+}
+
+/** SB folded to: raises its best hands, limps most of the rest, folds the bottom. */
+export function generateSbFirstInScenario(ranking: PercentileRanking, effectiveStackBb: number): HandFrequency[] {
+  const playThreshold = firstInWidth((a) => a.sbPlay, effectiveStackBb);
+  const raiseThreshold = firstInWidth((a) => a.sbRaise, effectiveStackBb);
+  return handFrequencies(ranking, (p) => {
+    const play = softInclude(p, playThreshold);
+    const raise = softInclude(p, raiseThreshold);
+    return { fold: 1 - play, call: play - raise, raise };
   });
 }
 
@@ -148,10 +167,19 @@ function threeBetBluffs(ranking: PercentileRanking, valueThreshold: number, bluf
   return bluffs;
 }
 
+/** BB behind a limp: raises value and bluffs, checks the rest. Checking is free, so it never folds. */
+export function generateBbVsLimpScenario(ranking: PercentileRanking): HandFrequency[] {
+  const bluffs = threeBetBluffs(ranking, BB_VS_LIMP_VALUE_WIDTH, BB_VS_LIMP_BLUFF_WIDTH);
+  return ALL_HANDS.map((h) => {
+    const raise = Math.max(softInclude(ranking.get(h.hand) ?? 1, BB_VS_LIMP_VALUE_WIDTH), bluffs.get(h.hand) ?? 0);
+    return { hand: h.hand, fold: 0, call: 1 - raise, raise };
+  });
+}
+
 function generateVsOpenScenario(ranking: PercentileRanking, params: FacingRaiseParams): HandFrequency[] {
   const continueThreshold = vsOpenContinueThreshold(params);
   const threeBetWidth = Math.min(params.aggressorOpenWidth * THREE_BET_WIDTH_RATIO, continueThreshold);
-  const valueThreshold = threeBetWidth * THREE_BET_VALUE_SHARE;
+  const valueThreshold = threeBetWidth * RAISE_VALUE_SHARE;
   const bluffs = threeBetBluffs(ranking, valueThreshold, threeBetWidth - valueThreshold);
   return ALL_HANDS.map((h) => {
     const percentile = ranking.get(h.hand) ?? 1;

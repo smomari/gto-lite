@@ -2,11 +2,15 @@ import type { HandFrequency, Position, RangeSource } from "@/types/rangeData";
 import type { EquityMatrix } from "@/lib/equity/loadEquityMatrix";
 import { ALL_HANDS } from "@/lib/handRange/handList";
 import { SEAT_ORDER, postflopSeatIndex, seatIndex } from "@/lib/actionTree/seatOrder";
-import { generateOpeningScenario, generateFacingRaiseScenario, openWidthFor } from "@/lib/heuristicRanges/generateScenario";
-import { loadRfiExport } from "@/lib/preflopSolver/loadRfiExport";
+import {
+  generateBbVsLimpScenario,
+  generateFacingRaiseScenario,
+  generateOpeningScenario,
+  generateSbFirstInScenario,
+  openWidthFor,
+} from "@/lib/heuristicRanges/generateScenario";
 import type { PotState } from "./potState";
 import { shouldUseNash } from "./classify";
-import { RFI_EXPORT_STACK_BB } from "./constants";
 import { getPlayabilityRanking, getPushFoldResult } from "./solveCache";
 
 export interface SolvedNode {
@@ -42,11 +46,6 @@ export function solveActiveSeat(
   const hasOpener = potState.raiseDepth >= 1;
   const remainingStackBb = effectiveStackBb - (potState.committed[activeSeat] ?? 0);
 
-  if (!hasOpener && effectiveStackBb === RFI_EXPORT_STACK_BB) {
-    const positionData = loadRfiExport().positions[activeSeat];
-    if (positionData) return { source: "solver-export", hands: positionData.hands };
-  }
-
   if (shouldUseNash(effectiveStackBb, remainingStackBb, potState.potBb, hasOpener)) {
     const shover = potState.lastAggressor ?? activeSeat;
     const opponentsBehind = Math.max(1, SEAT_ORDER.length - 1 - seatIndex(shover));
@@ -59,6 +58,8 @@ export function solveActiveSeat(
 
   const ranking = getPlayabilityRanking(matrix);
   if (!hasOpener) {
+    if (activeSeat === "BB") return { source: "heuristic-approx", hands: generateBbVsLimpScenario(ranking) };
+    if (activeSeat === "SB") return { source: "heuristic-approx", hands: generateSbFirstInScenario(ranking, effectiveStackBb) };
     return { source: "heuristic-approx", hands: generateOpeningScenario(ranking, seatIndex(activeSeat), effectiveStackBb) };
   }
 
@@ -72,7 +73,8 @@ export function solveActiveSeat(
       potBb: potState.potBb,
       amountOwedBb,
       aggressorOpenWidth: openWidthFor(Math.min(seatIndex(lastAggressor), 6), effectiveStackBb),
-      seatsBehind: Math.max(0, SEAT_ORDER.length - 1 - seatIndex(activeSeat)),
+      // BB's raise over a limp leaves SB closing the action, though BB sits "behind" it.
+      seatsBehind: seatIndex(lastAggressor) > seatIndex(activeSeat) ? 0 : SEAT_ORDER.length - 1 - seatIndex(activeSeat),
     }),
   };
 }

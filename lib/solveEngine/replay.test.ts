@@ -148,6 +148,31 @@ describe("replayActionPath — legal sequences", () => {
   });
 });
 
+const foldsToSb = (["UTG", "UTG1", "LJ", "HJ", "CO", "BTN"] as const).map((actor) => ({ actor, action: "fold" }) as const);
+
+describe("replayActionPath — limped pots", () => {
+  it("closes the action when BB checks behind SB's limp", () => {
+    const result = replayActionPath([...foldsToSb, { actor: "SB", action: "call" }, { actor: "BB", action: "call" }], 40);
+    expect(result).toMatchObject({ status: "resolved", reason: "action-closed" });
+    if (result.status !== "resolved") return;
+    expect(result.potState.committed).toMatchObject({ SB: 1, BB: 1 });
+    expect(result.canonicalActionPath.slice(-2).map((n) => n.label)).toEqual(["limp", "check"]);
+  });
+
+  it("sends the action back to SB after BB raises a limp", () => {
+    const result = replayActionPath([...foldsToSb, { actor: "SB", action: "call" }, { actor: "BB", action: "raise" }], 40);
+    expect(result).toMatchObject({ status: "active", activeSeat: "SB" });
+    if (result.status !== "active") return;
+    expect(result.potState.committed.BB).toBe(3.5);
+  });
+
+  it("rejects a limp from any other seat, at push/fold stacks, and a BB fold when checking is free", () => {
+    expect(replayActionPath([{ actor: "UTG", action: "call" }], 40).status).toBe("invalid");
+    expect(replayActionPath([...foldsToSb, { actor: "SB", action: "call" }], 15).status).toBe("invalid");
+    expect(replayActionPath([...foldsToSb, { actor: "SB", action: "call" }, { actor: "BB", action: "fold" }], 40).status).toBe("invalid");
+  });
+});
+
 describe("replayActionPath — illegal sequences", () => {
   it("rejects the wrong actor for the computed next turn", () => {
     const result = replayActionPath([{ actor: "BB", action: "raise" }], 100);

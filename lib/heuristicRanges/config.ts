@@ -7,19 +7,27 @@ export const MIX_BUFFER = 0.03;
 // value rather than continuing the linear ramp, since SB is a blind and
 // conventionally opens tighter than BTN despite sitting "later" in raw seat
 // order. BB (index 7) never opens (nothing to solve — see rotation.ts).
-/** Share of combos each seat opens (UTG..SB), interpolated between these stacks and flat outside them. */
-export const OPEN_WIDTHS_BY_STACK = [
-  { stackBb: 20, widths: [0.13, 0.15, 0.18, 0.24, 0.33, 0.42, 0.42] },
-  { stackBb: 40, widths: [0.16, 0.18, 0.22, 0.28, 0.36, 0.5, 0.42] },
-  { stackBb: 100, widths: [0.13, 0.15, 0.19, 0.25, 0.32, 0.46, 0.44] },
+/**
+ * Share of combos played first-in, interpolated between these stacks and flat
+ * outside them. `widths` are each seat's raise-or-fold opens (UTG..SB, SB's
+ * being what BB defends a raise against); `sbPlay` is all SB plays with
+ * limping on offer and `sbRaise` the part of it that raises.
+ */
+export const FIRST_IN_WIDTHS_BY_STACK = [
+  { stackBb: 20, widths: [0.13, 0.15, 0.18, 0.24, 0.33, 0.42, 0.42], sbPlay: 0.85, sbRaise: 0.2 },
+  { stackBb: 40, widths: [0.16, 0.18, 0.22, 0.28, 0.36, 0.5, 0.42], sbPlay: 0.82, sbRaise: 0.24 },
+  { stackBb: 100, widths: [0.13, 0.15, 0.19, 0.25, 0.32, 0.46, 0.44], sbPlay: 0.85, sbRaise: 0.1 },
 ];
+/** Share of combos BB raises over a limp. Heavier on value than a 3-bet: there are only so many suited bluffs. */
+export const BB_VS_LIMP_VALUE_WIDTH = 0.34;
+export const BB_VS_LIMP_BLUFF_WIDTH = 0.12;
 /** Share of the BB's continuing range that a cold caller keeps: IP, with two seats behind. */
 export const COLD_CALL_BASE = 0.65;
 export const COLD_CALL_PER_SEAT_BEHIND = 0.9;
 export const COLD_CALL_OOP_MULTIPLIER = 0.6;
-/** 3-bet width as a share of the opener's width, and how much of it is value. */
+/** 3-bet width as a share of the opener's width, and how much of a raise range is value. */
 export const THREE_BET_WIDTH_RATIO = 0.3;
-export const THREE_BET_VALUE_SHARE = 0.6;
+export const RAISE_VALUE_SHARE = 0.6;
 
 // --- Facing-a-raise continuing threshold ----------------------------------
 export const BASE_CONTINUE_THRESHOLD = 0.3; // neutral continue %, before adjustment, facing a re-raise
