@@ -36,6 +36,7 @@
 namespace {
 
 constexpr int kDeckSize = 52;
+constexpr int kMaxCombos = 1326;
 constexpr uint8_t kNoCard = 255;
 constexpr double kAlpha = 1.5;
 constexpr double kGamma = 3;
@@ -202,17 +203,32 @@ void foldValues(const Engine& e, int node, int p, const float* oppReach, float* 
   for (int i = 0; i < self.n; i++) out[i] = static_cast<float>(payoff * live(self, i, s, oppReach));
 }
 
-inline double dot(const float* a, const float* b, int n) {
+/**
+ * Opponent reach is often zero in long stretches (combos sit in hand order, and
+ * lines narrow to a few hands), so a showdown table skips the 8-wide blocks of
+ * columns that are all zero: `blocks` lists the rest, as their first column.
+ */
+int liveBlocks(const float* reach, int n, int* blocks) {
+  int count = 0;
+  for (int k = 0; k + 8 <= n; k += 8) {
+    bool live = false;
+    for (int x = k; x < k + 8; x++) live = live || reach[x] != 0;
+    if (live) blocks[count++] = k;
+  }
+  return count;
+}
+
+inline double dot(const float* a, const float* b, int n, const int* blocks, int blockCount) {
   v128_t acc0 = wasm_f32x4_splat(0), acc1 = wasm_f32x4_splat(0);
-  int k = 0;
-  for (; k + 8 <= n; k += 8) {
+  for (int c = 0; c < blockCount; c++) {
+    const int k = blocks[c];
     acc0 = wasm_f32x4_add(acc0, wasm_f32x4_mul(wasm_v128_load(a + k), wasm_v128_load(b + k)));
     acc1 = wasm_f32x4_add(acc1, wasm_f32x4_mul(wasm_v128_load(a + k + 4), wasm_v128_load(b + k + 4)));
   }
   const v128_t acc = wasm_f32x4_add(acc0, acc1);
   double sum = static_cast<double>(wasm_f32x4_extract_lane(acc, 0)) + wasm_f32x4_extract_lane(acc, 1) +
                wasm_f32x4_extract_lane(acc, 2) + wasm_f32x4_extract_lane(acc, 3);
-  for (; k < n; k++) sum += a[k] * b[k];
+  for (int k = n / 8 * 8; k < n; k++) sum += a[k] * b[k];
   return sum;
 }
 
@@ -223,8 +239,10 @@ void tableShowdownValues(const Engine& e, int node, int p, const float* oppReach
   const double pot = e.pot[node];
   const double committed = p == 0 ? e.committed1[node] : e.committed2[node];
   const CardSums s = cardSums(e.players[1 - p], oppReach);
+  int blocks[kMaxCombos / 8];
+  const int blockCount = liveBlocks(oppReach, oppCount, blocks);
   for (int i = 0; i < self.n; i++) {
-    const double share = dot(eq + static_cast<size_t>(i) * oppCount, oppReach, oppCount);
+    const double share = dot(eq + static_cast<size_t>(i) * oppCount, oppReach, oppCount, blocks, blockCount);
     out[i] = static_cast<float>(pot * share - committed * live(self, i, s, oppReach));
   }
 }
