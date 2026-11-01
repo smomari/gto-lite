@@ -40,7 +40,7 @@ export function BoardPicker({ count, excludedCards = [], title, confirmLabel, on
       </div>
 
       {/* One row per suit (suit-outer, rank-inner) so same-suit cards line up, unlike an alphabetical rank-major list. */}
-      <div className="grid gap-1" style={{ gridTemplateColumns: "repeat(13, minmax(0, 1fr))" }}>
+      <div className="grid gap-px sm:gap-1" style={{ gridTemplateColumns: "repeat(13, minmax(0, 1fr))" }}>
         {SUITS.flatMap((suit) =>
           RANKS.map((rank) => {
             const card = `${rank}${suit}`;
@@ -53,11 +53,11 @@ export function BoardPicker({ count, excludedCards = [], title, confirmLabel, on
                 aria-label={card}
                 disabled={isExcluded || (!isSelected && selected.length >= count)}
                 onClick={() => toggleCard(card)}
-                className={`rounded p-0.5 transition disabled:opacity-30 ${
+                className={`rounded p-px transition disabled:opacity-30 sm:p-0.5 ${
                   isSelected ? "ring-2 ring-emerald-500" : ""
                 } ${isExcluded ? "grayscale" : "hover:brightness-95 dark:hover:brightness-125"}`}
               >
-                <CardChip card={card} size="sm" />
+                <CardChip card={card} size="fluid" />
               </button>
             );
           }),

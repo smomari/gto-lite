@@ -90,6 +90,14 @@ export function PostflopPanel(props: PostflopPanelProps) {
   const [isolatedActionIndex, setIsolatedActionIndex] = useState<number | null>(null);
   const [expandedPastStage, setExpandedPastStage] = useState<number | null>(null);
 
+  // Below the chart on small screens, a tapped hand's combos would otherwise sit off-screen.
+  const comboDetailRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (selectedHand && !window.matchMedia?.("(min-width: 1024px)").matches) {
+      comboDetailRef.current?.scrollIntoView({ block: "nearest" });
+    }
+  }, [selectedHand]);
+
   // Keep the newest timeline entry (a new street's box, or the seat now to act) in view.
   const boxedStreetCount = streets.filter((s) => s.board.length > 0).length;
   const liveNode = streets[streets.length - 1].currentNode;
@@ -408,8 +416,8 @@ export function PostflopPanel(props: PostflopPanelProps) {
             const actionColors = buildActionColorScale(decisionNode.actions);
             const range = decisionNode.actor === "P1" ? solveState.result.heroRange : solveState.result.villainRange;
             return (
-              <div className="grid flex-1 min-h-0 grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
-                <div className="flex min-h-0 flex-col gap-2">
+              <div className="grid grid-cols-1 gap-4 lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(0,1fr)_320px]">
+                <div className="flex flex-col gap-2 lg:min-h-0">
                   <BetSizeFilterBar
                     node={decisionNode}
                     range={range}
@@ -417,7 +425,7 @@ export function PostflopPanel(props: PostflopPanelProps) {
                     isolatedActionIndex={isolatedActionIndex}
                     onIsolateChange={setIsolatedActionIndex}
                   />
-                  <div className="min-h-0 flex-1">
+                  <div className="lg:min-h-0 lg:flex-1">
                     <PostflopRangeGrid
                       range={range}
                       node={decisionNode}
@@ -428,7 +436,10 @@ export function PostflopPanel(props: PostflopPanelProps) {
                     />
                   </div>
                 </div>
-                <div className="flex min-h-0 flex-col gap-3 overflow-y-auto border-l border-zinc-200 pl-4 dark:border-zinc-800">
+                <div
+                  ref={comboDetailRef}
+                  className="flex flex-col gap-3 border-t border-zinc-200 pt-3 dark:border-zinc-800 lg:min-h-0 lg:overflow-y-auto lg:border-l lg:border-t-0 lg:pl-4 lg:pt-0"
+                >
                   <SuitedComboBreakdown
                     selectedHand={selectedHand}
                     node={decisionNode}
@@ -446,14 +457,14 @@ export function PostflopPanel(props: PostflopPanelProps) {
           <button
             type="button"
             onClick={() => handleResetStreet(i)}
-            className="text-xs text-zinc-500 underline hover:text-zinc-900 dark:hover:text-zinc-100"
+            className="text-xs text-zinc-500 underline hover:text-zinc-900 pointer-coarse:py-2 dark:hover:text-zinc-100"
           >
             Reset to start of street
           </button>
           <button
             type="button"
             onClick={() => handlePickDifferentBoard(i)}
-            className="text-xs text-zinc-500 underline hover:text-zinc-900 dark:hover:text-zinc-100"
+            className="text-xs text-zinc-500 underline hover:text-zinc-900 pointer-coarse:py-2 dark:hover:text-zinc-100"
           >
             {isFlop ? "Pick a different board" : `Pick a different ${stage.streetLabel.toLowerCase()} card`}
           </button>
@@ -531,7 +542,7 @@ export function PostflopPanel(props: PostflopPanelProps) {
   });
 
   return (
-    <div className="relative flex flex-1 min-h-0 flex-col gap-2 overflow-hidden rounded-lg border border-zinc-300 p-4 dark:border-zinc-700">
+    <div className="relative flex flex-col gap-2 rounded-lg border border-zinc-300 p-2 dark:border-zinc-700 sm:p-4 lg:min-h-0 lg:flex-1 lg:overflow-hidden">
       {props.streetBarSlot && createPortal(timeline, props.streetBarSlot)}
 
       <h2 className="text-xs font-semibold text-zinc-900 dark:text-zinc-100">
@@ -541,7 +552,7 @@ export function PostflopPanel(props: PostflopPanelProps) {
       <div
         data-testid="street-stage"
         data-street={live.streetLabel}
-        className="flex flex-1 min-h-0 flex-col gap-2 overflow-y-auto"
+        className="flex flex-col gap-2 lg:min-h-0 lg:flex-1 lg:overflow-y-auto"
       >
         {live.state.kind === "idle" && (
           <BoardPicker
@@ -577,7 +588,7 @@ export function PostflopPanel(props: PostflopPanelProps) {
               <button
                 type="button"
                 onClick={() => handlePickDifferentBoard(liveIndex)}
-                className="text-xs text-zinc-500 underline hover:text-zinc-900 dark:hover:text-zinc-100"
+                className="text-xs text-zinc-500 underline hover:text-zinc-900 pointer-coarse:py-2 dark:hover:text-zinc-100"
               >
                 {liveIsFlop ? "Pick a different board" : `Pick a different ${live.streetLabel.toLowerCase()} card`}
               </button>

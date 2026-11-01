@@ -42,7 +42,7 @@ export function BetSizeFilterBar({ node, range, colors, isolatedActionIndex, onI
             key={i}
             type="button"
             onClick={() => onIsolateChange(isActive ? null : i)}
-            className={`rounded px-3 py-1.5 text-sm font-medium transition ${dimmed ? "opacity-40" : ""} ${
+            className={`rounded px-3 py-1.5 text-sm font-medium transition pointer-coarse:min-h-9 ${dimmed ? "opacity-40" : ""} ${
               isActive ? "ring-2 ring-emerald-500 ring-offset-1" : ""
             }`}
             style={{ backgroundColor: colors[i], color: readableTextColor(colors[i]) }}

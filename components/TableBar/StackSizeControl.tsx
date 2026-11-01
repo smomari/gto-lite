@@ -20,7 +20,7 @@ export function StackSizeControl({ value, onChange, compact }: StackSizeControlP
         onChange(next);
       }}
       className={`rounded-md border border-zinc-300 bg-transparent dark:border-zinc-600 ${
-        compact ? "w-14 px-1.5 py-0.5 text-xs" : "w-16 px-2 py-1 text-sm"
+        compact ? "w-16 px-1.5 py-0.5 text-base lg:w-14 lg:text-xs" : "w-16 px-2 py-1 text-base lg:text-sm"
       }`}
     />
   );

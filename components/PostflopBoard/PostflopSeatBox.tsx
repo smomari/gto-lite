@@ -55,7 +55,7 @@ export function PostflopSeatBox(props: PostflopSeatBoxProps) {
               key={i}
               type="button"
               onClick={() => props.onNavigate(a)}
-              className="rounded px-2 py-1 text-left text-xs font-medium transition hover:brightness-95 dark:hover:brightness-110"
+              className="rounded px-2 py-1 text-left text-xs font-medium transition pointer-coarse:min-h-9 hover:brightness-95 dark:hover:brightness-110"
               style={{ backgroundColor: props.actionColors[i], color: readableTextColor(props.actionColors[i]) }}
             >
               {a.label}
