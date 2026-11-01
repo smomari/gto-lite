@@ -48,4 +48,19 @@ describe("RunoutEquity", () => {
       runout.dispose();
     }
   });
+
+  it("describes a turn by each combo's equity, NaN for the combos holding it", async () => {
+    const runout = RunoutEquity.create(await loadNodeSolverModule(), hero, villain, FLOP);
+    try {
+      const features = runout.turnFeatures("As", hero, villain);
+      expect(features).toHaveLength(hero.length + villain.length);
+      [...hero, ...villain].forEach((combo, k) => {
+        if (combo.cards.includes("As")) expect(features[k]).toBeNaN();
+        else expect(features[k]).toBeGreaterThanOrEqual(0);
+      });
+      expect([...features].some((x) => x > 0)).toBe(true);
+    } finally {
+      runout.dispose();
+    }
+  });
 });

@@ -30,6 +30,10 @@ function runoutStrengths(range: ComboRange, flop: string[]): Uint16Array {
   return out;
 }
 
+function sharesNoCard(a: [string, string], b: [string, string], card: string): boolean {
+  return a[0] !== b[0] && a[0] !== b[1] && a[1] !== b[0] && a[1] !== b[1] && !a.includes(card) && !b.includes(card);
+}
+
 /**
  * A flop's equity tables, built by the C++ core (native/solver/equity.cpp)
  * from each combo's strength on every runout: hand evaluation happens once
@@ -104,6 +108,33 @@ export class RunoutEquity {
     const turn = CARD_INDEX[turnCard];
     const slots = remainingDeck([...this.flop, turnCard]).map((river) => pairSlot(turn, CARD_INDEX[river]));
     return this.table(slots, 0);
+  }
+
+  /**
+   * How a turn card plays: each combo's equity against the other range once it
+   * lands, weighted by the combo's reach (hero combos, then villain combos). A
+   * combo holding the card can't see it, and reads as NaN.
+   */
+  turnFeatures(turnCard: string, hero: ComboRange, villain: ComboRange): Float32Array {
+    const table = this.turnTable(turnCard);
+    const { heroCount, villainCount } = this;
+    const heroEquity = new Float64Array(heroCount), heroMass = new Float64Array(heroCount);
+    const villainEquity = new Float64Array(villainCount), villainMass = new Float64Array(villainCount);
+    for (let i = 0; i < heroCount; i++) {
+      for (let j = 0; j < villainCount; j++) {
+        const equity = table[i * villainCount + j];
+        if (equity === 0 && !sharesNoCard(hero[i].cards, villain[j].cards, turnCard)) continue;
+        heroEquity[i] += villain[j].weight * equity;
+        heroMass[i] += villain[j].weight;
+        villainEquity[j] += hero[i].weight * (1 - equity);
+        villainMass[j] += hero[i].weight;
+      }
+    }
+    const out = new Float32Array(heroCount + villainCount);
+    const heroTotal = hero.reduce((sum, c) => sum + c.weight, 0), villainTotal = villain.reduce((sum, c) => sum + c.weight, 0);
+    for (let i = 0; i < heroCount; i++) out[i] = heroMass[i] > 0 ? (Math.sqrt(hero[i].weight / heroTotal) * heroEquity[i]) / heroMass[i] : NaN;
+    for (let j = 0; j < villainCount; j++) out[heroCount + j] = villainMass[j] > 0 ? (Math.sqrt(villain[j].weight / villainTotal) * villainEquity[j]) / villainMass[j] : NaN;
+    return out;
   }
 
   dispose(): void {
