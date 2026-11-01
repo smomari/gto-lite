@@ -50,7 +50,7 @@ export type PostflopSolveInput =
  * Against 10 stratified turns, 16 clustered ones took a BTN-vs-BB spot from
  * 1.76% to 1.27%, narrowed SRPs from 2.65% to 2.06% and 3-bet pots from 3.44% to
  * 2.09%, better on all 10 boards, and 3.35% to 1.59% on 3 boards held back from
- * tuning. 12 cards made one worse. A BTN-vs-BB flop takes about 6s in the browser.
+ * tuning. 12 cards made one worse. A BTN-vs-BB flop takes about 4s in the browser.
  */
 export const FLOP_LOOKAHEAD = { turnCards: 16, riverCards: 6 };
 

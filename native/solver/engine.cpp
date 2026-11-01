@@ -180,6 +180,7 @@ CardSums cardSums(const Player& opp, const float* reach) {
   CardSums s;
   for (int j = 0; j < opp.n; j++) {
     const double w = reach[j];
+    if (w == 0) continue;
     s.total += w;
     s.byCard[opp.cards[j * 2]] += w;
     s.byCard[opp.cards[j * 2 + 1]] += w;
@@ -229,11 +230,16 @@ void tableShowdownValues(const Engine& e, int node, int p, const float* oppReach
 }
 
 /**
- * River showdown in O(n): walk both players' combos in ascending strength. For
- * combo i, the opponent weight strictly below it (wins) and at or below it
- * (wins + ties) are running sums minus the weight on i's two cards. The one
- * opponent combo holding exactly i's cards has the same strength, so it never
- * appears in the strict sum and is added back once in the "at or below" sum.
+ * River showdown in O(n): walk both players' combos in ascending strength,
+ * keeping one running value per card. A combo's value is its share of the pot
+ * minus what it risks, over every compatible opponent:
+ *   pot × (below + ties / 2) − committed × live
+ * Everything starts at −committed × opponent weight. As the walk reaches an
+ * opponent combo it adds half the pot for the ties at that strength, then the
+ * other half once the walk moves past it (the whole pot at once if nothing of
+ * ours tied it). A combo's own two cards are subtracted by inclusion–exclusion;
+ * the one opponent combo holding exactly those cards always ties, so it's added
+ * back once.
  */
 void riverShowdownValues(const Engine& e, int node, int p, const float* oppReach, float* out) {
   const Player& self = e.players[p];
@@ -241,34 +247,36 @@ void riverShowdownValues(const Engine& e, int node, int p, const float* oppReach
   const RiverBoard& board = e.boards[e.aux[node]];
   const uint32_t* myStrength = board.strength[p].data();
   const uint32_t* oppStrength = board.strength[1 - p].data();
-  const std::vector<int32_t>& myOrder = board.ascending[p];
-  const std::vector<int32_t>& oppOrder = board.ascending[1 - p];
-  const double pot = e.pot[node];
+  const int32_t* oppOrder = board.ascending[1 - p].data();
+  const double half = e.pot[node] * 0.5;
   const double committed = p == 0 ? e.committed1[node] : e.committed2[node];
-  const CardSums all = cardSums(opp, oppReach);
 
-  CardSums below, atOrBelow;
-  int jBelow = 0, jAtOrBelow = 0;
-  for (const int i : myOrder) {
+  CardSums run = cardSums(opp, oppReach);
+  run.total *= -committed;
+  for (double& x : run.byCard) x *= -committed;
+  const auto add = [&run, &opp, oppReach](int j, double scale) {
+    const double w = oppReach[j] * scale;
+    if (w == 0) return;
+    run.total += w;
+    run.byCard[opp.cards[j * 2]] += w;
+    run.byCard[opp.cards[j * 2 + 1]] += w;
+  };
+
+  int passed = 0, tied = 0;  // oppOrder: [0, passed) counted in full, [passed, tied) tying the current strength, half counted
+  uint32_t current = 0;
+  bool started = false;
+  for (const int i : board.ascending[p]) {
     const uint32_t s = myStrength[i];
-    while (jBelow < opp.n && oppStrength[oppOrder[jBelow]] < s) {
-      const int j = oppOrder[jBelow++];
-      below.total += oppReach[j];
-      below.byCard[opp.cards[j * 2]] += oppReach[j];
-      below.byCard[opp.cards[j * 2 + 1]] += oppReach[j];
+    if (!started || s != current) {
+      for (; passed < tied; passed++) add(oppOrder[passed], half);
+      for (; passed < opp.n && oppStrength[oppOrder[passed]] < s; passed++) add(oppOrder[passed], 2 * half);
+      for (tied = passed; tied < opp.n && oppStrength[oppOrder[tied]] == s; tied++) add(oppOrder[tied], half);
+      current = s;
+      started = true;
     }
-    while (jAtOrBelow < opp.n && oppStrength[oppOrder[jAtOrBelow]] <= s) {
-      const int j = oppOrder[jAtOrBelow++];
-      atOrBelow.total += oppReach[j];
-      atOrBelow.byCard[opp.cards[j * 2]] += oppReach[j];
-      atOrBelow.byCard[opp.cards[j * 2 + 1]] += oppReach[j];
-    }
-    const int a = self.cards[i * 2], b = self.cards[i * 2 + 1], same = self.sameOpp[i];
-    const double wins = below.total - below.byCard[a] - below.byCard[b];
-    const double winsAndTies =
-        atOrBelow.total - atOrBelow.byCard[a] - atOrBelow.byCard[b] + (same >= 0 ? oppReach[same] : 0);
-    const double liveWeight = all.total - all.byCard[a] - all.byCard[b] + (same >= 0 ? oppReach[same] : 0);
-    out[i] = static_cast<float>(pot * 0.5 * (wins + winsAndTies) - committed * liveWeight);
+    const int same = self.sameOpp[i];
+    const double value = run.total - run.byCard[self.cards[i * 2]] - run.byCard[self.cards[i * 2 + 1]];
+    out[i] = static_cast<float>(same >= 0 ? value + oppReach[same] * (half - committed) : value);
   }
 }
 
@@ -285,16 +293,28 @@ void terminalValues(const Engine& e, int node, int p, const float* oppReach, flo
 
 /** Regret matching into `sigma` ([action * n + combo]). */
 void regretMatch(const float* regret, int actions, int n, float* sigma, float* scratchSum) {
+  const v128_t zero = wasm_f32x4_splat(0);
   std::fill(scratchSum, scratchSum + n, 0.0f);
   for (int a = 0; a < actions; a++) {
     const float* r = regret + static_cast<size_t>(a) * n;
-    for (int i = 0; i < n; i++) scratchSum[i] += std::max(r[i], 0.0f);
+    int i = 0;
+    for (; i + 4 <= n; i += 4) {
+      wasm_v128_store(scratchSum + i, wasm_f32x4_add(wasm_v128_load(scratchSum + i), wasm_f32x4_pmax(wasm_v128_load(r + i), zero)));
+    }
+    for (; i < n; i++) scratchSum[i] += std::max(r[i], 0.0f);
   }
   const float uniform = 1.0f / actions;
+  const v128_t uniforms = wasm_f32x4_splat(uniform);
   for (int a = 0; a < actions; a++) {
     const float* r = regret + static_cast<size_t>(a) * n;
     float* s = sigma + static_cast<size_t>(a) * n;
-    for (int i = 0; i < n; i++) s[i] = scratchSum[i] > 0 ? std::max(r[i], 0.0f) / scratchSum[i] : uniform;
+    int i = 0;
+    for (; i + 4 <= n; i += 4) {
+      const v128_t sum = wasm_v128_load(scratchSum + i);
+      const v128_t share = wasm_f32x4_div(wasm_f32x4_pmax(wasm_v128_load(r + i), zero), sum);
+      wasm_v128_store(s + i, wasm_v128_bitselect(share, uniforms, wasm_f32x4_gt(sum, zero)));
+    }
+    for (; i < n; i++) s[i] = scratchSum[i] > 0 ? std::max(r[i], 0.0f) / scratchSum[i] : uniform;
   }
 }
 
@@ -524,6 +544,8 @@ Update updateFor(int t) {
 
 // ---------------------------------------------------------------- split execution
 
+bool isTerminal(uint8_t t) { return t == kFold || t == kShowdownTable || t == kShowdownRiver; }
+
 inline float* trunkReach(Engine& e, int node, int p) {
   return e.split.reach.data() + static_cast<size_t>(e.split.trunkIndex[node]) * e.split.width + (p == 0 ? 0 : e.players[0].n);
 }
@@ -536,7 +558,6 @@ inline float* trunkEvalValues(Engine& e, int node, int p) {
 inline float* leafIn(Engine& e, int slot) { return e.split.exchangeIn.data() + static_cast<size_t>(slot) * e.split.width; }
 inline float* leafOut(Engine& e, int slot) { return e.split.exchangeOut.data() + static_cast<size_t>(slot) * e.split.width; }
 
-bool isTerminal(uint8_t t) { return t == kFold || t == kShowdownTable || t == kShowdownRiver; }
 
 inline bool isLocked(const Engine& e, int node) { return e.split.locked[e.split.trunkIndex[node]] != 0; }
 inline const float* lockedSigma(const Engine& e, int node) { return e.split.lockedSigma.data() + e.split.sigmaOffset[e.split.trunkIndex[node]]; }
