@@ -77,10 +77,13 @@ function idleStage(boardLength: number, effectiveStackAtStart: number): StreetSt
   };
 }
 
+/** At or below this many cores the full flop lookahead passes 10s, so the quick one starts ticked. */
+const FAST_FLOP_MAX_CORES = 4;
+
 export function PostflopPanel(props: PostflopPanelProps) {
   const [streets, setStreets] = useState<StreetStage[]>([idleStage(3, props.effectiveStackBb)]);
   const [preciseAvgByStage, setPreciseAvgByStage] = useState<Record<number, PreciseAvgState>>({});
-  const [fastFlop, setFastFlop] = useState(false);
+  const [fastFlop, setFastFlop] = useState(() => navigator.hardwareConcurrency <= FAST_FLOP_MAX_CORES);
   const preciseAbortRef = useRef<{ stageIndex: number; controller: AbortController } | null>(null);
   const solveAbortRef = useRef(new Map<number, AbortController>());
   const [selectedHand, setSelectedHand] = useState<string | null>(null);

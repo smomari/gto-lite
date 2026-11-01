@@ -322,15 +322,24 @@ describe("PostflopPanel", () => {
 
   it("a flop solve looks ahead fully by default, stops at the turn when ticked, and only the flop offers it", async () => {
     solvePostflopInWorker.mockResolvedValue(new Promise(() => {}));
+    const cores = vi.spyOn(navigator, "hardwareConcurrency", "get").mockReturnValue(10);
     renderPanel(20);
     const fast = within(liveStage()).getByRole("checkbox", { name: /Fast flop/ });
     expect(fast).not.toBeChecked();
+    cores.mockRestore();
 
     fireEvent.click(fast);
     pickFlopBoard();
 
     expect(solvePostflopInWorker.mock.calls[0][0]).toMatchObject({ kind: "canonical", fast: true });
     expect(screen.queryByRole("checkbox", { name: /Fast flop/ })).not.toBeInTheDocument();
+  });
+
+  it("starts on the fast flop on a machine with few cores", () => {
+    const cores = vi.spyOn(navigator, "hardwareConcurrency", "get").mockReturnValue(4);
+    renderPanel(20);
+    expect(within(liveStage()).getByRole("checkbox", { name: /Fast flop/ })).toBeChecked();
+    cores.mockRestore();
   });
 
   it("a failed solve can be left: the error offers picking a different board, back to the board picker", async () => {
