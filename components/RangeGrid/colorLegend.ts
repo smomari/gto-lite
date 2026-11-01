@@ -1,8 +1,8 @@
 export const ACTION_COLORS = {
-  fold: "#9ca3af",
-  call: "#3b82f6",
-  raise: "#f97316",
-  allin: "#7f1d1d",
+  fold: "#1a1e24",
+  call: "#4f7fb8",
+  raise: "#c4692f",
+  allin: "#9c3a3a",
 } as const;
 
 export const ACTION_LABELS: Record<keyof typeof ACTION_COLORS, string> = {

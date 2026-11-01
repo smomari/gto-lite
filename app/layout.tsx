@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "GTO Lite — Preflop Range Viewer",
-  description: "Tournament preflop range viewer by position, stack depth, and action sequence.",
+  title: "gtoLite — Poker Solver",
+  description: "Tournament preflop ranges and postflop GTO solving in the browser.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
