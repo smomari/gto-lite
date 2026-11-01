@@ -16,7 +16,7 @@ interface CheckdownEquityNoteProps {
  */
 export function CheckdownEquityNote({ equity, heroLabel, villainLabel }: CheckdownEquityNoteProps) {
   return (
-    <p className="text-xs text-zinc-500 dark:text-zinc-400">
+    <p className="text-xs text-ink-muted">
       Checkdown avg EV (all remaining runouts, assumes no further betting): {heroLabel}{" "}
       {equity.heroEquityPercent.toFixed(1)}% / {formatSignedBb(equity.heroEvBb)} · {villainLabel}{" "}
       {equity.villainEquityPercent.toFixed(1)}% / {formatSignedBb(equity.villainEvBb)}

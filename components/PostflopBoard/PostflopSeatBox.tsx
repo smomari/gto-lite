@@ -1,5 +1,4 @@
 import type { SerializedDecisionAction } from "@/types/postflopSolver";
-import { readableTextColor } from "@/components/PostflopStrategy/postflopColorLegend";
 
 type PostflopSeatBoxProps =
   | {
@@ -26,27 +25,21 @@ export function PostflopSeatBox(props: PostflopSeatBoxProps) {
       data-testid="postflop-seat-box"
       data-kind={props.kind}
       data-seat={props.seatLabel}
-      className={`flex shrink-0 min-w-[130px] flex-col gap-1.5 rounded-lg border p-2.5 ${
-        isActive
-          ? "border-emerald-500 ring-1 ring-emerald-500"
-          : "border-zinc-300 dark:border-zinc-700"
+      className={`flex shrink-0 flex-col gap-1 rounded-md p-2 ${
+        isActive ? "bg-surface shadow-[inset_0_0_0_1px_var(--color-line-strong),inset_2px_0_0_var(--color-accent)]" : "min-w-[76px] opacity-70"
       }`}
     >
-      <div className="flex flex-col gap-0.5">
-        <span className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">{props.seatLabel}</span>
+      <div className="flex items-baseline justify-between gap-2 text-xs">
+        <span className="font-semibold text-ink">{props.seatLabel}</span>
         {props.kind === "active" && (
-          <span className="text-xs text-zinc-500 dark:text-zinc-400">
+          <span className="font-mono tabular-nums text-ink-faint">
             pot {props.potBb.toFixed(1)}bb
             {props.currentBetToCall > 0 && ` · facing ${props.currentBetToCall.toFixed(1)}bb`}
           </span>
         )}
       </div>
 
-      {props.kind === "history" && (
-        <span className="rounded px-1.5 py-0.5 text-left text-xs text-zinc-500 dark:text-zinc-400">
-          {props.label}
-        </span>
-      )}
+      {props.kind === "history" && <span className="py-0.5 text-left text-xs text-ink-muted">{props.label}</span>}
 
       {props.kind === "active" && (
         <div className="flex flex-nowrap gap-1">
@@ -55,9 +48,9 @@ export function PostflopSeatBox(props: PostflopSeatBoxProps) {
               key={i}
               type="button"
               onClick={() => props.onNavigate(a)}
-              className="rounded px-2 py-1 text-left text-xs font-medium transition pointer-coarse:min-h-9 hover:brightness-95 dark:hover:brightness-110"
-              style={{ backgroundColor: props.actionColors[i], color: readableTextColor(props.actionColors[i]) }}
+              className="flex items-center gap-1.5 whitespace-nowrap rounded bg-raised px-2 py-1 text-left text-xs font-medium text-ink transition pointer-coarse:min-h-9 hover:bg-line-strong"
             >
+              <span aria-hidden className="h-2 w-2 rounded-[2px]" style={{ backgroundColor: props.actionColors[i] }} />
               {a.label}
             </button>
           ))}

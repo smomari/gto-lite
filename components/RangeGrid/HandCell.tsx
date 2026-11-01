@@ -1,5 +1,6 @@
 import type { HandFrequency } from "@/types/rangeData";
 import { formatPercent } from "@/lib/format";
+import { readableTextColor } from "@/components/PostflopStrategy/postflopColorLegend";
 import { ACTION_COLORS } from "./colorLegend";
 
 interface HandCellProps {
@@ -29,6 +30,7 @@ export function HandCell({ hand, frequency, isSelected, onClick }: HandCellProps
 
   // A hand that's all fold is out of the range: let it sink so the range reads at a glance.
   const inRange = freq.fold < 1;
+  const dominantColor = segments.reduce((a, b) => (b.value > a.value ? b : a)).color;
 
   return (
     <button
@@ -50,8 +52,9 @@ export function HandCell({ hand, frequency, isSelected, onClick }: HandCellProps
       )}
       <span
         className={`pointer-events-none absolute inset-0 flex items-center justify-center text-[9px] font-medium sm:text-[10px] ${
-          inRange ? "text-white" : "text-ink-faint"
+          inRange ? "" : "text-ink-faint"
         }`}
+        style={inRange ? { color: readableTextColor(dominantColor) } : undefined}
       >
         {hand}
       </span>

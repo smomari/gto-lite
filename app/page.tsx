@@ -161,20 +161,20 @@ export default function Home() {
           <div
             ref={setStreetBarSlot}
             data-testid="street-bar-slot"
-            className="flex shrink-0 items-start gap-2 border-l border-zinc-300 pl-2 empty:hidden dark:border-zinc-700"
+            className="flex shrink-0 items-start gap-1 border-l border-line-strong pl-1 empty:hidden"
           />
         }
       />
 
       {current?.kind === "error" && (
-        <p className="text-sm text-red-600 dark:text-red-400">Error: {current.message}</p>
+        <p className="text-sm text-[#d98a82]">Error: {current.message}</p>
       )}
 
       {current?.kind === "resolved" && handoff && (
         <div className="flex flex-col gap-3 lg:min-h-0 lg:flex-1">
           {!postflopActive && (
             <>
-              <p className="text-sm text-zinc-500 dark:text-zinc-400">
+              <p className="text-sm text-ink-muted">
                 {current.reason === "uncontested"
                   ? "Hand ends uncontested — everyone folded."
                   : "Preflop action is closed — multiple players see a flop."}{" "}
@@ -182,7 +182,7 @@ export default function Home() {
               </p>
 
               {current.reason === "action-closed" && (
-                <div className="text-sm text-zinc-500 dark:text-zinc-400">
+                <div className="text-sm text-ink-muted">
                   <p className="mb-1">Live to the flop:</p>
                   <ul className="list-inside list-disc">
                     {handoff.liveSeats.map(({ seat, remainingBb }) => (
@@ -195,7 +195,7 @@ export default function Home() {
               )}
 
               {current.reason === "action-closed" && (
-                <p className="text-xs text-zinc-400 dark:text-zinc-600">
+                <p className="text-xs text-ink-faint">
                   {handoff.liveSeats.length !== 2
                     ? "Postflop solving needs exactly 2 live players (Phase 1 doesn't support multiway yet)."
                     : rangeLoadFailed

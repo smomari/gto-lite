@@ -36,7 +36,7 @@ export function AverageNextCardEv({ state, heroLabel, villainLabel, sampleCount,
         <button
           type="button"
           onClick={onCompute}
-          className="self-start text-xs text-zinc-500 underline hover:text-zinc-900 dark:hover:text-zinc-100"
+          className="self-start text-xs text-ink-muted underline hover:text-ink"
         >
           Compute precise average EV ({sampleCount} card{sampleCount === 1 ? "" : "s"} re-solved — can take a while,
           up to {MAX_PRECISE_SAMPLE_COUNT} cards supported)
@@ -44,18 +44,18 @@ export function AverageNextCardEv({ state, heroLabel, villainLabel, sampleCount,
       )}
 
       {state.kind === "solving" && (
-        <div className="flex items-center gap-3 text-xs text-zinc-500 dark:text-zinc-400">
+        <div className="flex items-center gap-3 text-xs text-ink-muted">
           <span>
             Solving card {state.sampleIndex + 1}/{state.sampleCount}…
           </span>
-          <button type="button" onClick={onCancel} className="underline hover:text-zinc-900 dark:hover:text-zinc-100">
+          <button type="button" onClick={onCancel} className="underline hover:text-ink">
             Cancel
           </button>
         </div>
       )}
 
       {state.kind === "done" && (
-        <div className="flex flex-col gap-1 text-xs text-zinc-500 dark:text-zinc-400">
+        <div className="flex flex-col gap-1 text-xs text-ink-muted">
           <table className="w-fit">
             <tbody>
               {state.samples.map((s) => (
@@ -73,7 +73,7 @@ export function AverageNextCardEv({ state, heroLabel, villainLabel, sampleCount,
               ))}
             </tbody>
           </table>
-          <p className="font-medium text-zinc-700 dark:text-zinc-300">
+          <p className="font-medium text-ink">
             Average: {heroLabel} {formatSignedBb(state.avgHeroEvBb)} · {villainLabel} {formatSignedBb(state.avgVillainEvBb)}
           </p>
           <p>
@@ -83,7 +83,7 @@ export function AverageNextCardEv({ state, heroLabel, villainLabel, sampleCount,
         </div>
       )}
 
-      {state.kind === "error" && <p className="text-sm text-red-600 dark:text-red-400">Error: {state.message}</p>}
+      {state.kind === "error" && <p className="text-sm text-[#d98a82]">Error: {state.message}</p>}
     </div>
   );
 }

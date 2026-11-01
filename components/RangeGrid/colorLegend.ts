@@ -1,6 +1,6 @@
 export const ACTION_COLORS = {
   fold: "#1a1e24",
-  call: "#4f7fb8",
+  call: "#4874ad",
   raise: "#c4692f",
   allin: "#9c3a3a",
 } as const;

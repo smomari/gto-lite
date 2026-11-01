@@ -41,7 +41,7 @@ describe("SuitedComboBreakdown", () => {
         villainLabel="BB"
       />,
     );
-    expect(screen.getByText(/Click a hand in the grid/)).toBeInTheDocument();
+    expect(screen.getByText(/Select a hand/)).toBeInTheDocument();
   });
 
   it("shows a blocked message when every combo of the hand is dead on this board", () => {

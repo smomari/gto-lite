@@ -3,7 +3,7 @@ import type { SerializedDecisionAction } from "@/types/postflopSolver";
 
 export const POSTFLOP_ACTION_COLORS: Record<PostflopActionType, string> = {
   fold: "#2a2f37",
-  check: "#4f7fb8",
+  check: "#4874ad",
   call: "#3f6ca3",
   bet: "#c4692f",
   raise: "#b84f48",
@@ -49,11 +49,18 @@ export function buildActionColorScale(actions: SerializedDecisionAction[]): stri
   });
 }
 
-/** Picks readable button text color (near-black or near-white) against a hex swatch background. */
+function relativeLuminance(hex: string): number {
+  const channel = (from: number) => {
+    const c = parseInt(hex.slice(from, from + 2), 16) / 255;
+    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  };
+  return 0.2126 * channel(1) + 0.7152 * channel(3) + 0.0722 * channel(5);
+}
+
+/** Whichever of near-black or near-white contrasts more (WCAG) with a hex swatch background. */
 export function readableTextColor(hex: string): string {
-  const r = parseInt(hex.slice(1, 3), 16);
-  const g = parseInt(hex.slice(3, 5), 16);
-  const b = parseInt(hex.slice(5, 7), 16);
-  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-  return luminance > 0.6 ? "#111827" : "#f9fafb";
+  const background = relativeLuminance(hex);
+  const dark = (background + 0.05) / (relativeLuminance("#111827") + 0.05);
+  const light = (relativeLuminance("#f9fafb") + 0.05) / (background + 0.05);
+  return dark > light ? "#111827" : "#f9fafb";
 }

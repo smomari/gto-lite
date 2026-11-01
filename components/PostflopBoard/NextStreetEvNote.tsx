@@ -15,7 +15,7 @@ interface NextStreetEvNoteProps {
  */
 export function NextStreetEvNote({ ev, heroLabel, villainLabel, nextStreetLabel }: NextStreetEvNoteProps) {
   return (
-    <p className="text-xs text-zinc-500 dark:text-zinc-400">
+    <p className="text-xs text-ink-muted">
       Lookahead avg EV over the {nextStreetLabel.toLowerCase()} (sampled cards, simplified later betting): {heroLabel}{" "}
       {formatSignedBb(ev.heroEvBb)} · {villainLabel} {formatSignedBb(ev.villainEvBb)}
     </p>

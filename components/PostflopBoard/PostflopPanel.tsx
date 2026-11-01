@@ -361,7 +361,7 @@ export function PostflopPanel(props: PostflopPanelProps) {
         {solveState.result.exploitability && <ExploitabilityBadge exploitability={solveState.result.exploitability} />}
         {currentNode.type === "chance" && (
           <>
-            <p className="text-sm text-zinc-500 dark:text-zinc-400">
+            <p className="text-sm text-ink-muted">
               Street ends — pot {currentNode.potBb.toFixed(1)}bb, {streetLabelForBoardLength(stage.board.length + 1).toLowerCase()} card
               coming next.
             </p>
@@ -438,7 +438,7 @@ export function PostflopPanel(props: PostflopPanelProps) {
                 </div>
                 <div
                   ref={comboDetailRef}
-                  className="flex flex-col gap-3 border-t border-zinc-200 pt-3 dark:border-zinc-800 lg:min-h-0 lg:overflow-y-auto lg:border-l lg:border-t-0 lg:pl-4 lg:pt-0"
+                  className="flex flex-col gap-3 border-t border-line pt-3 lg:min-h-0 lg:overflow-y-auto lg:border-l lg:border-t-0 lg:pl-4 lg:pt-0"
                 >
                   <SuitedComboBreakdown
                     selectedHand={selectedHand}
@@ -457,14 +457,14 @@ export function PostflopPanel(props: PostflopPanelProps) {
           <button
             type="button"
             onClick={() => handleResetStreet(i)}
-            className="text-xs text-zinc-500 underline hover:text-zinc-900 pointer-coarse:py-2 dark:hover:text-zinc-100"
+            className="text-xs text-ink-muted underline hover:text-ink pointer-coarse:py-2"
           >
             Reset to start of street
           </button>
           <button
             type="button"
             onClick={() => handlePickDifferentBoard(i)}
-            className="text-xs text-zinc-500 underline hover:text-zinc-900 pointer-coarse:py-2 dark:hover:text-zinc-100"
+            className="text-xs text-ink-muted underline hover:text-ink pointer-coarse:py-2"
           >
             {isFlop ? "Pick a different board" : `Pick a different ${stage.streetLabel.toLowerCase()} card`}
           </button>
@@ -490,10 +490,10 @@ export function PostflopPanel(props: PostflopPanelProps) {
     return (
       <div
         data-testid="past-street-details"
-        className="absolute inset-x-4 top-4 z-10 flex max-h-[80%] flex-col gap-2 overflow-y-auto rounded-lg border border-zinc-300 bg-white p-4 shadow-xl dark:border-zinc-700 dark:bg-zinc-950"
+        className="absolute inset-x-4 top-4 z-10 flex max-h-[80%] flex-col gap-2 overflow-y-auto rounded-lg border border-line-strong bg-surface p-3"
       >
         <div className="flex items-center gap-2">
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-ink-muted">
             {stage.streetLabel}
           </h3>
           <div className="flex gap-0.5">
@@ -505,7 +505,7 @@ export function PostflopPanel(props: PostflopPanelProps) {
             type="button"
             aria-label="Close details"
             onClick={() => setExpandedPastStage(null)}
-            className="ml-auto rounded px-2 text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
+            className="ml-auto rounded px-2 text-ink-muted hover:bg-raised hover:text-ink"
           >
             ✕
           </button>
@@ -542,11 +542,11 @@ export function PostflopPanel(props: PostflopPanelProps) {
   });
 
   return (
-    <div className="relative flex flex-col gap-2 rounded-lg border border-zinc-300 p-2 dark:border-zinc-700 sm:p-4 lg:min-h-0 lg:flex-1 lg:overflow-hidden">
+    <div className="relative flex flex-col gap-2 lg:min-h-0 lg:flex-1 lg:overflow-hidden">
       {props.streetBarSlot && createPortal(timeline, props.streetBarSlot)}
 
-      <h2 className="text-xs font-semibold text-zinc-900 dark:text-zinc-100">
-        Postflop solver ({props.heroLabel} vs {props.villainLabel}) — Phase 1, experimental
+      <h2 className="text-xs text-ink-muted">
+        {props.heroLabel} vs {props.villainLabel}
       </h2>
 
       <div
@@ -565,7 +565,7 @@ export function PostflopPanel(props: PostflopPanelProps) {
         )}
 
         {live.state.kind === "idle" && liveIsFlop && (
-          <label className="flex items-center gap-1.5 text-xs text-zinc-600 dark:text-zinc-400">
+          <label className="flex items-center gap-1.5 text-xs text-ink-muted">
             <input type="checkbox" checked={fastFlop} onChange={(e) => setFastFlop(e.target.checked)} />
             Fast flop: look ahead to the turn only (quicker, less accurate)
           </label>
@@ -583,12 +583,12 @@ export function PostflopPanel(props: PostflopPanelProps) {
 
         {live.state.kind === "error" && (
           <>
-            <p className="text-sm text-red-600 dark:text-red-400">Error: {live.state.message}</p>
+            <p className="text-sm text-[#d98a82]">Error: {live.state.message}</p>
             <div>
               <button
                 type="button"
                 onClick={() => handlePickDifferentBoard(liveIndex)}
-                className="text-xs text-zinc-500 underline hover:text-zinc-900 pointer-coarse:py-2 dark:hover:text-zinc-100"
+                className="text-xs text-ink-muted underline hover:text-ink pointer-coarse:py-2"
               >
                 {liveIsFlop ? "Pick a different board" : `Pick a different ${live.streetLabel.toLowerCase()} card`}
               </button>
