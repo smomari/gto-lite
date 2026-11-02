@@ -612,6 +612,7 @@ export function PostflopPanel(props: PostflopPanelProps) {
       >
         {live.state.kind === "idle" && (
           <BoardPicker
+            key={liveIndex}
             count={liveIsFlop ? 3 : 1}
             excludedCards={liveIndex === 0 ? [] : streets[liveIndex - 1].board}
             title={liveIsFlop ? "Pick the 3 flop cards" : `Pick the ${live.streetLabel.toLowerCase()} card`}
@@ -639,7 +640,9 @@ export function PostflopPanel(props: PostflopPanelProps) {
 
         {live.state.kind === "error" && (
           <>
-            <p className="text-sm text-[#d98a82]">Error: {live.state.message}</p>
+            <p role="alert" className="text-sm text-[#d98a82]">
+              Error: {live.state.message}
+            </p>
             <div>
               <button
                 type="button"

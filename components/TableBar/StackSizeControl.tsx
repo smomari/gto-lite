@@ -11,6 +11,7 @@ export function StackSizeControl({ value, onChange }: StackSizeControlProps) {
       <span className="basis-full text-sm font-medium text-ink-muted">Effective stack</span>
       <input
         type="range"
+        aria-label="Effective stack"
         min={STACK_MIN_BB}
         max={STACK_MAX_BB}
         step={1}
@@ -20,6 +21,7 @@ export function StackSizeControl({ value, onChange }: StackSizeControlProps) {
       />
       <input
         type="number"
+        aria-label="Effective stack"
         min={STACK_MIN_BB}
         max={STACK_MAX_BB}
         step={1}

@@ -17,6 +17,8 @@ interface SettingsDialogProps {
  * refetches — a slider would otherwise do both on every tick of a drag.
  */
 export function SettingsDialog({ format, rake, stackBb, onApply, onClose }: SettingsDialogProps) {
+  /** Through the dialog's own close, which hands focus back; its close event then reaches onClose. */
+  const close = () => dialogRef.current?.close();
   const dialogRef = useRef<HTMLDialogElement>(null);
   const pressedBackdropRef = useRef(false);
   const [draftStackBb, setDraftStackBb] = useState(stackBb);
@@ -37,7 +39,7 @@ export function SettingsDialog({ format, rake, stackBb, onApply, onClose }: Sett
         pressedBackdropRef.current = e.target === e.currentTarget;
       }}
       onClick={(e) => {
-        if (pressedBackdropRef.current && e.target === e.currentTarget) onClose();
+        if (pressedBackdropRef.current && e.target === e.currentTarget) close();
       }}
       className={`m-auto max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-sm overflow-y-auto rounded-lg border border-line-strong bg-surface p-0 text-ink backdrop:bg-black/60 ${
         draftFormat.allowsRake ? "sm:max-w-xl" : ""
@@ -47,6 +49,7 @@ export function SettingsDialog({ format, rake, stackBb, onApply, onClose }: Sett
         className="flex flex-col gap-4 p-4"
         onSubmit={(e) => {
           e.preventDefault();
+          close();
           onApply(draftStackBb, draftFormat, draftRake);
         }}
       >
@@ -57,7 +60,7 @@ export function SettingsDialog({ format, rake, stackBb, onApply, onClose }: Sett
           <button
             type="button"
             aria-label="Close"
-            onClick={onClose}
+            onClick={close}
             className="rounded px-2 py-0.5 text-base text-ink-muted hover:bg-raised hover:text-ink pointer-coarse:min-h-9"
           >
             ×
@@ -122,7 +125,7 @@ export function SettingsDialog({ format, rake, stackBb, onApply, onClose }: Sett
         <div className="flex justify-end gap-2">
           <button
             type="button"
-            onClick={onClose}
+            onClick={close}
             className="rounded px-3 py-1.5 text-sm text-ink-muted hover:bg-raised hover:text-ink pointer-coarse:min-h-11"
           >
             Cancel

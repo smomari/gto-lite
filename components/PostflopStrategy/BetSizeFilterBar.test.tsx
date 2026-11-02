@@ -73,4 +73,17 @@ describe("BetSizeFilterBar", () => {
     fireEvent.click(screen.getByRole("button", { name: /Bet 33%/ }));
     expect(onIsolateChange).toHaveBeenLastCalledWith(null);
   });
+
+  it("marks the isolated action as pressed", () => {
+    const node = {
+      type: "decision" as const,
+      actor: "P1" as const,
+      potBb: 10,
+      currentBetToCall: 0,
+      actions: [{ action: "check" as const, label: "Check", child: { type: "terminal-showdown" as const, potBb: 10, committed: { P1: 0, P2: 0 } } }],
+      strategy: [[1]],
+    };
+    render(<BetSizeFilterBar node={node} range={[{ cards: ["As", "Kd"], weight: 1 }]} colors={["#000"]} isolatedActionIndex={0} onIsolateChange={() => {}} />);
+    expect(screen.getByRole("button", { name: /Check/ })).toHaveAttribute("aria-pressed", "true");
+  });
 });
