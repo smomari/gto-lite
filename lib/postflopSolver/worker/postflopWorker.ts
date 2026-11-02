@@ -34,6 +34,7 @@ self.onmessage = async (event: MessageEvent<PostflopSolveInMessage>) => {
             maxIterations: request.maxIterations,
             targetExploitabilityPercent: request.targetExploitabilityPercent,
             fast: request.fast,
+            rake: request.rake,
           }
         : {
             kind: "combos",
@@ -44,6 +45,7 @@ self.onmessage = async (event: MessageEvent<PostflopSolveInMessage>) => {
             effectiveStackBb: request.effectiveStackBb,
             maxIterations: request.maxIterations,
             targetExploitabilityPercent: request.targetExploitabilityPercent,
+            rake: request.rake,
           };
 
     const result = solvePostflopStreet(
@@ -61,6 +63,7 @@ self.onmessage = async (event: MessageEvent<PostflopSolveInMessage>) => {
       result.heroRange,
       result.villainRange,
       result.equityTable,
+      request.rake,
     );
     // A lookahead solve (turn): its EV at each street change, read while the engine is still alive.
     const nextStreetEv = result.session?.nextStreetEv();

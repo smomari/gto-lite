@@ -34,6 +34,22 @@ describe("computeCheckdownEquities", () => {
     expect(summary.villainEvBb).toBeCloseTo(0.3 * 10 - 0, 9);
   });
 
+  it("values a showdown at the pot left after rake", () => {
+    const hero: [string, string] = ["As", "Ks"];
+    const villain: [string, string] = ["Qh", "Qd"];
+    const showdown: PostflopTreeNode = { type: "terminal-showdown", state: initialPostflopPotState(10) };
+    const solution: CfrSolution = { iterations: 1, getAverageStrategy: () => [[1]] };
+    const heroRange: ComboRange = [{ cards: hero, weight: 1 }];
+    const villainRange: ComboRange = [{ cards: villain, weight: 1 }];
+    const table = equityTableFromEntries(heroRange, villainRange, new Map([[tableKey(hero, villain), 0.7]]));
+
+    const summary = computeCheckdownEquities(showdown, solution, heroRange, villainRange, table, { rate: 0.05, capBb: 3 }).get(showdown)!;
+
+    expect(summary.heroEquityPercent).toBeCloseTo(70, 9);
+    expect(summary.heroEvBb).toBeCloseTo(0.7 * 9.5, 9);
+    expect(summary.villainEvBb).toBeCloseTo(0.3 * 9.5, 9);
+  });
+
   it("averages over pairs of hands, so both sides sum to 100% even when combos block each other", () => {
     const state = initialPostflopPotState(10);
     const showdown: PostflopTreeNode = { type: "terminal-showdown", state };

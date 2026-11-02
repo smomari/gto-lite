@@ -29,6 +29,8 @@ interface PostflopHandSummaryProps {
   outcome: HandOutcome;
   board: string[];
   potBb: number;
+  /** Taken from the pot; the rest is what the winner collects. */
+  rakeBb: number;
   /** Average over the ranges reaching this point; absent when a fold ended the hand. */
   equity?: CheckdownEquitySummary;
   streets: HandSummaryStreet[];
@@ -59,9 +61,10 @@ function EquitySide({ label, equity, potShare, align }: { label: string; equity:
 }
 
 /** What a finished hand came to: how the two ranges stacked up, who got there, and how the hand went. */
-export function PostflopHandSummary({ outcome, board, potBb, equity, streets, hero, villain, actions }: PostflopHandSummaryProps) {
+export function PostflopHandSummary({ outcome, board, potBb, rakeBb, equity, streets, hero, villain, actions }: PostflopHandSummaryProps) {
   const [shownPlayer, setShownPlayer] = useState<"hero" | "villain">("hero");
   const rarePlayer = [hero, villain].find((ranges) => comboCount(ranges.end) < RARE_LINE_COMBOS);
+  const collectedBb = potBb - rakeBb;
   const rangeTitle = outcome.kind === "fold" ? "at the end" : outcome.kind === "allin" ? "all-in" : "at showdown";
 
   return (
@@ -80,6 +83,11 @@ export function PostflopHandSummary({ outcome, board, potBb, equity, streets, he
         <div className="text-right">
           <p className="text-xs text-ink-muted">Final pot</p>
           <p className="font-mono text-xl font-medium tabular-nums text-ink">{potBb.toFixed(1)}bb</p>
+          {rakeBb > 0 && (
+            <p className="text-xs text-ink-faint">
+              Rake <span className="font-mono tabular-nums">{rakeBb.toFixed(1)}bb</span>
+            </p>
+          )}
         </div>
       </div>
 
@@ -88,8 +96,8 @@ export function PostflopHandSummary({ outcome, board, potBb, equity, streets, he
       {equity && (
         <div className="border-y border-line py-3">
           <div className="mb-2 flex justify-between">
-            <EquitySide label={hero.label} equity={equity.heroEquityPercent} potShare={(equity.heroEquityPercent / 100) * potBb} align="left" />
-            <EquitySide label={villain.label} equity={equity.villainEquityPercent} potShare={(equity.villainEquityPercent / 100) * potBb} align="right" />
+            <EquitySide label={hero.label} equity={equity.heroEquityPercent} potShare={(equity.heroEquityPercent / 100) * collectedBb} align="left" />
+            <EquitySide label={villain.label} equity={equity.villainEquityPercent} potShare={(equity.villainEquityPercent / 100) * collectedBb} align="right" />
           </div>
           <div className="flex h-1.5 gap-0.5 overflow-hidden rounded-[2px]">
             <div style={{ flex: `${equity.heroEquityPercent} 0 0`, backgroundColor: HERO_COLOR }} />

@@ -34,6 +34,11 @@ export function initialPostflopPotState(startPot: number): PostflopPotState {
   };
 }
 
+/** The pot rake is charged on: an uncalled bet goes back to the bettor first. */
+export function rakeablePot(startPot: number, committed: { P1: number; P2: number }): number {
+  return startPot + 2 * Math.min(committed.P1, committed.P2);
+}
+
 export function otherPlayer(p: PostflopPlayer): PostflopPlayer {
   return p === "P1" ? "P2" : "P1";
 }

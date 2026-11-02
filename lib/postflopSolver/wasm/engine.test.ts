@@ -11,6 +11,8 @@ import { loadNodeSolverModule } from "./loadNode";
 import { NativeCfrEngine, runNativeCfr } from "./engine";
 import { FLOP_FAST_LOOKAHEAD, FLOP_LOOKAHEAD, solvePostflopStreet } from "../solvePostflop";
 import { serializeTree } from "../serialize";
+import { initialPostflopPotState } from "../potState";
+import { netPot, rakeForPot } from "@/lib/solveEngine/rake";
 
 /** A small range: the combos of a slice of hands, every `step`th one, with uneven weights. */
 function smallRange(board: string[], from: number, to: number, step: number): ComboRange {
@@ -108,6 +110,76 @@ describe("C++ CFR engine vs the TypeScript reference", () => {
     for (const key of ["p1ActualBb", "p2ActualBb", "p1BestResponseBb", "p2BestResponseBb", "bb"] as const) {
       expect(Math.abs(got[key] - want[key])).toBeLessThan(10 * 1e-4);
     }
+  });
+});
+
+describe("rake", () => {
+  const BOARD = ["Kd", "Qc", "8h", "5s", "2d"];
+  const POT = 10;
+  const BET = 10;
+  const NUTS = 0;
+  const AIR = 1;
+  const heroRange: ComboRange = [
+    { cards: ["8d", "8c"], weight: 1 },
+    { cards: ["7c", "6c"], weight: 2 },
+  ];
+  const villainRange: ComboRange = [{ cards: ["Jc", "Jd"], weight: 1 }];
+
+  /** A polarized river: hero checks down or bets the pot, villain's bluff catcher folds or calls. */
+  function polarizedRiver() {
+    const start = initialPostflopPotState(POT);
+    const bet = { ...start, committed: { P1: BET, P2: 0 } };
+    const called = { ...start, committed: { P1: BET, P2: BET } };
+    const facingBet: DecisionNode = {
+      type: "decision",
+      actor: "P2",
+      state: bet,
+      actions: [
+        { action: "fold", child: { type: "terminal-fold", winner: "P1", state: bet } },
+        { action: "call", child: { type: "terminal-showdown", state: called } },
+      ],
+    };
+    const root: DecisionNode = {
+      type: "decision",
+      actor: "P1",
+      state: start,
+      actions: [
+        { action: "check", child: { type: "terminal-showdown", state: start } },
+        { action: "bet", child: facingBet },
+      ],
+    };
+    return { root, facingBet };
+  }
+
+  it.each([
+    ["no rake", { rate: 0, capBb: 0 }],
+    ["5% uncapped", { rate: 0.05, capBb: 100 }],
+    ["5% capped at 1bb", { rate: 0.05, capBb: 1 }],
+    ["10% capped at 3bb", { rate: 0.1, capBb: 3 }],
+  ])("settles on the indifference frequencies of the raked pots: %s", async (_, rake) => {
+    const { root, facingBet } = polarizedRiver();
+    const net = (pot: number) => netPot(pot, rake);
+    const engine = NativeCfrEngine.create(await loadNodeSolverModule(), { tree: root, board: BOARD, heroRange, villainRange, rake });
+    engine.iterate(1, 4000);
+
+    const heroBets = engine.averageStrategy(root).map((row) => row[1]);
+    const callFrequency = engine.averageStrategy(facingBet)[0][1];
+    const bluffs = heroRange[AIR].weight * heroBets[AIR];
+    const bluffShare = bluffs / (bluffs + heroRange[NUTS].weight * heroBets[NUTS]);
+    // Villain calls BET to win the called pot. A bluff risks BET to win the pot it was
+    // bet into, whose rake stops at POT: the uncalled bet goes back before any is taken.
+    expect(bluffShare).toBeCloseTo(BET / net(POT + 2 * BET), 2);
+    expect(callFrequency).toBeCloseTo(net(POT) / (net(POT) + BET), 2);
+
+    // The house's cut is all that leaves the table.
+    const betShare = (heroRange[NUTS].weight * heroBets[NUTS] + bluffs) / (heroRange[NUTS].weight + heroRange[AIR].weight);
+    const expectedRake =
+      (1 - betShare) * rakeForPot(POT, rake) +
+      betShare * ((1 - callFrequency) * rakeForPot(POT, rake) + callFrequency * rakeForPot(POT + 2 * BET, rake));
+    const report = engine.exploitability();
+    expect(report.p1ActualBb + report.p2ActualBb).toBeCloseTo(POT - expectedRake, 2);
+    expect(report.percentOfPot).toBeLessThan(0.5);
+    engine.dispose();
   });
 });
 

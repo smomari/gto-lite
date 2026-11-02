@@ -6,6 +6,7 @@ const combo = (a: string, b: string, weight: number) => ({ cards: [a, b] as [str
 const props = {
   board: ["Kh", "7s", "2d", "As", "3c"],
   potBb: 8,
+  rakeBb: 0,
   equity: { heroEquityPercent: 40, villainEquityPercent: 60, heroEvBb: 0, villainEvBb: 0 },
   streets: [
     { label: "Flop", potBb: 5, actions: ["SB Check", "BB Check"] },
@@ -74,5 +75,17 @@ describe("PostflopHandSummary", () => {
     fireEvent.click(screen.getByRole("tab", { name: "BB range" }));
     expect(screen.getByTestId("summary-range-villain").className).not.toContain("hidden");
     expect(screen.getByTestId("summary-range-hero").className).toContain("hidden");
+  });
+
+  it("shows the rake and splits only what the winner collects", () => {
+    render(<PostflopHandSummary {...props} rakeBb={0.4} outcome={{ kind: "showdown" }} />);
+    expect(screen.getByText("Rake").parentElement).toHaveTextContent("Rake 0.4bb");
+    expect(screen.getByText("3.0bb")).toBeInTheDocument(); // 40% of 7.6
+    expect(screen.getByText("4.6bb")).toBeInTheDocument(); // 60% of 7.6
+  });
+
+  it("says nothing about rake when there is none", () => {
+    render(<PostflopHandSummary {...props} outcome={{ kind: "showdown" }} />);
+    expect(screen.queryByText("Rake")).not.toBeInTheDocument();
   });
 });

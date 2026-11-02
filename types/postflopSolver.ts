@@ -1,3 +1,4 @@
+import type { RakeTerms } from "@/lib/solveEngine/rake";
 import type { HandFrequency } from "./rangeData";
 import type { PostflopActionType, PostflopPlayer } from "@/lib/postflopSolver/potState";
 import type { ExploitabilityResult } from "@/lib/postflopSolver/exploitability";
@@ -24,6 +25,7 @@ export type PostflopSolveRequest =
       targetExploitabilityPercent?: number;
       /** See PostflopSolveInput's `fast` — a flop-only option, and only flops are canonical requests. */
       fast?: boolean;
+      rake?: RakeTerms;
     }
   | {
       kind: "combos";
@@ -34,6 +36,7 @@ export type PostflopSolveRequest =
       effectiveStackBb: number;
       maxIterations: number;
       targetExploitabilityPercent?: number;
+      rake?: RakeTerms;
     };
 
 export interface SerializedCombo {
