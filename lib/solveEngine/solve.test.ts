@@ -108,11 +108,17 @@ describe("solveActiveSeat", () => {
     expect(result.hands.find((h) => h.hand === "AA")!.raise).toBeCloseTo(1, 6);
   });
 
-  it("treats SB as closing the action against BB's raise over a limp", () => {
+  it("answers BB's raise over a limp from the hands SB limped", () => {
     const limped = applyAction(foldedToSb(40), "SB", "call", { effectiveStackBb: 40 });
+    const limps = solveActiveSeat(matrix, "SB", foldedToSb(40), 40).hands;
     const raised = applyAction(limped, "BB", "raise", { effectiveStackBb: 40, raiseToBb: 3.5 });
-    const result = solveActiveSeat(matrix, "SB", raised, 40);
-    expect(combosWith(result.hands, (h) => h.fold) / 1326).toBeLessThan(0.5);
+    const hands = solveActiveSeat(matrix, "SB", raised, 40).hands;
+
+    expect(limps.find((h) => h.hand === "AA")!.call).toBe(0);
+    expect(hands.find((h) => h.hand === "AA")!.fold).toBe(1);
+    const kept = combosWith(hands, (h) => 1 - h.fold) / combosWith(limps, (h) => h.call);
+    expect(kept).toBeGreaterThan(0.3);
+    expect(kept).toBeLessThan(0.8);
   });
 
   it("produces call+raise summing correctly with fold for a deep-stack facing-raise spot", () => {
@@ -124,16 +130,14 @@ describe("solveActiveSeat", () => {
     }
   });
 
-  it("routes to Nash for a facing-raise spot with a low remaining stack-to-pot ratio, even at a stack above the flat threshold", () => {
+  it("calls or folds a shove at a low stack-to-pot ratio, even at a stack above the flat threshold", () => {
     let state = applyAction(initialPotState(), "UTG", "raise", { effectiveStackBb: 40, raiseToBb: 4 });
     state = applyAction(state, "BB", "raise", { effectiveStackBb: 40, raiseToBb: 12 });
     // UTG shoves the rest of a 40bb stack over BB's 3-bet — BB now faces a big
-    // pot relative to its own remaining stack (28bb behind a 53.5bb pot),
-    // which should classify as Nash despite the 40bb starting stack being
-    // above the flat 25bb threshold.
+    // pot relative to its own remaining stack (28bb behind a 53.5bb pot).
     state = applyAction(state, "UTG", "allin", { effectiveStackBb: 40 });
     const result = solveActiveSeat(matrix, "BB", state, 40);
-    expect(result.source).toBe("nash-shove-fold");
+    expect(combosWith(result.hands, (h) => h.call)).toBeGreaterThan(0);
     for (const h of result.hands) {
       expect(h.raise).toBe(0);
       expect(h.fold + h.call).toBeCloseTo(1, 6);
@@ -173,6 +177,33 @@ describe("solveActiveSeat", () => {
       expect(gaveUp.length).toBeGreaterThan(0);
       expect(gaveUp.map((h) => h.hand)).not.toContain("AA");
       expect(hands.get("AA")!.fold).toBe(0);
+    });
+
+    it("prices a shove over a 4-bet from the real pot, and only from its own range", () => {
+      const fourBet = play(["UTG", "raise"], ...foldsTo("UTG1", "LJ", "HJ", "CO"), ["BTN", "raise"], ...foldsTo("SB", "BB"));
+      const fourBetHands = solveActiveSeat(matrix, "UTG", fourBet.potState, STACK).hands;
+      const shoved = play(["UTG", "raise"], ...foldsTo("UTG1", "LJ", "HJ", "CO"), ["BTN", "raise"], ...foldsTo("SB", "BB"), ["UTG", "raise"], ["BTN", "allin"]);
+      const hands = solveActiveSeat(matrix, "UTG", shoved.potState, STACK).hands;
+
+      expect(shoved.potState.potBb).toBeGreaterThan(130);
+      expect(hands.find((h) => h.hand === "AA")!.call).toBe(1);
+      hands.forEach((h, i) => {
+        if (fourBetHands[i].raise === 0) expect(played(h)).toBe(0);
+      });
+    });
+
+    it("keeps a seat that shoved at a call-only node in range", () => {
+      const line = replayActionPath(
+        ["UTG:raise", "UTG1:fold", "LJ:fold", "HJ:fold", "CO:fold", "BTN:raise", "SB:fold", "BB:fold", "UTG:raise", "BTN:allin"].map((s) => {
+          const [actor, action] = s.split(":");
+          return { actor: actor as Position, action: action as ActionType };
+        }),
+        40,
+        TOURNAMENT_8,
+      );
+      if (line.status !== "active") throw new Error("expected UTG to act");
+      expect(line.activeSeat).toBe("UTG");
+      expect(combosWith(solveActiveSeat(matrix, "UTG", line.potState, 40).hands, played)).toBeGreaterThan(0);
     });
 
     it("leaves a seat with no range yet on the cold formula", () => {

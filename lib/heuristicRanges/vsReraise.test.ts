@@ -5,7 +5,7 @@ import { ALL_HANDS, HAND_BY_LABEL, TOTAL_COMBOS } from "@/lib/handRange/handList
 import type { FrequencyMap } from "@/lib/nashSolver/pushFoldSolver";
 import { NO_RAKE } from "@/lib/solveEngine/rake";
 import type { HandFrequency } from "@/types/rangeData";
-import { generateVsReraiseScenario, type VsReraiseParams } from "./vsReraise";
+import { generateCallShoveScenario, generateVsReraiseScenario, type VsReraiseParams } from "./vsReraise";
 
 const matrix = loadEquityMatrix();
 const ranking = computePlayabilityRanking(matrix);
@@ -79,5 +79,25 @@ describe("generateVsReraiseScenario", () => {
 
   it("gives up more under rake", () => {
     expect(continuing(solve({ rake: { rate: 0.1, capBb: 3 } }))).toBeLessThan(continuing(solve()));
+  });
+});
+
+describe("generateCallShoveScenario", () => {
+  const shove = { heroRange: range(OPENER), villainRange: range(WIDE_THREE_BET), potBb: 136, amountOwedBb: 66, rake: NO_RAKE };
+  const calling = (overrides = {}) => continuing(generateCallShoveScenario(matrix, { ...shove, ...overrides }));
+
+  it("calls wider the more dead money is in the pot", () => {
+    expect(calling()).toBeGreaterThan(calling({ potBb: 70 }));
+  });
+
+  it("never calls from outside the range, and never raises", () => {
+    const hands = generateCallShoveScenario(matrix, shove);
+    expect(hands.find((h) => h.hand === "72o")!.fold).toBe(1);
+    expect(hands.every((h) => h.raise === 0)).toBe(true);
+    expect(hands.find((h) => h.hand === "AA")!.call).toBe(1);
+  });
+
+  it("calls tighter under rake", () => {
+    expect(calling({ potBb: 90, rake: { rate: 0.1, capBb: 30 } })).toBeLessThan(calling({ potBb: 90 }));
   });
 });

@@ -90,8 +90,9 @@ export function computeAvailableActions(
   // Show a distinct Raise button only if it's strictly between the current
   // bet and the full stack — otherwise it either isn't a legal raise at all
   // (degenerate short stack) or is identical to shoving, so only Allin shows.
+  // At the push/fold stacks only Allin shows either: those charts have no smaller raise.
   const raise =
-    potState.currentBetToCall < raiseToCapped && raiseToCapped < effectiveStackBb
+    effectiveStackBb > NASH_FLAT_STACK_THRESHOLD_BB && potState.currentBetToCall < raiseToCapped && raiseToCapped < effectiveStackBb
       ? { toBb: raiseToCapped }
       : null;
 

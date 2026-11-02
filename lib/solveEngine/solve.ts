@@ -10,9 +10,10 @@ import {
   openWidthFor,
 } from "@/lib/heuristicRanges/generateScenario";
 import { RAISE_VALUE_SHARE, RAKE_CONTINUE_SENSITIVITY } from "@/lib/heuristicRanges/config";
-import { generateVsReraiseScenario } from "@/lib/heuristicRanges/vsReraise";
+import { generateCallShoveScenario, generateVsReraiseScenario } from "@/lib/heuristicRanges/vsReraise";
 import type { FrequencyMap } from "@/lib/nashSolver/pushFoldSolver";
 import { firstInWidthsUnder } from "./gameFormat";
+import { aggressiveFrequencies } from "./postflopHandoff";
 import type { PotState, SeatDecision } from "./potState";
 import { NO_RAKE_SETTINGS, rakeShare, type RakeSettings } from "./rake";
 import { shouldUseNash } from "./classify";
@@ -47,7 +48,8 @@ function rangeAfter(
 ): FrequencyMap {
   const { hands } = solveActiveSeat(matrix, seat, decision.state, effectiveStackBb, rake);
   const aggressive = decision.action === "raise" || decision.action === "allin";
-  return new Map(hands.map((h) => [h.hand, aggressive ? h.raise + (h.allin ?? 0) : h.call]));
+  const frequencies = aggressive ? aggressiveFrequencies(hands) : hands.map((h) => h.call);
+  return new Map(hands.map((h, i) => [h.hand, frequencies[i]]));
 }
 
 function shareOfCombos(range: FrequencyMap): number {
@@ -71,8 +73,30 @@ export function solveActiveSeat(
   const hasOpener = potState.raiseDepth >= 1;
   const remainingStackBb = effectiveStackBb - (potState.committed[activeSeat] ?? 0);
 
+  const lastAggressor = potState.lastAggressor;
+  const amountOwedBb = potState.currentBetToCall - (potState.committed[activeSeat] ?? 0);
+  const ownDecision = potState.lastDecision[activeSeat];
+  const raiserDecision = lastAggressor && potState.lastDecision[lastAggressor];
+  const heroRange = ownDecision && rangeAfter(matrix, activeSeat, ownDecision, effectiveStackBb, rake);
+  const villainRange = raiserDecision && rangeAfter(matrix, lastAggressor, raiserDecision, effectiveStackBb, rake);
+  const handsFacingRaise = !!heroRange && !!villainRange && shareOfCombos(heroRange) > 0 && shareOfCombos(villainRange) > 0;
+
   if (shouldUseNash(effectiveStackBb, remainingStackBb, potState.potBb, hasOpener)) {
-    const shover = potState.lastAggressor ?? activeSeat;
+    // A fresh shove is the game the Nash solver models; anything after more
+    // action has a bigger pot and known ranges of its own, so price it directly.
+    if (villainRange && shareOfCombos(villainRange) > 0 && (ownDecision || potState.raiseDepth >= 2)) {
+      return {
+        source: "heuristic-approx",
+        hands: generateCallShoveScenario(matrix, {
+          heroRange: handsFacingRaise ? heroRange : new Map(ALL_HANDS.map((h) => [h.hand, 1])),
+          villainRange,
+          potBb: potState.potBb,
+          amountOwedBb,
+          rake: rake.structure,
+        }),
+      };
+    }
+    const shover = lastAggressor ?? activeSeat;
     const opponentsBehind = Math.max(1, SEAT_ORDER.length - 1 - seatIndex(shover));
     const result = getPushFoldResult(matrix, remainingStackBb, opponentsBehind, format.bbAnteBb, rake);
     return {
@@ -93,28 +117,20 @@ export function solveActiveSeat(
     };
   }
 
-  const lastAggressor = potState.lastAggressor!;
-  const amountOwedBb = potState.currentBetToCall - (potState.committed[activeSeat] ?? 0);
-  const isIP = postflopSeatIndex(activeSeat) > postflopSeatIndex(lastAggressor);
-  const ownDecision = potState.lastDecision[activeSeat];
-  const raiserDecision = potState.lastDecision[lastAggressor];
-  if (potState.raiseDepth >= 2 && ownDecision && raiserDecision) {
-    const heroRange = rangeAfter(matrix, activeSeat, ownDecision, effectiveStackBb, rake);
-    const villainRange = rangeAfter(matrix, lastAggressor, raiserDecision, effectiveStackBb, rake);
-    if (shareOfCombos(heroRange) > 0 && shareOfCombos(villainRange) > 0) {
-      return {
-        source: "heuristic-approx",
-        hands: generateVsReraiseScenario(matrix, ranking, {
-          heroRange,
-          villainRange,
-          isIP,
-          potBb: potState.potBb,
-          amountOwedBb,
-          raiseWidth: shareOfCombos(villainRange) * format.threeBetWidthRatio * RAISE_VALUE_SHARE,
-          rake: rake.structure,
-        }),
-      };
-    }
+  const isIP = postflopSeatIndex(activeSeat) > postflopSeatIndex(lastAggressor!);
+  if (handsFacingRaise) {
+    return {
+      source: "heuristic-approx",
+      hands: generateVsReraiseScenario(matrix, ranking, {
+        heroRange,
+        villainRange,
+        isIP,
+        potBb: potState.potBb,
+        amountOwedBb,
+        raiseWidth: shareOfCombos(villainRange) * format.threeBetWidthRatio * RAISE_VALUE_SHARE,
+        rake: rake.structure,
+      }),
+    };
   }
   return {
     source: "heuristic-approx",
@@ -123,9 +139,9 @@ export function solveActiveSeat(
       isIP,
       potBb: potState.potBb,
       amountOwedBb,
-      aggressorOpenWidth: openWidthFor(Math.min(seatIndex(lastAggressor), 6), effectiveStackBb, firstInWidths),
+      aggressorOpenWidth: openWidthFor(Math.min(seatIndex(lastAggressor!), 6), effectiveStackBb, firstInWidths),
       // BB's raise over a limp leaves SB closing the action, though BB sits "behind" it.
-      seatsBehind: seatIndex(lastAggressor) > seatIndex(activeSeat) ? 0 : SEAT_ORDER.length - 1 - seatIndex(activeSeat),
+      seatsBehind: seatIndex(lastAggressor!) > seatIndex(activeSeat) ? 0 : SEAT_ORDER.length - 1 - seatIndex(activeSeat),
       threeBetWidthRatio: format.threeBetWidthRatio,
       coldCallBase: format.coldCallBase,
       continueFactor: 1 - RAKE_CONTINUE_SENSITIVITY * rakeShare(rake.structure),

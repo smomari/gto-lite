@@ -134,25 +134,14 @@ describe("replayActionPath — legal sequences", () => {
   });
 
   it("normalizes a raise that would collapse into an allin, rather than rejecting it", () => {
-    // 6.9bb stack (a non-integer stack, only reachable by calling this pure
-    // function directly — the API route validates effectiveStackBb to an
-    // integer): UTG opens the OOP shallow size (2.3bb, flat at/below 40bb);
-    // UTG1's reactive raise (2.3*3=6.9) exactly equals the stack, so sizing
-    // collapses it into an allin — the client requesting "raise" here should
-    // be accepted and normalized, not rejected.
-    const result = replayActionPath(
-      [
-        { actor: "UTG", action: "raise" },
-        { actor: "UTG1", action: "raise" },
-      ],
-      6.9,
-      TOURNAMENT_8,
-    );
+    // Only all-in is offered at the push/fold stacks, but a client requesting
+    // "raise" there should be accepted and normalized, not rejected.
+    const result = replayActionPath([{ actor: "UTG", action: "raise" }], 10, TOURNAMENT_8);
     expect(result.status).toBe("active");
     if (result.status !== "active") throw new Error("expected active");
-    const utg1Node = result.canonicalActionPath.find((n) => n.actor === "UTG1")!;
-    expect(utg1Node.action).toBe("allin");
-    expect(utg1Node.sizeBb).toBe(6.9);
+    const utgNode = result.canonicalActionPath.find((n) => n.actor === "UTG")!;
+    expect(utgNode.action).toBe("allin");
+    expect(utgNode.sizeBb).toBe(10);
   });
 });
 
