@@ -9,7 +9,6 @@ import type {
   SerializedTreeNode,
 } from "@/types/postflopSolver";
 import type { HandFrequency } from "@/types/rangeData";
-import { DEFAULT_PRECISE_SAMPLE_COUNT, sampleNextCards } from "@/lib/postflopSolver/nextCardSampling";
 import { NO_RAKE } from "@/lib/solveEngine/rake";
 
 const { solvePostflopInWorker } = vi.hoisted(() => ({ solvePostflopInWorker: vi.fn() }));
@@ -18,7 +17,7 @@ vi.mock("@/lib/postflopSolver/worker/workerClient", () => ({ solvePostflopInWork
 const HANDS: HandFrequency[] = [{ hand: "AA", fold: 0, call: 1, raise: 0 }];
 
 function checkCheckFlopResult(committed: { P1: number; P2: number }): PostflopResultMessage {
-  const terminal: SerializedTreeNode = { type: "terminal-showdown", potBb: 7.5, committed };
+  const terminal: SerializedTreeNode = { type: "chance", potBb: 7.5, committed };
   const p2Node: SerializedTreeNode = {
     type: "decision",
     actor: "P2",
@@ -46,36 +45,6 @@ function checkCheckFlopResult(committed: { P1: number; P2: number }): PostflopRe
 
 function makeCheckdownEquity(overrides: Partial<CheckdownEquitySummary> = {}): CheckdownEquitySummary {
   return { heroEquityPercent: 55, villainEquityPercent: 45, heroEvBb: 0.75, villainEvBb: -0.75, ...overrides };
-}
-
-function checkCheckFlopResultWithCheckdown(
-  committed: { P1: number; P2: number },
-  checkdownEquity: CheckdownEquitySummary,
-): PostflopResultMessage {
-  const terminal: SerializedTreeNode = { type: "terminal-showdown", potBb: 7.5, committed, checkdownEquity };
-  const p2Node: SerializedTreeNode = {
-    type: "decision",
-    actor: "P2",
-    potBb: 7.5,
-    currentBetToCall: 0,
-    actions: [{ action: "check", label: "Check", child: terminal }],
-    strategy: [[1]],
-  };
-  const tree: SerializedTreeNode = {
-    type: "decision",
-    actor: "P1",
-    potBb: 7.5,
-    currentBetToCall: 0,
-    actions: [{ action: "check", label: "Check", child: p2Node }],
-    strategy: [[1]],
-  };
-  return {
-    type: "result",
-    tree,
-    heroRange: [{ cards: ["Ah", "Kd"], weight: 1 }],
-    villainRange: [{ cards: ["7c", "2c"], weight: 1 }],
-    iterations: 100,
-  };
 }
 
 function allinCallFlopResult(effectiveStackBb: number): PostflopResultMessage {
@@ -110,7 +79,7 @@ function allinCallFlopResult(effectiveStackBb: number): PostflopResultMessage {
 }
 
 function checkCheckTurnResult(committed: { P1: number; P2: number }): PostflopResultMessage {
-  const terminal: SerializedTreeNode = { type: "terminal-showdown", potBb: 17.5, committed };
+  const terminal: SerializedTreeNode = { type: "chance", potBb: 17.5, committed };
   const p2Node: SerializedTreeNode = {
     type: "decision",
     actor: "P2",
@@ -460,7 +429,7 @@ describe("PostflopPanel", () => {
     expect(within(liveStage()).queryByTestId("street-box")).not.toBeInTheDocument();
   });
 
-  it("reaching a check-check terminal-showdown (stack still behind) turns the flop into a past box and makes an idle Turn the live stage", async () => {
+  it("closing the street with stack behind turns the flop into a past box and makes an idle Turn the live stage", async () => {
     solvePostflopInWorker.mockResolvedValueOnce(checkCheckFlopResult({ P1: 0, P2: 0 }));
     renderPanel(20);
 
@@ -567,7 +536,7 @@ describe("PostflopPanel", () => {
     fireEvent.click(screen.getByRole("button", { name: "Solve turn" }));
   }
 
-  it("reaching the turn's own check-check terminal-showdown appends an idle River stage", async () => {
+  it("closing the turn with stack behind appends an idle River stage", async () => {
     await reachTurnCheckCheck();
 
     const turnChecks = await screen.findAllByRole("button", { name: "Check" });
@@ -650,112 +619,6 @@ describe("PostflopPanel", () => {
       ["Turn", "live"],
     ]);
     expect(screen.queryByText(/isn't implemented yet/)).not.toBeInTheDocument();
-  });
-
-  function sampleResult(heroEvBb: number, villainEvBb: number): PostflopResultMessage {
-    const tree: SerializedTreeNode = { type: "terminal-showdown", potBb: 7.5, committed: { P1: 0, P2: 0 } };
-    return {
-      type: "result",
-      tree,
-      heroRange: [{ cards: ["Ah", "Kd"], weight: 1 }],
-      villainRange: [{ cards: ["7c", "2c"], weight: 1 }],
-      iterations: 50,
-      exploitability: {
-        bb: 0,
-        percentOfPot: 0,
-        p1BestResponseBb: heroEvBb,
-        p2BestResponseBb: villainEvBb,
-        p1ActualBb: heroEvBb,
-        p2ActualBb: villainEvBb,
-      },
-    };
-  }
-
-  async function reachFlopCheckCheckWithCheckdown() {
-    solvePostflopInWorker.mockResolvedValueOnce(
-      checkCheckFlopResultWithCheckdown({ P1: 0, P2: 0 }, makeCheckdownEquity()),
-    );
-    renderPanel(20);
-
-    pickFlopBoard();
-    await screen.findByRole("button", { name: "Check" });
-    fireEvent.click(screen.getByRole("button", { name: "Check" }));
-    fireEvent.click(screen.getByRole("button", { name: "Check" }));
-    // The flop closes to a terminal-showdown with a next street live, so a new
-    // idle Turn stage goes live and the flop becomes a past box — open its
-    // details to reach the checkdown note / precise-EV button.
-    openStreetDetails("Flop");
-    await screen.findByText(/Checkdown avg EV/);
-  }
-
-  it("shows the checkdown equity note and a compute-precise-average button at a terminal-showdown with a next street", async () => {
-    await reachFlopCheckCheckWithCheckdown();
-    expect(screen.getByText(/Checkdown avg EV.*BTN 55\.0% \/ \+0\.75bb.*BB 45\.0% \/ -0\.75bb/)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Compute precise average EV/ })).toBeInTheDocument();
-  });
-
-  it("clicking compute-precise-average solves DEFAULT_PRECISE_SAMPLE_COUNT sampled turn cards as combos requests and averages the result", async () => {
-    await reachFlopCheckCheckWithCheckdown();
-
-    const expectedCards = sampleNextCards(["As", "Kd", "Qh"], DEFAULT_PRECISE_SAMPLE_COUNT);
-    for (let i = 0; i < expectedCards.length; i++) {
-      solvePostflopInWorker.mockResolvedValueOnce(sampleResult(1 + i, -(1 + i)));
-    }
-
-    fireEvent.click(screen.getByRole("button", { name: /Compute precise average EV/ }));
-
-    await waitFor(() => expect(screen.getByText(/Average:/)).toBeInTheDocument());
-
-    // 1 flop call + N sample calls, all kind:"combos" for the samples, boards = flop + sampled card.
-    expect(solvePostflopInWorker).toHaveBeenCalledTimes(1 + expectedCards.length);
-    for (let i = 0; i < expectedCards.length; i++) {
-      const req = solvePostflopInWorker.mock.calls[1 + i][0] as PostflopSolveRequest;
-      expect(req.kind).toBe("combos");
-      if (req.kind === "combos") expect(req.board).toEqual(["As", "Kd", "Qh", expectedCards[i]]);
-    }
-
-    const avgHero = expectedCards.reduce((s, _c, i) => s + (1 + i), 0) / expectedCards.length;
-    expect(screen.getByText(new RegExp(`Average:.*BTN \\+${avgHero.toFixed(2)}bb`))).toBeInTheDocument();
-  });
-
-  it("cancelling a precise-average computation mid-flight aborts and returns to the idle button", async () => {
-    await reachFlopCheckCheckWithCheckdown();
-
-    let rejectFirst: (err: unknown) => void = () => {};
-    solvePostflopInWorker.mockImplementationOnce(
-      (_req: PostflopSolveRequest, options?: { signal?: AbortSignal }) =>
-        new Promise((_resolve, reject) => {
-          rejectFirst = reject;
-          options?.signal?.addEventListener("abort", () => reject(new DOMException("Aborted", "AbortError")));
-        }),
-    );
-
-    fireEvent.click(screen.getByRole("button", { name: /Compute precise average EV/ }));
-    await screen.findByRole("button", { name: "Cancel" });
-    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
-    void rejectFirst; // silence unused-var lint if the abort listener path is what actually rejects
-
-    await waitFor(() => expect(screen.getByRole("button", { name: /Compute precise average EV/ })).toBeInTheDocument());
-  });
-
-  it("picking a different turn card clears a completed precise-average result for that stage", async () => {
-    await reachFlopCheckCheckWithCheckdown();
-    const expectedCards = sampleNextCards(["As", "Kd", "Qh"], DEFAULT_PRECISE_SAMPLE_COUNT);
-    for (let i = 0; i < expectedCards.length; i++) solvePostflopInWorker.mockResolvedValueOnce(sampleResult(1, -1));
-    fireEvent.click(screen.getByRole("button", { name: /Compute precise average EV/ }));
-    await waitFor(() => expect(screen.getByText(/Average:/)).toBeInTheDocument());
-
-    solvePostflopInWorker.mockResolvedValueOnce(turnResult());
-    fireEvent.click(screen.getByRole("button", { name: "7h" }));
-    fireEvent.click(screen.getByRole("button", { name: "Solve turn" }));
-    await screen.findByRole("button", { name: "Pick a different turn card" });
-
-    fireEvent.click(screen.getByRole("button", { name: "Pick a different turn card" }));
-    solvePostflopInWorker.mockResolvedValueOnce(
-      checkCheckFlopResultWithCheckdown({ P1: 0, P2: 0 }, makeCheckdownEquity()),
-    );
-    // The new turn stage is back to its idle board picker, not a stale "Average:" result.
-    expect(within(liveStage()).queryByText(/Average:/)).not.toBeInTheDocument();
   });
 
   it("a past street is a compact box (street, cards, pot) followed by its seat boxes; its full details only open on demand, over the live stage", async () => {
