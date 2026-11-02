@@ -17,6 +17,13 @@ export interface PotState {
   raiseDepth: number;
   /** Seat whose action was applied most recently; null before the hand starts. */
   lastActor: Position | null;
+  /** Each seat's latest decision: the state it faced and what it chose. Its range can be rebuilt from these. */
+  lastDecision: Partial<Record<Position, SeatDecision>>;
+}
+
+export interface SeatDecision {
+  state: PotState;
+  action: ActionType;
 }
 
 export function initialPotState(format: GameFormat = TOURNAMENT_8): PotState {
@@ -30,6 +37,7 @@ export function initialPotState(format: GameFormat = TOURNAMENT_8): PotState {
     lastAggressorRaiseToBb: null,
     raiseDepth: 0,
     lastActor: null,
+    lastDecision: {},
   };
 }
 
@@ -45,6 +53,18 @@ export interface ApplyActionOptions {
  * supply `raiseToBb` for a "raise" action, already validated/capped.
  */
 export function applyAction(
+  state: PotState,
+  actor: Position,
+  action: ActionType,
+  options: ApplyActionOptions,
+): PotState {
+  return {
+    ...settleAction(state, actor, action, options),
+    lastDecision: { ...state.lastDecision, [actor]: { state, action } },
+  };
+}
+
+function settleAction(
   state: PotState,
   actor: Position,
   action: ActionType,

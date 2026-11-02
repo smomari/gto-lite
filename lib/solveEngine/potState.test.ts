@@ -75,4 +75,15 @@ describe("applyAction", () => {
     expect(next.committed.UTG).toBe(12);
     expect(next.potBb).toBeCloseTo(2.5 + 4 + 12 + (12 - 4), 6);
   });
+
+  it("remembers each seat's latest decision and the state it faced", () => {
+    const start = initialPotState();
+    const opened = applyAction(start, "UTG", "raise", { effectiveStackBb: 100, raiseToBb: 2.8 });
+    const threeBet = applyAction(opened, "UTG1", "raise", { effectiveStackBb: 100, raiseToBb: 8.4 });
+    expect(threeBet.lastDecision.UTG).toEqual({ state: start, action: "raise" });
+    expect(threeBet.lastDecision.UTG1).toEqual({ state: opened, action: "raise" });
+
+    const called = applyAction(threeBet, "UTG", "call", { effectiveStackBb: 100 });
+    expect(called.lastDecision.UTG).toEqual({ state: threeBet, action: "call" });
+  });
 });
