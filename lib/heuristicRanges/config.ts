@@ -19,6 +19,13 @@ export const FIRST_IN_WIDTHS_BY_STACK = [
   { stackBb: 100, widths: [0.13, 0.15, 0.19, 0.25, 0.32, 0.46, 0.44], sbPlay: 0.85, sbRaise: 0.1 },
 ];
 /**
+ * Cash opens at 100bb, UTG..SB, flat at every stack. There is no limping and
+ * nothing dead but the blinds, so SB raises or folds. 6-max shares this table:
+ * its LJ has the same seats behind it as an 8-max LJ folded to. A starting
+ * point between conflicting public charts, not a solved result.
+ */
+export const CASH_FIRST_IN_WIDTHS = [{ stackBb: 100, widths: [0.12, 0.14, 0.17, 0.21, 0.28, 0.46, 0.38] }];
+/**
  * Between the push/fold stacks and JAM_MAX_STACK_BB, a share of each first-in
  * raising range jams instead, growing as the stack shrinks and reaching
  * JAM_MAX_SHARE at JAM_MIN_STACK_BB. The top RAISE_KEEP_SHARE of the range
@@ -37,6 +44,9 @@ export const COLD_CALL_PER_SEAT_BEHIND = 0.9;
 export const COLD_CALL_OOP_MULTIPLIER = 0.6;
 /** 3-bet width as a share of the opener's width, and how much of a raise range is value. */
 export const THREE_BET_WIDTH_RATIO = 0.3;
+/** Without an ante, flats get worse and more of the continuing range 3-bets. */
+export const CASH_COLD_CALL_BASE = 0.5;
+export const CASH_THREE_BET_WIDTH_RATIO = 0.4;
 export const RAISE_VALUE_SHARE = 0.6;
 
 // --- Facing-a-raise continuing threshold ----------------------------------

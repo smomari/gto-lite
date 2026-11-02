@@ -28,6 +28,10 @@ export const OPEN_RAISE_IP_DEEP_BB = 2.5; // CO, BTN, SB at STACK_MAX_BB
 export const OPEN_RAISE_OOP_SHALLOW_BB = 2.3; // UTG, UTG1, LJ, HJ at/below the scaling threshold
 export const OPEN_RAISE_OOP_DEEP_BB = 2.8; // UTG, UTG1, LJ, HJ at STACK_MAX_BB
 
+/** Cash opens one size from every seat, a little bigger from the SB, which plays the pot out of position. */
+export const CASH_OPEN_RAISE_BB = 2.5;
+export const CASH_SB_OPEN_RAISE_BB = 3;
+
 /** BB's raise-to size over a limp. */
 export const LIMP_RAISE_TO_BB = 3.5;
 
