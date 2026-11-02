@@ -16,7 +16,8 @@ let loading: Promise<WebSolver> | undefined;
 /**
  * The C++ solver core for browser workers, loaded once per worker. On a
  * cross-origin isolated page (COOP/COEP, next.config.ts) it's the threaded
- * build, its pool workers started up front; otherwise the one-thread build.
+ * build, its pool workers started up front; otherwise, or if that build can't
+ * start, the one-thread build.
  * Rejects when the browser can't run it, with a message fit to show.
  */
 export function loadWebSolverModule(): Promise<WebSolver> {
@@ -31,10 +32,16 @@ async function load(): Promise<WebSolver> {
   const threads = typeof SharedArrayBuffer !== "undefined" && globalThis.crossOriginIsolated
     ? Math.max(1, Math.min((navigator.hardwareConcurrency || 4) - 1, MAX_THREADS))
     : 1;
-  if (threads === 1) return { solver: await createSolverModule(), threads };
-  const solver = await createThreadedSolverModule({
-    pthreadPoolSize: threads - 1,
-    createPthreadWorker: () => new Worker(new URL("./pthreadEntry.ts", import.meta.url), { type: "module", name: "em-pthread" }),
-  });
-  return { solver, threads };
+  if (threads > 1) {
+    try {
+      const solver = await createThreadedSolverModule({
+        pthreadPoolSize: threads - 1,
+        createPthreadWorker: () => new Worker(new URL("./pthreadEntry.ts", import.meta.url), { type: "module", name: "em-pthread" }),
+      });
+      return { solver, threads };
+    } catch (err) {
+      console.warn("Threaded solver core unavailable, using one thread:", err);
+    }
+  }
+  return { solver: await createSolverModule(), threads: 1 };
 }
