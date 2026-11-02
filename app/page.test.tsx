@@ -57,6 +57,27 @@ describe("Home", () => {
     expect(screen.getByRole("button", { name: /Settings/ })).toHaveTextContent("40bb");
   });
 
+  it("a new format restarts the hand and asks for that format; Cancel leaves it alone", async () => {
+    render(<Home />);
+    await screen.findAllByRole("button", { name: "Fold" });
+    fireEvent.click(within(activeSeat()).getByRole("button", { name: "Fold" }));
+    await screen.findByRole("button", { name: "New hand" });
+
+    openSettings();
+    fireEvent.click(screen.getByRole("radio", { name: "Cash 6-max" }));
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.getByRole("button", { name: "New hand" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Settings/ })).toHaveTextContent("Tournament 8-max");
+
+    openSettings();
+    fireEvent.click(screen.getByRole("radio", { name: "Cash 6-max" }));
+    fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+    await screen.findAllByRole("button", { name: "Fold" });
+    expect(screen.queryByRole("button", { name: "New hand" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Settings/ })).toHaveTextContent("Cash 6-max");
+    expect(solveNode).toHaveBeenLastCalledWith(expect.objectContaining({ actionPath: [], format: "cash-6" }), expect.anything());
+  });
+
   it("Apply without a change keeps the hand; a new stack restarts it", async () => {
     render(<Home />);
     await screen.findAllByRole("button", { name: "Fold" });

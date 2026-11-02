@@ -8,7 +8,7 @@ import { ActionSummaryTiles } from "@/components/ActionSummaryTiles";
 import { SourceBadge } from "@/components/SourceBadge";
 import { RangeGrid } from "@/components/RangeGrid/RangeGrid";
 import { solveNode, SolveApiError } from "@/lib/apiClient/solveClient";
-import { TOURNAMENT_8 } from "@/lib/solveEngine/gameFormat";
+import { TOURNAMENT_8, type GameFormat } from "@/lib/solveEngine/gameFormat";
 import { buildFoldPrefixPath } from "@/lib/solveEngine/preview";
 import { actionPathKey, resolvePostflopHandoff } from "@/lib/solveEngine/postflopHandoff";
 import { PostflopPanel } from "@/components/PostflopBoard/PostflopPanel";
@@ -34,27 +34,28 @@ type Result =
 
 export default function Home() {
   const [stackBb, setStackBb] = useState(100);
+  const [format, setFormat] = useState<GameFormat>(TOURNAMENT_8);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [requestPath, setRequestPath] = useState<RequestStep[]>([]);
   const [result, setResult] = useState<Result | null>(null);
   // Every decision-point response seen so far, keyed by the path that led to
   // it (see actionPathKey) — once the hand resolves, each live seat's range
-  // entering the flop is the response at its last decision. Only a stack
+  // entering the flop is the response at its last decision. Only a table
   // change invalidates these; undo/replay just looks up a different key.
   const [rangeByPathKey, setRangeByPathKey] = useState<Record<string, SolveResponse>>({});
   const [rangeLoadFailed, setRangeLoadFailed] = useState(false);
   // Quick-action range fetches still in flight: their keys don't include the
-  // stack, so a stack change has to cancel them or they'd land in its new map.
+  // table, so a table change has to cancel them or they'd land in its new map.
   const rangeFetchesRef = useRef(new Set<AbortController>());
   const [streetBarSlot, setStreetBarSlot] = useState<HTMLDivElement | null>(null);
 
-  const requestKey = JSON.stringify({ stackBb, requestPath });
+  const requestKey = JSON.stringify({ stackBb, format: format.id, requestPath });
   const loading = result === null || result.key !== requestKey;
 
   useEffect(() => {
     const controller = new AbortController();
 
-    solveNode({ effectiveStackBb: stackBb, actionPath: requestPath }, controller.signal)
+    solveNode({ effectiveStackBb: stackBb, actionPath: requestPath, format: format.id }, controller.signal)
       .then((data) => {
         if (controller.signal.aborted) return;
         setResult({ key: requestKey, kind: "success", data });
@@ -82,20 +83,18 @@ export default function Home() {
 
     return () => controller.abort();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stackBb, requestPath]);
+  }, [stackBb, format, requestPath]);
 
-  function handleStackChange(next: number) {
+  function handleSettingsApply(nextStackBb: number, nextFormat: GameFormat) {
+    setSettingsOpen(false);
+    if (nextStackBb === stackBb && nextFormat === format) return;
     for (const controller of rangeFetchesRef.current) controller.abort();
     rangeFetchesRef.current.clear();
-    setStackBb(next);
+    setStackBb(nextStackBb);
+    setFormat(nextFormat);
     setRequestPath([]);
     setRangeByPathKey({});
     setRangeLoadFailed(false);
-  }
-
-  function handleSettingsApply(nextStackBb: number) {
-    setSettingsOpen(false);
-    if (nextStackBb !== stackBb) handleStackChange(nextStackBb);
   }
 
   function handleNewHand() {
@@ -115,7 +114,7 @@ export default function Home() {
 
   function handleQuickAction(target: Position, action: ActionType) {
     if (result?.kind !== "success") return;
-    const prefixPath = buildFoldPrefixPath(requestPath, result.data.heroPosition, target, stackBb, TOURNAMENT_8);
+    const prefixPath = buildFoldPrefixPath(requestPath, result.data.heroPosition, target, stackBb, format);
     if (!prefixPath) return;
 
     // The quick-action shortcut skips ever making `target` the active seat in
@@ -125,7 +124,7 @@ export default function Home() {
     // failed fetch only shows up if the hand-off ends up needing this range.
     const controller = new AbortController();
     rangeFetchesRef.current.add(controller);
-    solveNode({ effectiveStackBb: stackBb, actionPath: prefixPath }, controller.signal)
+    solveNode({ effectiveStackBb: stackBb, actionPath: prefixPath, format: format.id }, controller.signal)
       .then((data) => {
         if (controller.signal.aborted) return;
         if (data.heroPosition === target) {
@@ -158,16 +157,16 @@ export default function Home() {
     <div className="mx-auto flex min-h-dvh w-full max-w-6xl flex-col gap-2 px-2 py-2 sm:px-4 lg:h-dvh lg:min-h-0 lg:overflow-hidden lg:px-6 lg:py-3">
       <header className="flex items-center justify-between border-b border-line pb-2">
         <span className="text-xl font-semibold tracking-tight text-ink">gtoLite</span>
-        <SettingsButton stackBb={stackBb} onClick={() => setSettingsOpen(true)} />
+        <SettingsButton format={format} stackBb={stackBb} onClick={() => setSettingsOpen(true)} />
       </header>
 
       {settingsOpen && (
-        <SettingsDialog stackBb={stackBb} onApply={handleSettingsApply} onClose={() => setSettingsOpen(false)} />
+        <SettingsDialog format={format} stackBb={stackBb} onApply={handleSettingsApply} onClose={() => setSettingsOpen(false)} />
       )}
 
       <SeatActionBar
         stackBb={stackBb}
-        format={TOURNAMENT_8}
+        format={format}
         actionPath={displayedActionPath}
         activeSeat={activeSeat}
         availableActions={availableActions}
