@@ -1,6 +1,6 @@
 import type { HandFrequency, Position, RangeSource } from "@/types/rangeData";
 import type { EquityMatrix } from "@/lib/equity/loadEquityMatrix";
-import { ALL_HANDS } from "@/lib/handRange/handList";
+import { ALL_HANDS, TOTAL_COMBOS } from "@/lib/handRange/handList";
 import { SEAT_ORDER, postflopSeatIndex, seatIndex } from "@/lib/actionTree/seatOrder";
 import {
   generateBbVsLimpScenario,
@@ -9,9 +9,11 @@ import {
   generateSbFirstInScenario,
   openWidthFor,
 } from "@/lib/heuristicRanges/generateScenario";
-import { RAKE_CONTINUE_SENSITIVITY } from "@/lib/heuristicRanges/config";
+import { RAISE_VALUE_SHARE, RAKE_CONTINUE_SENSITIVITY } from "@/lib/heuristicRanges/config";
+import { generateVsReraiseScenario } from "@/lib/heuristicRanges/vsReraise";
+import type { FrequencyMap } from "@/lib/nashSolver/pushFoldSolver";
 import { firstInWidthsUnder } from "./gameFormat";
-import type { PotState } from "./potState";
+import type { PotState, SeatDecision } from "./potState";
 import { NO_RAKE_SETTINGS, rakeShare, type RakeSettings } from "./rake";
 import { shouldUseNash } from "./classify";
 import { getPlayabilityRanking, getPushFoldResult } from "./solveCache";
@@ -33,6 +35,23 @@ function callFrequencyToHands(callFreq: Map<string, number>): HandFrequency[] {
     const call = callFreq.get(h.hand) ?? 0;
     return { hand: h.hand, fold: 1 - call, call, raise: 0 };
   });
+}
+
+/** The hands a seat came out of a decision with: the frequency of what it chose there. */
+function rangeAfter(
+  matrix: EquityMatrix,
+  seat: Position,
+  decision: SeatDecision,
+  effectiveStackBb: number,
+  rake: RakeSettings,
+): FrequencyMap {
+  const { hands } = solveActiveSeat(matrix, seat, decision.state, effectiveStackBb, rake);
+  const aggressive = decision.action === "raise" || decision.action === "allin";
+  return new Map(hands.map((h) => [h.hand, aggressive ? h.raise + (h.allin ?? 0) : h.call]));
+}
+
+function shareOfCombos(range: FrequencyMap): number {
+  return ALL_HANDS.reduce((sum, h) => sum + (range.get(h.hand) ?? 0) * h.combos, 0) / TOTAL_COMBOS;
 }
 
 /**
@@ -76,11 +95,32 @@ export function solveActiveSeat(
 
   const lastAggressor = potState.lastAggressor!;
   const amountOwedBb = potState.currentBetToCall - (potState.committed[activeSeat] ?? 0);
+  const isIP = postflopSeatIndex(activeSeat) > postflopSeatIndex(lastAggressor);
+  const ownDecision = potState.lastDecision[activeSeat];
+  const raiserDecision = potState.lastDecision[lastAggressor];
+  if (potState.raiseDepth >= 2 && ownDecision && raiserDecision) {
+    const heroRange = rangeAfter(matrix, activeSeat, ownDecision, effectiveStackBb, rake);
+    const villainRange = rangeAfter(matrix, lastAggressor, raiserDecision, effectiveStackBb, rake);
+    if (shareOfCombos(heroRange) > 0 && shareOfCombos(villainRange) > 0) {
+      return {
+        source: "heuristic-approx",
+        hands: generateVsReraiseScenario(matrix, ranking, {
+          heroRange,
+          villainRange,
+          isIP,
+          potBb: potState.potBb,
+          amountOwedBb,
+          raiseWidth: shareOfCombos(villainRange) * format.threeBetWidthRatio * RAISE_VALUE_SHARE,
+          rake: rake.structure,
+        }),
+      };
+    }
+  }
   return {
     source: "heuristic-approx",
     hands: generateFacingRaiseScenario(ranking, {
       raiseDepth: potState.raiseDepth,
-      isIP: postflopSeatIndex(activeSeat) > postflopSeatIndex(lastAggressor),
+      isIP,
       potBb: potState.potBb,
       amountOwedBb,
       aggressorOpenWidth: openWidthFor(Math.min(seatIndex(lastAggressor), 6), effectiveStackBb, firstInWidths),

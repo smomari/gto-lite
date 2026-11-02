@@ -44,6 +44,20 @@ export const JAM_MIN_STACK_BB = 16;
 export const JAM_MAX_STACK_BB = 25;
 export const JAM_MAX_SHARE = 0.4;
 export const RAISE_KEEP_SHARE = 0.3;
+/**
+ * Facing a re-raise, how much of its range a seat keeps. All-in equities bunch
+ * tightly, so a hand-by-hand "does this call show a profit" cliff swings from
+ * nearly all to nearly none on a point of equity. The range's edge over the
+ * price sets a share instead, and equity only ranks the hands inside it.
+ * Realization is the part of its all-in equity a range wins, by position. All
+ * of these are estimates, set against defense frequencies rather than solved.
+ */
+export const EQUITY_REALIZATION_IP = 0.9;
+export const EQUITY_REALIZATION_OOP = 0.75;
+export const RERAISE_KEEP_BASE = 0.5;
+export const RERAISE_KEEP_PER_EQUITY = 1.5;
+export const RERAISE_KEEP_MIN = 0.25;
+export const RERAISE_KEEP_MAX = 0.75;
 /** Share of combos BB raises over a limp. Heavier on value than a 3-bet: there are only so many suited bluffs. */
 export const BB_VS_LIMP_VALUE_WIDTH = 0.34;
 export const BB_VS_LIMP_BLUFF_WIDTH = 0.12;

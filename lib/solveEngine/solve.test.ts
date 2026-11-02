@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { loadEquityMatrix } from "@/lib/equity/loadEquityMatrix";
 import { HAND_BY_LABEL } from "@/lib/handRange/handList";
-import type { HandFrequency, Position } from "@/types/rangeData";
+import type { ActionType, HandFrequency, Position } from "@/types/rangeData";
+import { TOURNAMENT_8 } from "./gameFormat";
 import { initialPotState, applyAction, type PotState } from "./potState";
+import { replayActionPath } from "./replay";
 import { solveActiveSeat } from "./solve";
 
 const matrix = loadEquityMatrix();
@@ -136,5 +138,48 @@ describe("solveActiveSeat", () => {
       expect(h.raise).toBe(0);
       expect(h.fold + h.call).toBeCloseTo(1, 6);
     }
+  });
+
+  describe("facing a re-raise", () => {
+    const STACK = 100;
+    const play = (...steps: [Position, ActionType][]) => {
+      const result = replayActionPath(steps.map(([actor, action]) => ({ actor, action })), STACK, TOURNAMENT_8);
+      if (result.status !== "active") throw new Error("expected a seat to act");
+      return result;
+    };
+    const foldsTo = (...seats: Position[]) => seats.map((seat) => [seat, "fold"] as [Position, ActionType]);
+    const toBtn = foldsTo("UTG", "UTG1", "LJ", "HJ", "CO");
+    const played = (h: HandFrequency) => h.raise + h.call + (h.allin ?? 0);
+
+    it("keeps part of the opening range, and nothing outside it", () => {
+      const open = solveActiveSeat(matrix, "BTN", play(...toBtn).potState, STACK).hands;
+      const facing = play(...toBtn, ["BTN", "raise"], ["SB", "fold"], ["BB", "raise"]);
+      const hands = solveActiveSeat(matrix, "BTN", facing.potState, STACK).hands;
+
+      const openCombos = combosWith(open, played);
+      const keptCombos = combosWith(hands, played);
+      expect(keptCombos / openCombos).toBeGreaterThan(0.4);
+      expect(keptCombos / openCombos).toBeLessThan(0.8);
+      hands.forEach((h, i) => {
+        if (played(open[i]) === 0) expect(played(h)).toBe(0);
+      });
+    });
+
+    it("gives a 3-bet range's bluffs up to a 4-bet, keeping its value", () => {
+      const facing = play(...toBtn, ["BTN", "raise"], ["SB", "fold"], ["BB", "raise"], ["BTN", "raise"]);
+      const threeBet = solveActiveSeat(matrix, "BB", play(...toBtn, ["BTN", "raise"], ["SB", "fold"]).potState, STACK).hands;
+      const hands = new Map(solveActiveSeat(matrix, "BB", facing.potState, STACK).hands.map((h) => [h.hand, h]));
+      const gaveUp = threeBet.filter((h) => h.raise > 0 && hands.get(h.hand)!.fold === 1);
+      expect(gaveUp.length).toBeGreaterThan(0);
+      expect(gaveUp.map((h) => h.hand)).not.toContain("AA");
+      expect(hands.get("AA")!.fold).toBe(0);
+    });
+
+    it("leaves a seat with no range yet on the cold formula", () => {
+      const facing = play(["UTG", "raise"], ["UTG1", "raise"]);
+      const hands = solveActiveSeat(matrix, "LJ", facing.potState, STACK).hands;
+      expect(combosWith(hands, played)).toBeGreaterThan(0);
+      expect(hands.find((h) => h.hand === "AA")!.fold).toBe(0);
+    });
   });
 });

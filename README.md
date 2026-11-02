@@ -27,6 +27,9 @@ npm run dev
 - `lib/solveEngine/classify.ts` — 스택이 얕거나(≤15bb) 팟 대비 남은 스택이 적으면 Nash
   push/fold 솔버(`lib/nashSolver/pushFoldSolver.ts`)로, 아니면 근사 레인지 엔진
   (`lib/heuristicRanges/`)으로 라우팅.
+- 자기 범위가 있는 좌석이 재레이즈를 맞으면 `lib/heuristicRanges/vsReraise.ts`로 간다. 범위 전체의 에쿼티가 콜 가격을 얼마나 넘는지로
+  계속할 비율을 정하고, 플레이어빌리티가 높은 핸드부터 채운다. 핸드별 EV 기준은 쓰지 않는다: 올인 에쿼티가 좁은 구간에 몰려 있어
+  작은 변화에도 거의 전부 또는 거의 0으로 뒤집히기 때문이다. 실현율과 계속 비율 상수는 추정치다.
 - 16~25bb 첫 액션은 레이즈 위주이고, 스택이 얕을수록 범위 중간 핸드의 일부가 올인으로 바뀐다.
 - `lib/equity/loadEquityMatrix.ts` — 169×169 all-in equity 매트릭스(오프라인 생성, 커밋됨)를
   읽어 위 두 엔진에 공급.

@@ -6,7 +6,7 @@ import { NO_RAKE_SETTINGS, netPot, type RakeSettings } from "@/lib/solveEngine/r
 
 export type FrequencyMap = Map<string, number>;
 
-function weightedEquityVsRange(
+export function weightedEquityVsRange(
   matrix: EquityMatrix,
   hand: string,
   range: FrequencyMap,
