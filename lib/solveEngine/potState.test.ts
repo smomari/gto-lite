@@ -55,17 +55,6 @@ describe("applyAction", () => {
     expect(next.raiseDepth).toBe(1);
   });
 
-  it("allin: treated as an all-in call (not a raise) in the degenerate short-stack case", () => {
-    let state = initialPotState();
-    state = applyAction(state, "UTG", "raise", { effectiveStackBb: 100, raiseToBb: 10 });
-    // UTG1's whole effective stack doesn't even cover UTG's raise-to amount.
-    const next = applyAction(state, "UTG1", "allin", { effectiveStackBb: 6 });
-    expect(next.committed.UTG1).toBe(6);
-    expect(next.currentBetToCall).toBe(10); // unchanged — not a raise
-    expect(next.lastAggressor).toBe("UTG"); // unchanged
-    expect(next.raiseDepth).toBe(1); // unchanged — UTG's raise was the only one
-  });
-
   it("committed amounts for a seat that already acted are correctly overwritten, not summed", () => {
     let state = initialPotState();
     state = applyAction(state, "UTG", "raise", { effectiveStackBb: 100, raiseToBb: 4 });

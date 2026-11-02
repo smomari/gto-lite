@@ -14,8 +14,7 @@ export interface SolvePostflopOptions {
 /**
  * Main-thread wrapper around the postflop Worker — mirrors lib/apiClient/
  * solveClient.ts's promise + AbortSignal shape, but there is no server round
- * trip here: everything runs client-side in the Worker (see postflopWorker.ts
- * for why — no Node `fs`/equity-matrix file involved, only `phe`).
+ * trip here: everything runs client-side in the Worker (see postflopWorker.ts).
  */
 export function solvePostflopInWorker(
   request: PostflopSolveRequest,

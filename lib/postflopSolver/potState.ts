@@ -15,7 +15,7 @@ export interface PostflopPotState {
   startPot: number;
   /** Chips each player has committed THIS street. */
   committed: { P1: number; P2: number };
-  /** Amount the acting player must add to match (0 if no bet yet this street). */
+  /** The bet-to amount this street, which a call must match: 0 if no bet yet. */
   currentBetToCall: number;
   lastAggressor: PostflopPlayer | null;
   lastActor: PostflopPlayer | null;

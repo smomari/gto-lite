@@ -51,16 +51,14 @@ export default function Home() {
   const [failedRangesKey, setFailedRangesKey] = useState<string | null>(null);
   const [streetBarSlot, setStreetBarSlot] = useState<HTMLDivElement | null>(null);
 
-  const requestKey = JSON.stringify({ stackBb, format: format.id, rake: rake.structure.id, noFlopNoDrop: rake.noFlopNoDrop, requestPath, attempt });
+  const table = { effectiveStackBb: stackBb, format: format.id, rake: rake.structure.id, noFlopNoDrop: rake.noFlopNoDrop };
+  const requestKey = JSON.stringify({ ...table, requestPath, attempt });
   const loading = result === null || result.key !== requestKey;
 
   useEffect(() => {
     const controller = new AbortController();
 
-    solveNode(
-      { effectiveStackBb: stackBb, actionPath: requestPath, format: format.id, rake: rake.structure.id, noFlopNoDrop: rake.noFlopNoDrop },
-      controller.signal,
-    )
+    solveNode({ ...table, actionPath: requestPath }, controller.signal)
       .then((data) => {
         if (controller.signal.aborted) return;
         setResult({ key: requestKey, kind: "success", data });
@@ -88,7 +86,7 @@ export default function Home() {
 
     return () => controller.abort();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stackBb, format, rake, requestPath, attempt]);
+  }, [requestKey]);
 
   function handleSettingsApply(nextStackBb: number, nextFormat: GameFormat, nextRake: RakeSettings) {
     setSettingsOpen(false);
@@ -150,7 +148,6 @@ export default function Home() {
   useEffect(() => {
     if (!missingRangesKey) return;
     const controller = new AbortController();
-    const table = { effectiveStackBb: stackBb, format: format.id, rake: rake.structure.id, noFlopNoDrop: rake.noFlopNoDrop };
     Promise.all(
       missingRanges.map((path) =>
         solveNode({ ...table, actionPath: path.map(({ actor, action }) => ({ actor, action })) }, controller.signal),
@@ -244,7 +241,7 @@ export default function Home() {
               {current.reason === "action-closed" && (
                 <p className="text-xs text-ink-faint">
                   {handoff.liveSeats.length !== 2
-                    ? "Postflop solving needs exactly 2 live players (Phase 1 doesn't support multiway yet)."
+                    ? "Postflop solving needs exactly 2 live players (multiway pots aren't supported)."
                     : rangeLoadFailed
                       ? "Couldn't load a player's range."
                       : "Loading both players' ranges…"}

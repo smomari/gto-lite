@@ -6,9 +6,9 @@ import { NASH_FLAT_STACK_THRESHOLD_BB, NASH_SPR_THRESHOLD } from "./constants";
  *
  * Because the pot-state replay tracks the *actual* accumulated pot from prior
  * raises, a deep-stack spot that's seen several raises naturally gets a low
- * stack-to-pot ratio and correctly routes to Nash without any hardcoded
- * per-node-type factor (an improvement over the old app's flat 0.5x hack for
- * vs-4bet nodes).
+ * stack-to-pot ratio and routes here without any hardcoded per-node-type
+ * factor. solve.ts then uses the Nash solver for fresh shoves, and prices
+ * anything after more action from the real pot.
  */
 export function shouldUseNash(
   effectiveStackBb: number,

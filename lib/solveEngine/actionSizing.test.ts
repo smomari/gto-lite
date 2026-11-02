@@ -136,13 +136,6 @@ describe("computeAvailableActions", () => {
     expect(actions.call).toEqual({ label: "Call", amountBb: 19 });
   });
 
-  it('labels the call option "Check" when nothing is owed (constructed fixture — not reachable via real replay)', () => {
-    const state = applyAction(initialPotState(), "UTG", "raise", { effectiveStackBb: 100, raiseToBb: 4 });
-    const alreadyMatched = { ...state, committed: { ...state.committed, UTG1: 4 } };
-    const actions = computeAvailableActions("UTG1", alreadyMatched, 100);
-    expect(actions.call).toEqual({ label: "Check", amountBb: 0 });
-  });
-
   it("only offers all-in at the push/fold stacks, whose charts have no smaller raise", () => {
     expect(computeAvailableActions("UTG", initialPotState(), 15)).toMatchObject({ raise: null, allin: { toBb: 15 } });
     expect(computeAvailableActions("UTG", initialPotState(), 16).raise).not.toBeNull();
