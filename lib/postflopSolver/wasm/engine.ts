@@ -5,6 +5,7 @@ import {
   type CfrSolution,
 } from "../cfr";
 import { engineEquityTable, riverStrengths } from "../engineBoards";
+import type { RakeTerms } from "@/lib/solveEngine/rake";
 import type { ExploitabilityResult } from "../exploitability";
 import { CARD_INDEX, flattenTree, type FlatTree } from "../flattenTree";
 import type { EquityTable } from "../terminalEquity";
@@ -23,6 +24,8 @@ export interface NativeCfrInput {
   rootEquityTable?: EquityTable;
   /** A faster source for other boards' tables (engine layout), e.g. RunoutEquity's turn tables; undefined falls back to building one. */
   equityTableFor?: (board: string[]) => Float32Array | undefined;
+  /** Taken from every pot that reaches a terminal. Defaults to none. */
+  rake?: RakeTerms;
 }
 
 /**
@@ -52,8 +55,8 @@ export interface EngineBuild {
 }
 
 export function prepareEngineBuild(input: NativeCfrInput): { build: EngineBuild; flat: FlatTree } {
-  const { tree, board, heroRange, villainRange } = input;
-  const flat = flattenTree(tree, board);
+  const { tree, board, heroRange, villainRange, rake } = input;
+  const flat = flattenTree(tree, board, rake);
   const cardsOf = (range: ComboRange) => Uint8Array.from(range.flatMap((c) => [CARD_INDEX[c.cards[0]], CARD_INDEX[c.cards[1]]]));
   const weightsOf = (range: ComboRange) => Float32Array.from(range, (c) => c.weight);
   const build: EngineBuild = {

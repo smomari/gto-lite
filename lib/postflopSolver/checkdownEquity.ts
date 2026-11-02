@@ -1,3 +1,4 @@
+import { NO_RAKE, netPot, type RakeTerms } from "@/lib/solveEngine/rake";
 import type { ComboRange } from "./types";
 import type { EquityTable } from "./terminalEquity";
 import { equityVsRange, liveOpponentReach } from "./terminalEquity";
@@ -31,6 +32,7 @@ export function computeCheckdownEquities(
   heroRange: ComboRange,
   villainRange: ComboRange,
   equityTable: EquityTable,
+  rake: RakeTerms = NO_RAKE,
 ): Map<PostflopTreeNode, CheckdownEquitySummary> {
   const heroCombos = heroRange.map((c) => c.cards);
   const villainCombos = villainRange.map((c) => c.cards);
@@ -40,7 +42,7 @@ export function computeCheckdownEquities(
     if (node.type === "terminal-fold") return; // never reaches showdown
 
     if (node.type === "terminal-showdown") {
-      const pot = totalPot(node.state);
+      const pot = netPot(totalPot(node.state), rake);
       const heroEquities = heroCombos.map((_, i) => equityVsRange(equityTable, "P1", i, reachP2));
       const villainEquities = villainCombos.map((_, i) => equityVsRange(equityTable, "P2", i, reachP1));
 

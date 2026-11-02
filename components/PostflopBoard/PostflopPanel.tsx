@@ -21,6 +21,8 @@ import { solvePostflopInWorker } from "@/lib/postflopSolver/worker/workerClient"
 import { narrowRangeAlongPath, type TreePathStep } from "@/lib/postflopSolver/rangeNarrowing";
 import { DEFAULT_MAX_CFR_ITERATIONS, DEFAULT_TARGET_EXPLOITABILITY_PERCENT } from "@/lib/postflopSolver/cfr";
 import { DEFAULT_PRECISE_SAMPLE_COUNT, sampleNextCards } from "@/lib/postflopSolver/nextCardSampling";
+import { rakeablePot } from "@/lib/postflopSolver/potState";
+import { rakeForPot, type RakeStructure } from "@/lib/solveEngine/rake";
 import type {
   ActionWeightKey,
   PostflopResultMessage,
@@ -41,6 +43,7 @@ interface PostflopPanelProps {
   villainActionKey: ActionWeightKey;
   startPot: number;
   effectiveStackBb: number;
+  rake: RakeStructure;
   /** Back to the first preflop decision, once a hand is over. */
   onNewHand: () => void;
   /** Where each street's StreetBox is portaled — the end of the seat-bar row, so the whole hand reads as one timeline. */
@@ -221,6 +224,7 @@ export function PostflopPanel(props: PostflopPanelProps) {
         maxIterations: DEFAULT_MAX_CFR_ITERATIONS,
         targetExploitabilityPercent: DEFAULT_TARGET_EXPLOITABILITY_PERCENT,
         fast: fastFlop,
+        rake: props.rake,
       };
     } else {
       const prevStage = streets[stageIndex - 1];
@@ -237,6 +241,7 @@ export function PostflopPanel(props: PostflopPanelProps) {
         effectiveStackBb: prevStage.effectiveStackAtStart - terminal.committed.P1,
         maxIterations: DEFAULT_MAX_CFR_ITERATIONS,
         targetExploitabilityPercent: DEFAULT_TARGET_EXPLOITABILITY_PERCENT,
+        rake: props.rake,
       };
     }
 
@@ -315,6 +320,7 @@ export function PostflopPanel(props: PostflopPanelProps) {
         effectiveStackBb: stage.effectiveStackAtStart - terminal.committed.P1,
         maxIterations: DEFAULT_MAX_CFR_ITERATIONS,
         targetExploitabilityPercent: DEFAULT_TARGET_EXPLOITABILITY_PERCENT,
+        rake: props.rake,
       };
       try {
         const result = await solvePostflopInWorker(request, { signal: controller.signal });
@@ -508,6 +514,7 @@ export function PostflopPanel(props: PostflopPanelProps) {
         outcome={outcome}
         board={stage.board}
         potBb={node.potBb}
+        rakeBb={rakeForPot(rakeablePot(node.potBb - node.committed.P1 - node.committed.P2, node.committed), props.rake)}
         equity={node.type === "terminal-showdown" ? node.checkdownEquity : undefined}
         streets={streets.slice(0, i + 1).map((street, k) => ({
           label: street.streetLabel,

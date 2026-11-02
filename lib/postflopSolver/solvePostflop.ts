@@ -7,6 +7,7 @@ import { LOOKAHEAD_BET_SIZING, streetForBoardLength, type PostflopStreet } from 
 import { clusteredNextCards, stratifiedNextCards } from "./nextCardSampling";
 import { buildHandTree, buildStreetTree, type HandTreeOptions, type PostflopTreeNode } from "./treeBuilder";
 import type { CfrSolution } from "./cfr";
+import type { RakeTerms } from "@/lib/solveEngine/rake";
 import type { ExploitabilityResult } from "./exploitability";
 import { runNativeCfr, solveNativeSession, solveThreadedSession, type NativeSolveSession } from "./wasm/engine";
 import { RunoutEquity } from "./wasm/runoutEquity";
@@ -24,6 +25,8 @@ interface PostflopSolveInputCommon {
   targetExploitabilityPercent?: number;
   /** Flop only: stop the lookahead at the turn (FLOP_FAST_LOOKAHEAD), for a quicker, less accurate solve. */
   fast?: boolean;
+  /** Taken from every pot. Postflop pots have seen a flop, so no-flop-no-drop makes no difference here. */
+  rake?: RakeTerms;
 }
 
 export type PostflopSolveInput =
@@ -172,6 +175,7 @@ function solveWithTables(
     heroRange,
     villainRange,
     rootEquityTable: equityTable,
+    rake: input.rake,
     equityTableFor: runout ? (board: string[]) => (board.length === 4 ? runout.turnTable(board[3]) : undefined) : undefined,
   };
   let session: NativeSolveSession | undefined;

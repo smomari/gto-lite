@@ -10,7 +10,7 @@ import { RangeGrid } from "@/components/RangeGrid/RangeGrid";
 import { solveNode, SolveApiError } from "@/lib/apiClient/solveClient";
 import { TOURNAMENT_8, type GameFormat } from "@/lib/solveEngine/gameFormat";
 import { buildFoldPrefixPath } from "@/lib/solveEngine/preview";
-import { DEFAULT_RAKE_SETTINGS, type RakeSettings } from "@/lib/solveEngine/rake";
+import { DEFAULT_RAKE_SETTINGS, NO_RAKE, type RakeSettings } from "@/lib/solveEngine/rake";
 import { actionPathKey, resolvePostflopHandoff } from "@/lib/solveEngine/postflopHandoff";
 import { PostflopPanel } from "@/components/PostflopBoard/PostflopPanel";
 import type { ActionNode, ActionType, Position } from "@/types/rangeData";
@@ -251,6 +251,7 @@ export default function Home() {
               villainActionKey={p2.actionKey}
               startPot={current.potBb}
               effectiveStackBb={Math.min(p1.remainingBb, p2.remainingBb)}
+              rake={format.allowsRake ? rake.structure : NO_RAKE}
               streetBarSlot={streetBarSlot}
               onNewHand={handleNewHand}
             />

@@ -10,6 +10,7 @@ import type {
 } from "@/types/postflopSolver";
 import type { HandFrequency } from "@/types/rangeData";
 import { DEFAULT_PRECISE_SAMPLE_COUNT, sampleNextCards } from "@/lib/postflopSolver/nextCardSampling";
+import { NO_RAKE } from "@/lib/solveEngine/rake";
 
 const { solvePostflopInWorker } = vi.hoisted(() => ({ solvePostflopInWorker: vi.fn() }));
 vi.mock("@/lib/postflopSolver/worker/workerClient", () => ({ solvePostflopInWorker }));
@@ -253,6 +254,7 @@ function baseProps(effectiveStackBb: number) {
     villainHands: HANDS,
     villainActionKey: "call" as const,
     startPot: 7.5,
+    rake: NO_RAKE,
     onNewHand: () => {},
     effectiveStackBb,
   };

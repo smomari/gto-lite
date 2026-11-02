@@ -1,5 +1,6 @@
 import { FULL_DECK } from "@/lib/cards";
-import { totalPot } from "./potState";
+import { NO_RAKE, rakeForPot, type RakeTerms } from "@/lib/solveEngine/rake";
+import { rakeablePot, totalPot } from "./potState";
 import type { DecisionNode, PostflopTreeNode } from "./treeBuilder";
 
 /** Node type codes shared with native/solver/engine.cpp. */
@@ -17,7 +18,8 @@ export const CARD_INDEX: Record<string, number> = Object.fromEntries(FULL_DECK.m
  * A tree as the C++ engine reads it: preorder arrays (root = 0), children in
  * child slots `childStart[node] .. + childCount[node]`. Committed amounts are
  * cumulative since the root, so a terminal's payoff is `pot − committed`
- * however many streets lie above it. Showdowns reference a board by id:
+ * however many streets lie above it. A terminal's pot is what the winner
+ * collects, after rake; the engine never reads any other node's. Showdowns reference a board by id:
  * `tableBoards[aux]` (cards still to come — valued from an equity table) or
  * `riverBoards[aux]` (five cards — valued from hand strengths).
  */
@@ -48,7 +50,7 @@ interface Visit {
   before2: number;
 }
 
-export function flattenTree(root: PostflopTreeNode, rootBoard: string[]): FlatTree {
+export function flattenTree(root: PostflopTreeNode, rootBoard: string[], rake: RakeTerms = NO_RAKE): FlatTree {
   const visits: Visit[] = [];
   (function collect(visit: Visit) {
     visits.push(visit);
@@ -95,7 +97,9 @@ export function flattenTree(root: PostflopTreeNode, rootBoard: string[]): FlatTr
 
   let slot = 0;
   visits.forEach(({ node, board, before1, before2 }, i) => {
-    flat.pot[i] = totalPot(node.state);
+    const isTerminal = node.type === "terminal-fold" || node.type === "terminal-showdown";
+    const rakeBb = isTerminal ? rakeForPot(rakeablePot(node.state.startPot, node.state.committed), rake) : 0;
+    flat.pot[i] = totalPot(node.state) - rakeBb;
     flat.committed1[i] = before1 + node.state.committed.P1;
     flat.committed2[i] = before2 + node.state.committed.P2;
     flat.childStart[i] = slot;
