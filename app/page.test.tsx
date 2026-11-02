@@ -30,12 +30,23 @@ beforeEach(() => {
   });
 });
 
+function openSettings() {
+  fireEvent.click(screen.getByRole("button", { name: /Settings/ }));
+}
+
+function applyStack(stackBb: number) {
+  openSettings();
+  fireEvent.change(screen.getByRole("spinbutton"), { target: { value: String(stackBb) } });
+  fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+}
+
+const activeSeat = () => screen.getAllByTestId("seat-box").find((b) => b.getAttribute("data-kind") === "active")!;
+
 describe("Home", () => {
   it("New hand on a hand that ended preflop goes back to the first decision, keeping the stack", async () => {
     render(<Home />);
-    fireEvent.change(screen.getByRole("spinbutton"), { target: { value: "40" } });
+    applyStack(40);
     await screen.findAllByRole("button", { name: "Fold" });
-    const activeSeat = () => screen.getAllByTestId("seat-box").find((b) => b.getAttribute("data-kind") === "active")!;
     fireEvent.click(within(activeSeat()).getByRole("button", { name: "Fold" }));
 
     fireEvent.click(await screen.findByRole("button", { name: "New hand" }));
@@ -43,6 +54,23 @@ describe("Home", () => {
     await screen.findAllByRole("button", { name: "Fold" });
     expect(activeSeat()).toHaveAttribute("data-position", "UTG");
     expect(screen.queryByRole("button", { name: "New hand" })).not.toBeInTheDocument();
-    expect(screen.getByRole("spinbutton")).toHaveValue(40);
+    expect(screen.getByRole("button", { name: /Settings/ })).toHaveTextContent("40bb");
+  });
+
+  it("Apply without a change keeps the hand; a new stack restarts it", async () => {
+    render(<Home />);
+    await screen.findAllByRole("button", { name: "Fold" });
+    fireEvent.click(within(activeSeat()).getByRole("button", { name: "Fold" }));
+    await screen.findByRole("button", { name: "New hand" });
+
+    openSettings();
+    fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "New hand" })).toBeInTheDocument();
+
+    applyStack(40);
+    await screen.findAllByRole("button", { name: "Fold" });
+    expect(screen.queryByRole("button", { name: "New hand" })).not.toBeInTheDocument();
+    expect(activeSeat()).toHaveAttribute("data-position", "UTG");
   });
 });
