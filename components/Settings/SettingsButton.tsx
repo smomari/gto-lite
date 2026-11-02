@@ -1,11 +1,12 @@
-import { ACTIVE_GAME_FORMAT } from "./gameFormats";
+import type { GameFormat } from "@/lib/solveEngine/gameFormat";
 
 interface SettingsButtonProps {
+  format: GameFormat;
   stackBb: number;
   onClick: () => void;
 }
 
-export function SettingsButton({ stackBb, onClick }: SettingsButtonProps) {
+export function SettingsButton({ format, stackBb, onClick }: SettingsButtonProps) {
   return (
     <button
       type="button"
@@ -13,7 +14,7 @@ export function SettingsButton({ stackBb, onClick }: SettingsButtonProps) {
       className="flex items-center gap-2 rounded border border-line-strong px-2 py-1 text-sm text-ink-muted hover:bg-raised hover:text-ink pointer-coarse:min-h-9"
     >
       <span>
-        {ACTIVE_GAME_FORMAT.label} · <span className="font-mono tabular-nums">{stackBb}</span>bb
+        {format.label} · <span className="font-mono tabular-nums">{stackBb}</span>bb
       </span>
       <svg aria-hidden="true" viewBox="0 0 24 24" className="size-4 fill-none stroke-current" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
         <circle cx="12" cy="12" r="3" />

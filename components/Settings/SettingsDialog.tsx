@@ -1,22 +1,24 @@
 import { useEffect, useRef, useState } from "react";
 import { StackSizeControl } from "@/components/TableBar/StackSizeControl";
-import { ACTIVE_GAME_FORMAT, GAME_FORMATS } from "./gameFormats";
+import { GAME_FORMATS, type GameFormat } from "@/lib/solveEngine/gameFormat";
 
 interface SettingsDialogProps {
+  format: GameFormat;
   stackBb: number;
-  onApply: (stackBb: number) => void;
+  onApply: (stackBb: number, format: GameFormat) => void;
   onClose: () => void;
 }
 
 /**
- * Mounted only while open, so the draft always starts from the live stack.
- * The stack is a draft until Apply because changing it restarts the hand and
+ * Mounted only while open, so the drafts always start from the live table.
+ * Both are drafts until Apply because changing either restarts the hand and
  * refetches — a slider would otherwise do both on every tick of a drag.
  */
-export function SettingsDialog({ stackBb, onApply, onClose }: SettingsDialogProps) {
+export function SettingsDialog({ format, stackBb, onApply, onClose }: SettingsDialogProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const pressedBackdropRef = useRef(false);
   const [draftStackBb, setDraftStackBb] = useState(stackBb);
+  const [draftFormat, setDraftFormat] = useState(format);
 
   useEffect(() => {
     dialogRef.current?.showModal();
@@ -40,7 +42,7 @@ export function SettingsDialog({ stackBb, onApply, onClose }: SettingsDialogProp
         className="flex flex-col gap-4 p-4"
         onSubmit={(e) => {
           e.preventDefault();
-          onApply(draftStackBb);
+          onApply(draftStackBb, draftFormat);
         }}
       >
         <div className="flex items-center justify-between">
@@ -59,29 +61,25 @@ export function SettingsDialog({ stackBb, onApply, onClose }: SettingsDialogProp
 
         <fieldset className="flex flex-col gap-1">
           <legend className="mb-1 text-sm font-medium text-ink-muted">Game</legend>
-          {GAME_FORMATS.map((format) => (
-            <label
-              key={format.id}
-              className={`flex items-center gap-2 py-1 text-sm ${format.available ? "text-ink" : "text-ink-faint"}`}
-            >
+          {GAME_FORMATS.map((option) => (
+            <label key={option.id} className="flex items-center gap-2 py-1 text-sm text-ink">
               <input
                 type="radio"
                 name="game-format"
-                value={format.id}
-                checked={format.id === ACTIVE_GAME_FORMAT.id}
-                disabled={!format.available}
-                readOnly
+                value={option.id}
+                checked={option === draftFormat}
+                onChange={() => setDraftFormat(option)}
                 className="accent-accent"
               />
-              {format.label}
-              {!format.available && <span className="ml-auto text-xs">Coming soon</span>}
+              {option.label}
             </label>
           ))}
+          <p className="text-xs text-ink-faint">Cash charts are estimates. Rake isn&apos;t modeled.</p>
         </fieldset>
 
         <div className="flex flex-col gap-1">
           <StackSizeControl value={draftStackBb} onChange={setDraftStackBb} />
-          <p className="text-xs text-ink-faint">Changing the stack restarts the hand.</p>
+          <p className="text-xs text-ink-faint">Changing these restarts the hand.</p>
         </div>
 
         <div className="flex justify-end gap-2">

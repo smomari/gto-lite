@@ -1,30 +1,31 @@
 import { describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
+import { TOURNAMENT_8, gameFormatById } from "@/lib/solveEngine/gameFormat";
 import { SettingsDialog } from "./SettingsDialog";
 
 function renderDialog(stackBb = 100) {
   const onApply = vi.fn();
   const onClose = vi.fn();
-  render(<SettingsDialog stackBb={stackBb} onApply={onApply} onClose={onClose} />);
+  render(<SettingsDialog format={TOURNAMENT_8} stackBb={stackBb} onApply={onApply} onClose={onClose} />);
   return { onApply, onClose };
 }
 
 describe("SettingsDialog", () => {
-  it("opens with the current stack and only tournament selectable", () => {
+  it("opens with the current table", () => {
     renderDialog(40);
     expect(screen.getByRole("dialog", { name: "Settings" })).toBeInTheDocument();
     expect(screen.getByRole("spinbutton")).toHaveValue(40);
     expect(screen.getByRole("radio", { name: "Tournament 8-max" })).toBeChecked();
-    expect(screen.getByRole("radio", { name: /Cash 6-max/ })).toBeDisabled();
-    expect(screen.getByRole("radio", { name: /Cash 8-max/ })).toBeDisabled();
+    expect(screen.getByRole("radio", { name: "Cash 6-max" })).not.toBeChecked();
   });
 
-  it("only hands the stack over on Apply", () => {
+  it("only hands the stack and format over on Apply", () => {
     const { onApply } = renderDialog();
     fireEvent.change(screen.getByRole("slider"), { target: { value: "60" } });
+    fireEvent.click(screen.getByRole("radio", { name: "Cash 6-max" }));
     expect(onApply).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: "Apply" }));
-    expect(onApply).toHaveBeenCalledWith(60);
+    expect(onApply).toHaveBeenCalledWith(60, gameFormatById("cash-6"));
   });
 
   it.each(["Cancel", "Close"])("%s drops the draft", (name) => {
