@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { ALL_HANDS } from "@/lib/handRange/handList";
 import { SolveApiError, solveNode } from "@/lib/apiClient/solveClient";
 import Home from "./page";
@@ -55,6 +55,41 @@ describe("Home", () => {
     expect(activeSeat()).toHaveAttribute("data-position", "UTG");
     expect(screen.queryByRole("button", { name: "New hand" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Settings/ })).toHaveTextContent("40bb");
+  });
+
+  it("shows the seat to act while its range loads", async () => {
+    let finish: (value: unknown) => void = () => {};
+    vi.mocked(solveNode).mockImplementationOnce(() => new Promise((resolve) => (finish = resolve)) as never);
+    render(<Home />);
+    expect(activeSeat()).toHaveAttribute("data-position", "UTG");
+    expect(within(activeSeat()).getByText("...")).toBeInTheDocument();
+    await act(async () => finish(firstDecision));
+    expect(within(activeSeat()).getByRole("button", { name: "Fold" })).toBeInTheDocument();
+  });
+
+  it("fetches a range the quick action skipped, and can retry it", async () => {
+    const folds = ["UTG", "UTG1", "LJ", "HJ", "CO"].map((actor) => ({ actor, action: "fold" }));
+    const toBtn = [...folds, { actor: "BTN", action: "raise" }];
+    const closed = [...toBtn, { actor: "SB", action: "fold" }, { actor: "BB", action: "call" }];
+    const failing = { current: true };
+    vi.mocked(solveNode).mockImplementation(async ({ actionPath }) => {
+      if (actionPath.length === 0) return firstDecision as never;
+      if (actionPath.at(-1)?.action === "raise") {
+        throw new SolveApiError({ code: "HAND_RESOLVED", error: "resolved", reason: "action-closed", actionPath: closed, potBb: 6.5, committed: { BTN: 2.5, BB: 2.5 } } as never);
+      }
+      if (failing.current) throw new Error("Network down");
+      const heroPosition = actionPath.length === 5 ? "BTN" : "BB";
+      return { ...firstDecision, heroPosition, actionPath } as never;
+    });
+    render(<Home />);
+    await screen.findAllByRole("button", { name: "Fold" });
+    const btn = screen.getAllByTestId("seat-box").find((b) => b.getAttribute("data-position") === "BTN")!;
+    fireEvent.click(within(btn).getByRole("button", { name: /^Raise/ }));
+
+    const retry = await screen.findByRole("button", { name: "Retry" });
+    failing.current = false;
+    fireEvent.click(retry);
+    expect(await screen.findByText(/Pick the 3 flop cards/)).toBeInTheDocument();
   });
 
   it("keeps the hand on screen when a request fails, with a way to retry or start over", async () => {

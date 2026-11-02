@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { SettingsButton } from "@/components/Settings/SettingsButton";
 import { SettingsDialog } from "@/components/Settings/SettingsDialog";
 import { SeatActionBar } from "@/components/TableBar/SeatActionBar";
@@ -48,10 +48,7 @@ export default function Home() {
   // entering the flop is the response at its last decision. Only a table
   // change invalidates these; undo/replay just looks up a different key.
   const [rangeByPathKey, setRangeByPathKey] = useState<Record<string, SolveResponse>>({});
-  const [rangeLoadFailed, setRangeLoadFailed] = useState(false);
-  // Quick-action range fetches still in flight: their keys don't include the
-  // table, so a table change has to cancel them or they'd land in its new map.
-  const rangeFetchesRef = useRef(new Set<AbortController>());
+  const [failedRangesKey, setFailedRangesKey] = useState<string | null>(null);
   const [streetBarSlot, setStreetBarSlot] = useState<HTMLDivElement | null>(null);
 
   const requestKey = JSON.stringify({ stackBb, format: format.id, rake: rake.structure.id, noFlopNoDrop: rake.noFlopNoDrop, requestPath, attempt });
@@ -97,74 +94,44 @@ export default function Home() {
     setSettingsOpen(false);
     const sameRake = nextRake.structure === rake.structure && nextRake.noFlopNoDrop === rake.noFlopNoDrop;
     if (nextStackBb === stackBb && nextFormat === format && sameRake) return;
-    for (const controller of rangeFetchesRef.current) controller.abort();
-    rangeFetchesRef.current.clear();
     setStackBb(nextStackBb);
     setFormat(nextFormat);
     setRake(nextRake);
     setRequestPath([]);
     setRangeByPathKey({});
-    setRangeLoadFailed(false);
   }
 
   function handleNewHand() {
     setRequestPath([]);
     setAttempt((n) => n + 1);
-    setRangeLoadFailed(false);
   }
 
   function handleAction(action: ActionType) {
-    if (result?.kind !== "success") return;
-    setRequestPath([...requestPath, { actor: result.data.heroPosition, action }]);
+    if (current?.kind !== "success") return;
+    setRequestPath([...requestPath, { actor: current.data.heroPosition, action }]);
   }
 
   function handleRevisit(globalIndex: number) {
     setRequestPath(requestPath.slice(0, globalIndex));
-    setRangeLoadFailed(false);
   }
 
   function handleQuickAction(target: Position, action: ActionType) {
-    if (result?.kind !== "success") return;
-    const prefixPath = buildFoldPrefixPath(requestPath, result.data.heroPosition, target, stackBb, format);
+    if (current?.kind !== "success") return;
+    const prefixPath = buildFoldPrefixPath(requestPath, current.data.heroPosition, target, stackBb, format);
     if (!prefixPath) return;
-
-    // The quick-action shortcut skips ever making `target` the active seat in
-    // its own render, so its decision-point range would otherwise never be
-    // captured — fetch it directly so a postflop hand-off has it, just like a
-    // seat reached one click at a time. Not awaited: the hand moves on, and a
-    // failed fetch only shows up if the hand-off ends up needing this range.
-    const controller = new AbortController();
-    rangeFetchesRef.current.add(controller);
-    solveNode(
-      { effectiveStackBb: stackBb, actionPath: prefixPath, format: format.id, rake: rake.structure.id, noFlopNoDrop: rake.noFlopNoDrop },
-      controller.signal,
-    )
-      .then((data) => {
-        if (controller.signal.aborted) return;
-        if (data.heroPosition === target) {
-          setRangeByPathKey((prev) => ({ ...prev, [actionPathKey(data.actionPath)]: data }));
-        }
-      })
-      .catch(() => {
-        if (!controller.signal.aborted) setRangeLoadFailed(true);
-      })
-      .finally(() => rangeFetchesRef.current.delete(controller));
 
     setRequestPath([...prefixPath, { actor: target, action }]);
   }
 
   const current = !loading && result ? result : null;
-  function pathOnScreen(): ActionNode[] {
-    if (current?.kind === "success") return current.data.actionPath;
-    if (current?.kind === "resolved") return current.actionPath;
-    if (current?.kind === "error") {
-      const replayed = replayActionPath(requestPath, stackBb, format);
-      return replayed.status === "invalid" ? [] : replayed.canonicalActionPath;
-    }
-    return [];
-  }
-  const displayedActionPath = pathOnScreen();
-  const activeSeat = current?.kind === "success" ? current.data.heroPosition : null;
+  // The path is known before the server answers, so a request in flight or a
+  // failed one leaves the table on screen rather than blanking it.
+  const replayed = replayActionPath(requestPath, stackBb, format);
+  const replayedPath = replayed.status === "invalid" ? [] : replayed.canonicalActionPath;
+  const displayedActionPath =
+    current?.kind === "success" ? current.data.actionPath : current?.kind === "resolved" ? current.actionPath : replayedPath;
+  const seatToLoad = loading && replayed.status === "active" ? replayed.activeSeat : null;
+  const activeSeat = current?.kind === "success" ? current.data.heroPosition : seatToLoad;
   const availableActions = current?.kind === "success" ? current.data.availableActions : null;
 
   const handoff =
@@ -174,6 +141,31 @@ export default function Home() {
   // P1 = OOP (acts first postflop — SB first, BTN always last), P2 = IP.
   const [p1, p2] = handoff?.matchup ?? [];
   const postflopActive = !!(p1 && p2);
+
+  // A quick action skips seats' decisions, so their ranges never arrived with a response.
+  const missingRanges = handoff?.liveSeats.flatMap((s) => (!s.hands && s.decisionPath ? [s.decisionPath] : [])) ?? [];
+  const missingRangesKey = missingRanges.length ? JSON.stringify([requestKey, missingRanges.map(actionPathKey)]) : null;
+  const rangeLoadFailed = missingRangesKey !== null && failedRangesKey === missingRangesKey;
+
+  useEffect(() => {
+    if (!missingRangesKey) return;
+    const controller = new AbortController();
+    const table = { effectiveStackBb: stackBb, format: format.id, rake: rake.structure.id, noFlopNoDrop: rake.noFlopNoDrop };
+    Promise.all(
+      missingRanges.map((path) =>
+        solveNode({ ...table, actionPath: path.map(({ actor, action }) => ({ actor, action })) }, controller.signal),
+      ),
+    )
+      .then((responses) => {
+        if (controller.signal.aborted) return;
+        setRangeByPathKey((prev) => ({ ...prev, ...Object.fromEntries(responses.map((data) => [actionPathKey(data.actionPath), data])) }));
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setFailedRangesKey(missingRangesKey);
+      });
+    return () => controller.abort();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [missingRangesKey]);
 
   return (
     <div className="mx-auto flex min-h-dvh w-full max-w-6xl flex-col gap-2 px-2 py-2 sm:px-4 lg:h-dvh lg:min-h-0 lg:overflow-hidden lg:px-6 lg:py-3">
@@ -254,9 +246,19 @@ export default function Home() {
                   {handoff.liveSeats.length !== 2
                     ? "Postflop solving needs exactly 2 live players (Phase 1 doesn't support multiway yet)."
                     : rangeLoadFailed
-                      ? "Couldn't load a player's range. Undo a seat above to try again."
+                      ? "Couldn't load a player's range."
                       : "Loading both players' ranges…"}
                 </p>
+              )}
+
+              {rangeLoadFailed && (
+                <button
+                  type="button"
+                  onClick={() => setAttempt((n) => n + 1)}
+                  className="self-start rounded px-3 py-1.5 text-sm text-ink-muted hover:bg-raised hover:text-ink pointer-coarse:min-h-11"
+                >
+                  Retry
+                </button>
               )}
 
               <button
