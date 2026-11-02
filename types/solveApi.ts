@@ -1,8 +1,11 @@
+import type { GameFormatId } from "@/lib/solveEngine/gameFormat";
 import type { ActionNode, ActionType, Position, RangeScenario } from "./rangeData";
 
 export interface SolveRequest {
   effectiveStackBb: number;
   actionPath: Pick<ActionNode, "actor" | "action">[];
+  /** Defaults to the tournament format. */
+  format?: GameFormatId;
 }
 
 export interface CallOption {
@@ -33,7 +36,7 @@ export interface SolveResponse extends RangeScenario {
   availableActions: AvailableActions;
 }
 
-export type SolveErrorCode = "INVALID_STACK" | "INVALID_ACTION_PATH" | "HAND_RESOLVED" | "INTERNAL";
+export type SolveErrorCode = "INVALID_STACK" | "INVALID_ACTION_PATH" | "INVALID_FORMAT" | "HAND_RESOLVED" | "INTERNAL";
 export type HandResolvedReason = "uncontested" | "action-closed";
 
 export interface SolveErrorBody {

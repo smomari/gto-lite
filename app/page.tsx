@@ -8,6 +8,7 @@ import { ActionSummaryTiles } from "@/components/ActionSummaryTiles";
 import { SourceBadge } from "@/components/SourceBadge";
 import { RangeGrid } from "@/components/RangeGrid/RangeGrid";
 import { solveNode, SolveApiError } from "@/lib/apiClient/solveClient";
+import { TOURNAMENT_8 } from "@/lib/solveEngine/gameFormat";
 import { buildFoldPrefixPath } from "@/lib/solveEngine/preview";
 import { actionPathKey, resolvePostflopHandoff } from "@/lib/solveEngine/postflopHandoff";
 import { PostflopPanel } from "@/components/PostflopBoard/PostflopPanel";
@@ -114,7 +115,7 @@ export default function Home() {
 
   function handleQuickAction(target: Position, action: ActionType) {
     if (result?.kind !== "success") return;
-    const prefixPath = buildFoldPrefixPath(requestPath, result.data.heroPosition, target, stackBb);
+    const prefixPath = buildFoldPrefixPath(requestPath, result.data.heroPosition, target, stackBb, TOURNAMENT_8);
     if (!prefixPath) return;
 
     // The quick-action shortcut skips ever making `target` the active seat in
@@ -166,6 +167,7 @@ export default function Home() {
 
       <SeatActionBar
         stackBb={stackBb}
+        format={TOURNAMENT_8}
         actionPath={displayedActionPath}
         activeSeat={activeSeat}
         availableActions={availableActions}

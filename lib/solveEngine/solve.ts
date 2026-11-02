@@ -43,13 +43,14 @@ export function solveActiveSeat(
   potState: PotState,
   effectiveStackBb: number,
 ): SolvedNode {
+  const { format } = potState;
   const hasOpener = potState.raiseDepth >= 1;
   const remainingStackBb = effectiveStackBb - (potState.committed[activeSeat] ?? 0);
 
   if (shouldUseNash(effectiveStackBb, remainingStackBb, potState.potBb, hasOpener)) {
     const shover = potState.lastAggressor ?? activeSeat;
     const opponentsBehind = Math.max(1, SEAT_ORDER.length - 1 - seatIndex(shover));
-    const result = getPushFoldResult(matrix, remainingStackBb, opponentsBehind);
+    const result = getPushFoldResult(matrix, remainingStackBb, opponentsBehind, format.bbAnteBb);
     return {
       source: "nash-shove-fold",
       hands: hasOpener ? callFrequencyToHands(result.callFrequency) : shoveFrequencyToHands(result.shoveFrequency),
@@ -59,8 +60,13 @@ export function solveActiveSeat(
   const ranking = getPlayabilityRanking(matrix);
   if (!hasOpener) {
     if (activeSeat === "BB") return { source: "heuristic-approx", hands: generateBbVsLimpScenario(ranking) };
-    if (activeSeat === "SB") return { source: "heuristic-approx", hands: generateSbFirstInScenario(ranking, effectiveStackBb) };
-    return { source: "heuristic-approx", hands: generateOpeningScenario(ranking, seatIndex(activeSeat), effectiveStackBb) };
+    if (activeSeat === "SB" && format.sbCanLimp) {
+      return { source: "heuristic-approx", hands: generateSbFirstInScenario(ranking, effectiveStackBb) };
+    }
+    return {
+      source: "heuristic-approx",
+      hands: generateOpeningScenario(ranking, seatIndex(activeSeat), effectiveStackBb, format.firstInWidths),
+    };
   }
 
   const lastAggressor = potState.lastAggressor!;
@@ -72,9 +78,11 @@ export function solveActiveSeat(
       isIP: postflopSeatIndex(activeSeat) > postflopSeatIndex(lastAggressor),
       potBb: potState.potBb,
       amountOwedBb,
-      aggressorOpenWidth: openWidthFor(Math.min(seatIndex(lastAggressor), 6), effectiveStackBb),
+      aggressorOpenWidth: openWidthFor(Math.min(seatIndex(lastAggressor), 6), effectiveStackBb, format.firstInWidths),
       // BB's raise over a limp leaves SB closing the action, though BB sits "behind" it.
       seatsBehind: seatIndex(lastAggressor) > seatIndex(activeSeat) ? 0 : SEAT_ORDER.length - 1 - seatIndex(activeSeat),
+      threeBetWidthRatio: format.threeBetWidthRatio,
+      coldCallBase: format.coldCallBase,
     }),
   };
 }

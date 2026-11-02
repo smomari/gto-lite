@@ -1,6 +1,7 @@
 import type { Position } from "@/types/rangeData";
 import type { AvailableActions, CallOption } from "@/types/solveApi";
 import { postflopSeatIndex, seatIndex } from "@/lib/actionTree/seatOrder";
+import type { OpenSizeRange } from "./gameFormat";
 import type { PotState } from "./potState";
 import {
   BIG_BLIND_BB,
@@ -8,17 +9,15 @@ import {
   LIMP_RAISE_TO_BB,
   NASH_FLAT_STACK_THRESHOLD_BB,
   OPEN_RAISE_SCALING_MIN_STACK_BB,
-  OPEN_RAISE_IP_SHALLOW_BB,
-  OPEN_RAISE_IP_DEEP_BB,
-  OPEN_RAISE_OOP_SHALLOW_BB,
-  OPEN_RAISE_OOP_DEEP_BB,
   REACTIVE_RAISE_IP_MULTIPLIER,
   REACTIVE_RAISE_OOP_MULTIPLIER,
 } from "./constants";
 
-/** UTG, UTG1, LJ, HJ open OOP-sized; CO, BTN, SB open IP-sized. BB never opens. */
-function isFirstHalf(seatIdx: number): boolean {
-  return seatIdx <= 3;
+/** UTG, UTG1, LJ, HJ open OOP-sized; CO and BTN open IP-sized; SB has its own size. BB never opens. */
+function openSizeFor(activeSeat: Position, potState: PotState): OpenSizeRange {
+  const { openSizes } = potState.format;
+  if (activeSeat === "SB") return openSizes.sb;
+  return seatIndex(activeSeat) <= 3 ? openSizes.oop : openSizes.ip;
 }
 
 /**
@@ -30,7 +29,7 @@ function isFirstHalf(seatIdx: number): boolean {
  * 1 decimal place, since callers — including the UI, which renders these
  * numbers with no further formatting — must never see raw float noise.
  */
-function interpolateOpenRaiseBb(shallowBb: number, deepBb: number, effectiveStackBb: number): number {
+function interpolateOpenRaiseBb({ shallowBb, deepBb }: OpenSizeRange, effectiveStackBb: number): number {
   const clampedStack = Math.min(Math.max(effectiveStackBb, OPEN_RAISE_SCALING_MIN_STACK_BB), STACK_MAX_BB);
   const t = (clampedStack - OPEN_RAISE_SCALING_MIN_STACK_BB) / (STACK_MAX_BB - OPEN_RAISE_SCALING_MIN_STACK_BB);
   const raw = shallowBb + t * (deepBb - shallowBb);
@@ -51,10 +50,7 @@ export function computeRawRaiseTo(
 ): number {
   if (potState.lastAggressor === null) {
     if (activeSeat === "BB") return LIMP_RAISE_TO_BB;
-    const idx = seatIndex(activeSeat);
-    return isFirstHalf(idx)
-      ? interpolateOpenRaiseBb(OPEN_RAISE_OOP_SHALLOW_BB, OPEN_RAISE_OOP_DEEP_BB, effectiveStackBb)
-      : interpolateOpenRaiseBb(OPEN_RAISE_IP_SHALLOW_BB, OPEN_RAISE_IP_DEEP_BB, effectiveStackBb);
+    return interpolateOpenRaiseBb(openSizeFor(activeSeat, potState), effectiveStackBb);
   }
   const isIP = postflopSeatIndex(activeSeat) > postflopSeatIndex(potState.lastAggressor);
   const multiplier = isIP ? REACTIVE_RAISE_IP_MULTIPLIER : REACTIVE_RAISE_OOP_MULTIPLIER;
@@ -77,7 +73,9 @@ function callOptionFor(
 ): CallOption | null {
   if (potState.lastAggressor !== null) return { label: amountOwed === 0 ? "Check" : "Call", amountBb: amountOwed };
   if (activeSeat === "BB") return { label: "Check", amountBb: 0 };
-  if (activeSeat === "SB" && effectiveStackBb > NASH_FLAT_STACK_THRESHOLD_BB) return { label: "Limp", amountBb: amountOwed };
+  if (activeSeat === "SB" && potState.format.sbCanLimp && effectiveStackBb > NASH_FLAT_STACK_THRESHOLD_BB) {
+    return { label: "Limp", amountBb: amountOwed };
+  }
   return null;
 }
 

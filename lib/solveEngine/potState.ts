@@ -1,11 +1,13 @@
 import type { ActionType, Position } from "@/types/rangeData";
-import { SMALL_BLIND_BB, BIG_BLIND_BB, BB_ANTE_BB } from "./constants";
+import { SMALL_BLIND_BB, BIG_BLIND_BB } from "./constants";
+import { TOURNAMENT_8, type GameFormat } from "./gameFormat";
 
 export interface PotState {
+  format: GameFormat;
   /** Cumulative chips each seat has put in so far (blinds + calls + raises; ante excluded here). */
   committed: Partial<Record<Position, number>>;
   foldedSeats: Set<Position>;
-  /** committed sum + the BB ante. */
+  /** committed sum + any BB ante. */
   potBb: number;
   /** The amount a seat must match to call (the current bet-to amount). */
   currentBetToCall: number;
@@ -17,11 +19,12 @@ export interface PotState {
   lastActor: Position | null;
 }
 
-export function initialPotState(): PotState {
+export function initialPotState(format: GameFormat = TOURNAMENT_8): PotState {
   return {
+    format,
     committed: { SB: SMALL_BLIND_BB, BB: BIG_BLIND_BB },
-    foldedSeats: new Set(),
-    potBb: SMALL_BLIND_BB + BIG_BLIND_BB + BB_ANTE_BB,
+    foldedSeats: new Set(format.absentSeats),
+    potBb: SMALL_BLIND_BB + BIG_BLIND_BB + format.bbAnteBb,
     currentBetToCall: BIG_BLIND_BB,
     lastAggressor: null,
     lastAggressorRaiseToBb: null,

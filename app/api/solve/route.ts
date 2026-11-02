@@ -3,6 +3,7 @@ import type { SolveErrorBody, SolveRequest, SolveResponse } from "@/types/solveA
 import { SEAT_ORDER } from "@/lib/actionTree/seatOrder";
 import { buildNodeId } from "@/lib/actionTree/nodeId";
 import { STACK_MIN_BB, STACK_MAX_BB } from "@/lib/solveEngine/constants";
+import { TOURNAMENT_8, gameFormatById, type GameFormat } from "@/lib/solveEngine/gameFormat";
 import { replayActionPath } from "@/lib/solveEngine/replay";
 import { computeAvailableActions } from "@/lib/solveEngine/actionSizing";
 import { solveActiveSeat } from "@/lib/solveEngine/solve";
@@ -19,7 +20,7 @@ function errorResponse(status: number, body: SolveErrorBody): Response {
 }
 
 type ValidationResult =
-  | { ok: true; value: SolveRequest }
+  | { ok: true; value: Omit<SolveRequest, "format"> & { format: GameFormat } }
   | { ok: false; error: SolveErrorBody };
 
 function validateRequest(body: unknown): ValidationResult {
@@ -65,7 +66,12 @@ function validateRequest(body: unknown): ValidationResult {
     cleaned.push({ actor: actor as Position, action: action as ActionType });
   }
 
-  return { ok: true, value: { effectiveStackBb: stack, actionPath: cleaned } };
+  const format = b.format === undefined ? TOURNAMENT_8 : gameFormatById(String(b.format));
+  if (!format) {
+    return { ok: false, error: { error: `Unknown format: ${String(b.format)}`, code: "INVALID_FORMAT" } };
+  }
+
+  return { ok: true, value: { effectiveStackBb: stack, actionPath: cleaned, format } };
 }
 
 export async function POST(request: Request): Promise<Response> {
@@ -79,8 +85,8 @@ export async function POST(request: Request): Promise<Response> {
   const validated = validateRequest(body);
   if (!validated.ok) return errorResponse(400, validated.error);
 
-  const { effectiveStackBb, actionPath } = validated.value;
-  const replayResult = replayActionPath(actionPath, effectiveStackBb);
+  const { effectiveStackBb, actionPath, format } = validated.value;
+  const replayResult = replayActionPath(actionPath, effectiveStackBb, format);
 
   if (replayResult.status === "invalid") {
     return errorResponse(400, { error: replayResult.reason, code: "INVALID_ACTION_PATH" });

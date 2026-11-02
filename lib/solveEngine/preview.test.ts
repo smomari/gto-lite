@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { buildFoldPrefixPath, computeRoundActingOrder, previewQuickAction } from "./preview";
+import { TOURNAMENT_8 } from "@/lib/solveEngine/gameFormat";
 
 describe("buildFoldPrefixPath", () => {
   it("appends a fold for every seat before the target in the current round", () => {
-    expect(buildFoldPrefixPath([], "UTG", "HJ", 100)).toEqual([
+    expect(buildFoldPrefixPath([], "UTG", "HJ", 100, TOURNAMENT_8)).toEqual([
       { actor: "UTG", action: "fold" },
       { actor: "UTG1", action: "fold" },
       { actor: "LJ", action: "fold" },
@@ -12,22 +13,22 @@ describe("buildFoldPrefixPath", () => {
 
   it("keeps the existing path in front of the folds", () => {
     const actionPath = [{ actor: "UTG" as const, action: "raise" as const }];
-    expect(buildFoldPrefixPath(actionPath, "UTG1", "LJ", 100)).toEqual([
+    expect(buildFoldPrefixPath(actionPath, "UTG1", "LJ", 100, TOURNAMENT_8)).toEqual([
       { actor: "UTG", action: "raise" },
       { actor: "UTG1", action: "fold" },
     ]);
   });
 
   it("returns null when the target is the active seat or not ahead of it", () => {
-    expect(buildFoldPrefixPath([], "UTG", "UTG", 100)).toBeNull();
+    expect(buildFoldPrefixPath([], "UTG", "UTG", 100, TOURNAMENT_8)).toBeNull();
     const actionPath = [{ actor: "UTG" as const, action: "raise" as const }];
-    expect(buildFoldPrefixPath(actionPath, "UTG1", "UTG", 100)).toBeNull();
+    expect(buildFoldPrefixPath(actionPath, "UTG1", "UTG", 100, TOURNAMENT_8)).toBeNull();
   });
 });
 
 describe("computeRoundActingOrder", () => {
   it("returns the full table order in round 1, starting with the active seat", () => {
-    expect(computeRoundActingOrder([], "UTG", 100)).toEqual([
+    expect(computeRoundActingOrder([], "UTG", 100, TOURNAMENT_8)).toEqual([
       "UTG",
       "UTG1",
       "LJ",
@@ -41,7 +42,7 @@ describe("computeRoundActingOrder", () => {
 
   it("stops before the last aggressor once someone has raised", () => {
     const actionPath = [{ actor: "UTG" as const, action: "raise" as const }];
-    expect(computeRoundActingOrder(actionPath, "UTG1", 100)).toEqual([
+    expect(computeRoundActingOrder(actionPath, "UTG1", 100, TOURNAMENT_8)).toEqual([
       "UTG1",
       "LJ",
       "HJ",
@@ -53,7 +54,7 @@ describe("computeRoundActingOrder", () => {
   });
 
   it("returns [] when actionPath doesn't actually land on activeSeat", () => {
-    expect(computeRoundActingOrder([], "CO", 100)).toEqual([]);
+    expect(computeRoundActingOrder([], "CO", 100, TOURNAMENT_8)).toEqual([]);
   });
 
   it("includes every seat still owing a decision after a reopen, not just the raiser", () => {
@@ -69,7 +70,7 @@ describe("computeRoundActingOrder", () => {
       { actor: "SB" as const, action: "fold" as const },
       { actor: "BB" as const, action: "raise" as const },
     ];
-    expect(computeRoundActingOrder(actionPath, "UTG", 100)).toEqual(["UTG", "HJ"]);
+    expect(computeRoundActingOrder(actionPath, "UTG", 100, TOURNAMENT_8)).toEqual(["UTG", "HJ"]);
   });
 
   it("terminates in a heads-up raise war (no infinite loop)", () => {
@@ -83,18 +84,18 @@ describe("computeRoundActingOrder", () => {
       { actor: "SB" as const, action: "fold" as const },
       { actor: "BB" as const, action: "raise" as const },
     ];
-    expect(computeRoundActingOrder(actionPath, "UTG", 100)).toEqual(["UTG"]);
+    expect(computeRoundActingOrder(actionPath, "UTG", 100, TOURNAMENT_8)).toEqual(["UTG"]);
   });
 });
 
 describe("previewQuickAction", () => {
   it("returns null when the target isn't after the active seat", () => {
-    expect(previewQuickAction([], "UTG", "UTG", 100)).toBeNull();
-    expect(previewQuickAction([], "CO", "UTG", 100)).toBeNull();
+    expect(previewQuickAction([], "UTG", "UTG", 100, TOURNAMENT_8)).toBeNull();
+    expect(previewQuickAction([], "CO", "UTG", 100, TOURNAMENT_8)).toBeNull();
   });
 
   it("computes CO's real opening options when everyone before it folds", () => {
-    const actions = previewQuickAction([], "UTG", "CO", 100);
+    const actions = previewQuickAction([], "UTG", "CO", 100, TOURNAMENT_8);
     expect(actions).not.toBeNull();
     expect(actions!.call).toBeNull(); // opening decision, nothing to call
     expect(actions!.raise).toEqual({ toBb: 2.5 }); // CO is IP-half, deep stack (100bb)
@@ -102,18 +103,18 @@ describe("previewQuickAction", () => {
   });
 
   it("returns null for BB when folding everyone else would already resolve the hand", () => {
-    expect(previewQuickAction([], "UTG", "BB", 100)).toBeNull();
+    expect(previewQuickAction([], "UTG", "BB", 100, TOURNAMENT_8)).toBeNull();
   });
 
   it("computes BB's real options once an aggressor already exists in the path", () => {
     const actionPath = [{ actor: "UTG" as const, action: "raise" as const }];
-    const actions = previewQuickAction(actionPath, "UTG1", "BB", 100);
+    const actions = previewQuickAction(actionPath, "UTG1", "BB", 100, TOURNAMENT_8);
     expect(actions).not.toBeNull();
     expect(actions!.call).not.toBeNull();
   });
 
   it("matches actual replay: folding UTG..HJ then previewing CO agrees with a direct replay to CO", () => {
-    const actions = previewQuickAction([], "UTG", "CO", 40);
+    const actions = previewQuickAction([], "UTG", "CO", 40, TOURNAMENT_8);
     expect(actions).toEqual({
       fold: true,
       call: null,
@@ -133,7 +134,7 @@ describe("previewQuickAction", () => {
       { actor: "SB" as const, action: "fold" as const },
       { actor: "BB" as const, action: "raise" as const },
     ];
-    const actions = previewQuickAction(actionPath, "UTG", "HJ", 100);
+    const actions = previewQuickAction(actionPath, "UTG", "HJ", 100, TOURNAMENT_8);
     expect(actions).not.toBeNull();
     expect(actions!.call).not.toBeNull();
   });
