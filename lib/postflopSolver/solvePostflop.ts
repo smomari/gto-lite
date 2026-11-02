@@ -110,6 +110,16 @@ export interface PostflopSolveResult {
   session?: NativeSolveSession;
 }
 
+/** A narrowed range's combos that are still live: not on the board, and with some reach left. */
+function inPlay(range: ComboRange, board: BoardCards): ComboRange {
+  return filterBlockedCombos(range, board).filter((combo) => combo.weight > 0);
+}
+
+/** With no pair of hands that can both exist, nothing is left to solve: the engine would report a converged uniform strategy. */
+function anyPairDealable(heroRange: ComboRange, villainRange: ComboRange): boolean {
+  return heroRange.some(({ cards: hero }) => villainRange.some(({ cards: villain }) => !villain.some((card) => hero.includes(card))));
+}
+
 /**
  * Top-level Phase 1 orchestrator for one street: `kind: "canonical"` expands
  * preflop-shaped `HandFrequency[]` into combos (the flop's own starting
@@ -126,14 +136,14 @@ export function solvePostflopStreet(
   const heroRange =
     input.kind === "canonical"
       ? expandToCombos(input.heroHandFrequencies, input.heroActionWeight, input.board)
-      : filterBlockedCombos(input.heroRange, input.board);
+      : inPlay(input.heroRange, input.board);
   const villainRange =
     input.kind === "canonical"
       ? expandToCombos(input.villainHandFrequencies, input.villainActionWeight, input.board)
-      : filterBlockedCombos(input.villainRange, input.board);
+      : inPlay(input.villainRange, input.board);
 
-  if (heroRange.length === 0 || villainRange.length === 0) {
-    throw new Error("solvePostflopStreet: hero and villain ranges must both be non-empty after board removal");
+  if (!anyPairDealable(heroRange, villainRange)) {
+    throw new Error("This line is never reached at equilibrium.");
   }
 
   // A flop's tables come from its runout strengths in one pass (RunoutEquity)

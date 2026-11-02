@@ -314,7 +314,71 @@ beforeEach(() => {
   solvePostflopInWorker.mockReset();
 });
 
+/** Each of hero's two hands takes a different line, so hero's second decision has only one of them left. */
+function heroActsTwiceFlopResult(): PostflopResultMessage {
+  const potted: SerializedTreeNode = { type: "terminal-showdown", potBb: 17.5, committed: { P1: 5, P2: 5 } };
+  const folded: SerializedTreeNode = { type: "terminal-fold", potBb: 12.5, committed: { P1: 0, P2: 5 }, winner: "P2" };
+  const heroFacingBet: SerializedTreeNode = {
+    type: "decision",
+    actor: "P1",
+    potBb: 12.5,
+    currentBetToCall: 5,
+    actions: [
+      { action: "fold", label: "Fold", child: folded },
+      { action: "call", label: "Call", child: potted },
+    ],
+    strategy: [
+      [1, 0],
+      [0, 1],
+    ],
+  };
+  const villainAfterCheck: SerializedTreeNode = {
+    type: "decision",
+    actor: "P2",
+    potBb: 7.5,
+    currentBetToCall: 0,
+    actions: [{ action: "bet", label: "Bet 5.0bb", child: heroFacingBet }],
+    strategy: [[1]],
+  };
+  const tree: SerializedTreeNode = {
+    type: "decision",
+    actor: "P1",
+    potBb: 7.5,
+    currentBetToCall: 0,
+    actions: [
+      { action: "check", label: "Check", child: villainAfterCheck },
+      { action: "bet", label: "Bet 2.5bb", child: potted },
+    ],
+    strategy: [
+      [1, 0],
+      [0, 1],
+    ],
+  };
+  return {
+    type: "result",
+    tree,
+    heroRange: [
+      { cards: ["Ah", "Kd"], weight: 1 },
+      { cards: ["Jh", "Td"], weight: 1 },
+    ],
+    villainRange: [{ cards: ["7c", "2c"], weight: 1 }],
+    iterations: 100,
+  };
+}
+
 describe("PostflopPanel", () => {
+  it("shows a later decision for the hands that reached it, not the street's starting range", async () => {
+    solvePostflopInWorker.mockResolvedValue(heroActsTwiceFlopResult());
+    renderPanel(20);
+    pickFlopBoard();
+    fireEvent.click(await screen.findByRole("button", { name: "Check" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Bet 5.0bb" }));
+
+    // Only the hand that checked remains, and it folds here. The other hand would have called.
+    expect(await screen.findByRole("button", { name: /^Fold · 100/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^Call · 0/ })).toBeInTheDocument();
+  });
+
   it("starts with a single live Flop stage showing the 3-card board picker, and no street boxes yet", () => {
     renderPanel(20);
     expect(screen.getAllByTestId("street-stage")).toHaveLength(1);
