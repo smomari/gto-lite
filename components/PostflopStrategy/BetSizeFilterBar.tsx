@@ -42,6 +42,7 @@ export function BetSizeFilterBar({ node, range, colors, isolatedActionIndex, onI
               key={i}
               type="button"
               aria-label={`${a.label} · ${formatPercent(frequencies[i])}`}
+              aria-pressed={isActive}
               onClick={() => onIsolateChange(isActive ? null : i)}
               className={`min-w-0 flex-1 rounded-md px-2 py-1 text-left transition pointer-coarse:min-h-9 ${dimmed ? "opacity-40" : ""} ${
                 isActive ? "bg-raised shadow-[inset_0_0_0_1px_var(--color-line-strong)]" : "hover:bg-surface"

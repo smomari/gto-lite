@@ -70,4 +70,12 @@ describe("SettingsDialog", () => {
     fireEvent.click(dialog);
     expect(onClose).toHaveBeenCalledOnce();
   });
+
+  it.each(["Cancel", "Apply"])("%s closes the dialog itself, so the browser returns focus", (name) => {
+    const close = vi.spyOn(HTMLDialogElement.prototype, "close");
+    renderDialog();
+    fireEvent.click(screen.getByRole("button", { name }));
+    expect(close).toHaveBeenCalledOnce();
+    close.mockRestore();
+  });
 });

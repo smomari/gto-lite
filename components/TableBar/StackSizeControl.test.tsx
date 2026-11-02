@@ -16,4 +16,10 @@ describe("StackSizeControl", () => {
     fireEvent.change(screen.getByRole("spinbutton"), { target: { value: "50" } });
     expect(onChange).toHaveBeenCalledWith(50);
   });
+
+  it("names both inputs", () => {
+    render(<StackSizeControl value={100} onChange={() => {}} />);
+    expect(screen.getByRole("slider", { name: "Effective stack" })).toBeInTheDocument();
+    expect(screen.getByRole("spinbutton", { name: "Effective stack" })).toBeInTheDocument();
+  });
 });

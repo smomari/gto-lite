@@ -13,7 +13,7 @@ interface SolveProgressProps {
 export function SolveProgress({ phase, done, total, exploitabilityPercent, targetExploitabilityPercent }: SolveProgressProps) {
   if (phase === "cfr") {
     return (
-      <div className="flex flex-col gap-1">
+      <div role="progressbar" aria-label="Running CFR" className="flex flex-col gap-1">
         <div className="flex justify-between text-xs text-ink-muted">
           <span>Running CFR…</span>
           <span>
@@ -33,7 +33,7 @@ export function SolveProgress({ phase, done, total, exploitabilityPercent, targe
   const pct = total > 0 ? Math.min(100, Math.round((done / total) * 100)) : 0;
 
   return (
-    <div className="flex flex-col gap-1">
+    <div role="progressbar" aria-label="Computing showdown equities" aria-valuenow={pct} className="flex flex-col gap-1">
       <div className="flex justify-between text-xs text-ink-muted">
         <span>Computing showdown equities…</span>
         <span className="font-mono tabular-nums">{pct}%</span>
