@@ -96,7 +96,7 @@ export async function POST(request: Request): Promise<Response> {
   const validated = validateRequest(body);
   if (!validated.ok) return errorResponse(400, validated.error);
 
-  const { effectiveStackBb, actionPath, format } = validated.value;
+  const { effectiveStackBb, actionPath, format, rake } = validated.value;
   const replayResult = replayActionPath(actionPath, effectiveStackBb, format);
 
   if (replayResult.status === "invalid") {
@@ -117,7 +117,7 @@ export async function POST(request: Request): Promise<Response> {
     const matrix = loadEquityMatrix();
     const { activeSeat, potState, canonicalActionPath } = replayResult;
     const availableActions = computeAvailableActions(activeSeat, potState, effectiveStackBb);
-    const { hands, source } = solveActiveSeat(matrix, activeSeat, potState, effectiveStackBb);
+    const { hands, source } = solveActiveSeat(matrix, activeSeat, potState, effectiveStackBb, rake);
 
     const response: SolveResponse = {
       heroPosition: activeSeat,

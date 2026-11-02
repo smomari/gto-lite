@@ -2,6 +2,7 @@ import { ALL_HANDS, TOTAL_COMBOS } from "@/lib/handRange/handList";
 import type { EquityMatrix } from "@/lib/equity/loadEquityMatrix";
 import { equityOf } from "@/lib/equity/loadEquityMatrix";
 import { BB_ANTE_BB, BIG_BLIND_BB, SMALL_BLIND_BB } from "@/lib/solveEngine/constants";
+import { NO_RAKE_SETTINGS, netPot, type RakeSettings } from "@/lib/solveEngine/rake";
 
 export type FrequencyMap = Map<string, number>;
 
@@ -42,6 +43,8 @@ export interface PushFoldParams {
   bbAnte?: number;
   /** Players left to act behind the shover, each of whom can call. Default 1: heads-up. */
   opponentsBehind?: number;
+  /** A called shove sees a flop, so it always pays; the blinds pay only without no flop no drop. Default none. */
+  rake?: RakeSettings;
   maxIterations?: number;
 }
 
@@ -97,10 +100,12 @@ export function solvePushFold(
     bigBlind = BIG_BLIND_BB,
     bbAnte = BB_ANTE_BB,
     opponentsBehind = 1,
+    rake = NO_RAKE_SETTINGS,
     maxIterations = MAX_ITERATIONS,
   } = params;
-  const deadMoney = smallBlind + bigBlind + bbAnte;
-  const potIfCalled = 2 * S + deadMoney;
+  const pot = smallBlind + bigBlind + bbAnte;
+  const deadMoney = rake.noFlopNoDrop ? pot : netPot(pot, rake.structure);
+  const potIfCalled = netPot(2 * S + pot, rake.structure);
 
   let shoveRange: FrequencyMap = allHandsAt(1);
   let callRange: FrequencyMap = allHandsAt(0.5);

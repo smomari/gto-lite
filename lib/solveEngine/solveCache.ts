@@ -2,9 +2,10 @@ import type { EquityMatrix } from "@/lib/equity/loadEquityMatrix";
 import { computePlayabilityRanking } from "@/lib/equity/handStrength";
 import { solvePushFold, type PushFoldResult } from "@/lib/nashSolver/pushFoldSolver";
 import { BB_ANTE_BB } from "./constants";
+import { NO_RAKE_SETTINGS, type RakeSettings } from "./rake";
 
 /**
- * Both results depend only on (matrix, stack, opponents behind, ante), and the matrix is a
+ * Both results depend only on (matrix, stack, opponents behind, ante, rake), and the matrix is a
  * process-lifetime singleton — so /api/solve recomputes them at most once per
  * distinct input instead of on every request. Cached values are shared:
  * callers must treat them as read-only.
@@ -26,16 +27,17 @@ export function getPushFoldResult(
   effectiveStackBb: number,
   opponentsBehind = 1,
   bbAnte = BB_ANTE_BB,
+  rake: RakeSettings = NO_RAKE_SETTINGS,
 ): PushFoldResult {
   let bySpot = pushFoldByMatrix.get(matrix);
   if (!bySpot) {
     bySpot = new Map();
     pushFoldByMatrix.set(matrix, bySpot);
   }
-  const key = `${effectiveStackBb}:${opponentsBehind}:${bbAnte}`;
+  const key = `${effectiveStackBb}:${opponentsBehind}:${bbAnte}:${rake.structure.id}:${rake.noFlopNoDrop}`;
   let result = bySpot.get(key);
   if (!result) {
-    result = solvePushFold(matrix, { effectiveStackBb, opponentsBehind, bbAnte });
+    result = solvePushFold(matrix, { effectiveStackBb, opponentsBehind, bbAnte, rake });
     bySpot.set(key, result);
   }
   return result;

@@ -139,6 +139,8 @@ export interface FacingRaiseParams {
   threeBetWidthRatio: number;
   /** Share of the BB's continuing range that a cold caller keeps: IP, with two seats behind. */
   coldCallBase: number;
+  /** Multiplies the width that continues against an open. */
+  continueFactor: number;
 }
 
 function potOddsAdjustFor(params: FacingRaiseParams): number {
@@ -155,7 +157,7 @@ function vsOpenContinueThreshold(params: FacingRaiseParams): number {
         Math.pow(COLD_CALL_PER_SEAT_BEHIND, params.seatsBehind - 2) *
         (params.isIP ? 1 : COLD_CALL_OOP_MULTIPLIER);
   // The square root keeps a cheap call from pulling in nearly every hand: price matters less than the opener's range here.
-  return clamp(Math.sqrt(params.aggressorOpenWidth * potOddsAdjustFor(params)) * seatShare, 0.01, 0.95);
+  return clamp(Math.sqrt(params.aggressorOpenWidth * potOddsAdjustFor(params)) * seatShare * params.continueFactor, 0.01, 0.95);
 }
 
 function vsReraiseContinueThreshold(params: FacingRaiseParams): number {

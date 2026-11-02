@@ -5,6 +5,7 @@ import {
   CASH_THREE_BET_WIDTH_RATIO,
   COLD_CALL_BASE,
   FIRST_IN_WIDTHS_BY_STACK,
+  RAKE_OPEN_SENSITIVITY,
   THREE_BET_WIDTH_RATIO,
 } from "@/lib/heuristicRanges/config";
 import {
@@ -16,6 +17,7 @@ import {
   OPEN_RAISE_OOP_DEEP_BB,
   OPEN_RAISE_OOP_SHALLOW_BB,
 } from "./constants";
+import { DEFAULT_RAKE_SETTINGS, rakeShare, type RakeSettings } from "./rake";
 
 export type GameFormatId = "tournament-8" | "cash-6" | "cash-8";
 
@@ -89,6 +91,15 @@ const CASH_8: GameFormat = {
 const CASH_6: GameFormat = { ...CASH_8, id: "cash-6", label: "Cash 6-max", absentSeats: ["UTG", "UTG1"] };
 
 export const GAME_FORMATS: GameFormat[] = [TOURNAMENT_8, CASH_6, CASH_8];
+
+/** A format's open widths under this rake. Formats without rake keep theirs. */
+export function firstInWidthsUnder(format: GameFormat, rake: RakeSettings): readonly FirstInAnchor[] {
+  if (!format.allowsRake) return format.firstInWidths;
+  const drawnAt = rakeShare(DEFAULT_RAKE_SETTINGS.structure);
+  const stealCost = rake.noFlopNoDrop ? 0 : rake.structure.rate;
+  const factor = (1 - RAKE_OPEN_SENSITIVITY * (rakeShare(rake.structure) - drawnAt)) * (1 - stealCost);
+  return format.firstInWidths.map((anchor) => ({ ...anchor, widths: anchor.widths.map((width) => width * factor) }));
+}
 
 export function gameFormatById(id: string): GameFormat | undefined {
   return GAME_FORMATS.find((format) => format.id === id);
