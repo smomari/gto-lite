@@ -10,13 +10,10 @@ describe("StackSizeControl", () => {
     expect(screen.getByRole("spinbutton")).toHaveValue(100);
   });
 
-  it("compact mode drops the slider but keeps the number input functional", () => {
+  it("reports changes from the number input", () => {
     const onChange = vi.fn();
-    render(<StackSizeControl value={100} onChange={onChange} compact />);
-    expect(screen.queryByRole("slider")).not.toBeInTheDocument();
-    const numberInput = screen.getByRole("spinbutton");
-    expect(numberInput).toHaveValue(100);
-    fireEvent.change(numberInput, { target: { value: "50" } });
+    render(<StackSizeControl value={100} onChange={onChange} />);
+    fireEvent.change(screen.getByRole("spinbutton"), { target: { value: "50" } });
     expect(onChange).toHaveBeenCalledWith(50);
   });
 });

@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { StackSizeControl } from "@/components/TableBar/StackSizeControl";
+import { SettingsButton } from "@/components/Settings/SettingsButton";
+import { SettingsDialog } from "@/components/Settings/SettingsDialog";
 import { SeatActionBar } from "@/components/TableBar/SeatActionBar";
 import { ActionSummaryTiles } from "@/components/ActionSummaryTiles";
 import { SourceBadge } from "@/components/SourceBadge";
@@ -32,6 +33,7 @@ type Result =
 
 export default function Home() {
   const [stackBb, setStackBb] = useState(100);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [requestPath, setRequestPath] = useState<RequestStep[]>([]);
   const [result, setResult] = useState<Result | null>(null);
   // Every decision-point response seen so far, keyed by the path that led to
@@ -88,6 +90,11 @@ export default function Home() {
     setRequestPath([]);
     setRangeByPathKey({});
     setRangeLoadFailed(false);
+  }
+
+  function handleSettingsApply(nextStackBb: number) {
+    setSettingsOpen(false);
+    if (nextStackBb !== stackBb) handleStackChange(nextStackBb);
   }
 
   function handleNewHand() {
@@ -150,8 +157,12 @@ export default function Home() {
     <div className="mx-auto flex min-h-dvh w-full max-w-6xl flex-col gap-2 px-2 py-2 sm:px-4 lg:h-dvh lg:min-h-0 lg:overflow-hidden lg:px-6 lg:py-3">
       <header className="flex items-center justify-between border-b border-line pb-2">
         <span className="text-xl font-semibold tracking-tight text-ink">gtoLite</span>
-        <StackSizeControl value={stackBb} onChange={handleStackChange} compact />
+        <SettingsButton stackBb={stackBb} onClick={() => setSettingsOpen(true)} />
       </header>
+
+      {settingsOpen && (
+        <SettingsDialog stackBb={stackBb} onApply={handleSettingsApply} onClose={() => setSettingsOpen(false)} />
+      )}
 
       <SeatActionBar
         stackBb={stackBb}
