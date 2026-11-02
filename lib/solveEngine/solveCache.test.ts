@@ -25,6 +25,13 @@ describe("getPushFoldResult", () => {
     expect(at20.shoveFrequency.get("72o")).toBeLessThanOrEqual(at10.shoveFrequency.get("72o")!);
   });
 
+  it("caches each ante apart", () => {
+    const withAnte = getPushFoldResult(matrix, 10, 1, 1);
+    const noAnte = getPushFoldResult(matrix, 10, 1, 0);
+    expect(noAnte).not.toBe(withAnte);
+    expect(noAnte).toEqual(solvePushFold(matrix, { effectiveStackBb: 10, bbAnte: 0 }));
+  });
+
   it("caches each number of opponents behind apart", () => {
     const headsUp = getPushFoldResult(matrix, 10);
     const fullTable = getPushFoldResult(matrix, 10, 7);

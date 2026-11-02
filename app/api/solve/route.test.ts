@@ -23,6 +23,21 @@ describe("POST /api/solve", () => {
     expect(body.source).toBe("heuristic-approx");
   });
 
+  it("starts a cash 6-max hand at LJ with no ante", async () => {
+    const res = await POST(makeRequest({ effectiveStackBb: 100, actionPath: [], format: "cash-6" }));
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.heroPosition).toBe("LJ");
+    expect(body.potBb).toBe(1.5);
+    expect(body.availableActions.raise).toEqual({ toBb: 2.5 });
+  });
+
+  it("rejects an unknown format", async () => {
+    const res = await POST(makeRequest({ effectiveStackBb: 100, actionPath: [], format: "cash-9" }));
+    expect(res.status).toBe(400);
+    expect((await res.json()).code).toBe("INVALID_FORMAT");
+  });
+
   it("offers SB a limp when folded to it", async () => {
     const actionPath = ["UTG", "UTG1", "LJ", "HJ", "CO", "BTN"].map((actor) => ({ actor, action: "fold" }));
     const res = await POST(makeRequest({ effectiveStackBb: 100, actionPath }));
