@@ -271,7 +271,7 @@ export interface CfrStepper {
 }
 
 /**
- * The stopping rule shared by every C++ solve (same as runCfr's): periodic
+ * The stopping rule shared by every C++ solve: periodic
  * exploitability checks on the shared schedule, early stop at the target, and
  * the final exploitability always measured.
  */

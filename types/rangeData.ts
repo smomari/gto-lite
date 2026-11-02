@@ -18,7 +18,7 @@ export interface HandFrequency {
   allin?: number;
 }
 
-export type RangeSource = "nash-shove-fold" | "heuristic-approx" | "solver-export";
+export type RangeSource = "nash-shove-fold" | "heuristic-approx";
 
 export interface RangeScenario {
   heroPosition: Position;

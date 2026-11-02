@@ -19,7 +19,7 @@ interface PostflopSolveInputCommon {
   startPot: number;
   /** Effective stack behind, shared by both players (mirrors the preflop tool's uniform-stack model). */
   effectiveStackBb: number;
-  /** Hard safety cap on CFR iterations — passed straight through to runCfr, no default injected here. */
+  /** Hard safety cap on CFR iterations — passed straight through to the engine, no default injected here. */
   maxIterations: number;
   /** Stop CFR early once measured exploitability is at or below this (% of pot). Omit to disable early stopping. */
   targetExploitabilityPercent?: number;
