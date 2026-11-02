@@ -447,7 +447,8 @@ export function PostflopPanel(props: PostflopPanelProps) {
           (() => {
             const decisionNode = currentNode;
             const actionColors = buildActionColorScale(decisionNode.actions);
-            const range = decisionNode.actor === "P1" ? solveState.result.heroRange : solveState.result.villainRange;
+            const streetRange = decisionNode.actor === "P1" ? solveState.result.heroRange : solveState.result.villainRange;
+            const range = narrowRangeAlongPath(streetRange, decisionNode.actor, stage.path);
             return (
               <div className="grid grid-cols-1 gap-4 lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(0,1fr)_320px]">
                 <div className="flex flex-col gap-2 lg:min-h-0">

@@ -16,9 +16,9 @@ export interface TreePathStep {
  * Steps where the other player acted don't affect `actor`'s reach, mirroring
  * how cfr.ts only updates reachP1/reachP2 on the acting player's own turn.
  *
- * A combo that folded (or that had ~0 probability of reaching this line) ends
- * up with ~0 weight here — no separate fold-handling is needed, since this is
- * only ever called from a terminal-showdown (a fold never gets this far).
+ * A combo with ~0 probability of having taken this line ends up with ~0
+ * weight here, and later decisions read that the same way: a weight of 0 means
+ * not in the range at this node.
  */
 export function narrowRangeAlongPath(
   range: SerializedCombo[],

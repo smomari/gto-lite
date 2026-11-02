@@ -110,4 +110,43 @@ describe("solvePostflopStreet", () => {
     expect(result.villainRange).toHaveLength(2);
     result.session?.dispose();
   });
+
+  const RIVER = ["Kh", "7s", "2d", "9c", "4h"];
+  const riverInput = {
+    kind: "combos" as const,
+    board: RIVER,
+    startPot: 10,
+    effectiveStackBb: 90,
+    maxIterations: 50,
+  };
+
+  it("drops combos that can't reach this street, keeping results aligned with what was solved", async () => {
+    const result = solvePostflopStreet(
+      {
+        ...riverInput,
+        heroRange: [
+          { cards: ["Ah", "Ad"], weight: 1 },
+          { cards: ["Qh", "Qd"], weight: 0 },
+        ],
+        villainRange: [{ cards: ["Jc", "Jd"], weight: 1 }],
+      },
+      { solver: await loadNodeSolverModule() },
+    );
+    expect(result.heroRange).toEqual([{ cards: ["Ah", "Ad"], weight: 1 }]);
+    expect(result.solution.getAverageStrategy(result.tree as DecisionNode)).toHaveLength(1);
+  });
+
+  it("refuses a line neither hand of a player reaches, rather than solving it as a uniform strategy", async () => {
+    const solver = await loadNodeSolverModule();
+    const heroRange = [{ cards: ["Ah", "Ad"] as [string, string], weight: 0 }];
+    const villainRange = [{ cards: ["Jc", "Jd"] as [string, string], weight: 1 }];
+    expect(() => solvePostflopStreet({ ...riverInput, heroRange, villainRange }, { solver })).toThrow("never reached");
+  });
+
+  it("refuses ranges whose hands all block each other", async () => {
+    const solver = await loadNodeSolverModule();
+    const heroRange = [{ cards: ["Ah", "Ad"] as [string, string], weight: 1 }];
+    const villainRange = [{ cards: ["Ad", "Qc"] as [string, string], weight: 1 }];
+    expect(() => solvePostflopStreet({ ...riverInput, heroRange, villainRange }, { solver })).toThrow("never reached");
+  });
 });
