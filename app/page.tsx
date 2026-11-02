@@ -149,7 +149,7 @@ export default function Home() {
   return (
     <div className="mx-auto flex min-h-dvh w-full max-w-6xl flex-col gap-2 px-2 py-2 sm:px-4 lg:h-dvh lg:min-h-0 lg:overflow-hidden lg:px-6 lg:py-3">
       <header className="flex items-center justify-between border-b border-line pb-2">
-        <span className="text-sm font-semibold tracking-tight text-ink">gtoLite</span>
+        <span className="text-xl font-semibold tracking-tight text-ink">gtoLite</span>
         <StackSizeControl value={stackBb} onChange={handleStackChange} compact />
       </header>
 

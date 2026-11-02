@@ -3,7 +3,7 @@ import { STACK_MIN_BB, STACK_MAX_BB } from "@/lib/solveEngine/constants";
 interface StackSizeControlProps {
   value: number;
   onChange: (stackBb: number) => void;
-  /** Drops the slider and shrinks to a single thin row — just enough to still change the stack without costing vertical space in a viewport-fit layout. */
+  /** Drops the slider and fits one row — the stack stays easy to change without costing much vertical space in a viewport-fit layout. */
   compact?: boolean;
 }
 
@@ -20,17 +20,17 @@ export function StackSizeControl({ value, onChange, compact }: StackSizeControlP
         onChange(next);
       }}
       className={`rounded border border-line-strong bg-transparent font-mono tabular-nums text-ink ${
-        compact ? "w-16 px-1.5 py-0.5 text-[16px] lg:w-14 lg:text-xs" : "w-16 px-2 py-1 text-[16px] lg:text-sm"
+        compact ? "w-20 px-2 py-1 text-[16px]" : "w-16 px-2 py-1 text-[16px] lg:text-sm"
       }`}
     />
   );
 
   if (compact) {
     return (
-      <div className="flex items-center gap-1.5">
-        <span className="text-xs text-ink-muted">Stack</span>
+      <div className="flex items-center gap-2">
+        <span className="text-sm text-ink-muted">Stack</span>
         {numberInput}
-        <span className="text-xs text-ink-muted">bb</span>
+        <span className="text-sm text-ink-muted">bb</span>
       </div>
     );
   }
