@@ -90,6 +90,11 @@ export default function Home() {
     setRangeLoadFailed(false);
   }
 
+  function handleNewHand() {
+    setRequestPath([]);
+    setRangeLoadFailed(false);
+  }
+
   function handleAction(action: ActionType) {
     if (result?.kind !== "success") return;
     setRequestPath([...requestPath, { actor: result.data.heroPosition, action }]);
@@ -203,6 +208,14 @@ export default function Home() {
                       : "Loading both players' ranges…"}
                 </p>
               )}
+
+              <button
+                type="button"
+                onClick={handleNewHand}
+                className="w-full self-start rounded bg-accent px-3 py-1.5 text-sm font-medium text-canvas pointer-coarse:min-h-11 sm:w-auto"
+              >
+                New hand
+              </button>
             </>
           )}
 
@@ -217,6 +230,7 @@ export default function Home() {
               startPot={current.potBb}
               effectiveStackBb={Math.min(p1.remainingBb, p2.remainingBb)}
               streetBarSlot={streetBarSlot}
+              onNewHand={handleNewHand}
             />
           )}
         </div>

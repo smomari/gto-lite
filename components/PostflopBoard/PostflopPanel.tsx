@@ -1,12 +1,13 @@
 "use client";
 
-import { Fragment, useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { BoardPicker } from "./BoardPicker";
 import { CardChip } from "./CardChip";
 import { StreetBox } from "./StreetBox";
 import { PostflopActionBar } from "./PostflopActionBar";
 import { PostflopTerminalMessage } from "./PostflopTerminalMessage";
+import { PostflopHandSummary, type HandOutcome } from "./PostflopHandSummary";
 import { PostflopRangeGrid } from "@/components/PostflopStrategy/PostflopRangeGrid";
 import { BetSizeFilterBar } from "@/components/PostflopStrategy/BetSizeFilterBar";
 import { SuitedComboBreakdown } from "@/components/PostflopStrategy/SuitedComboBreakdown";
@@ -40,6 +41,8 @@ interface PostflopPanelProps {
   villainActionKey: ActionWeightKey;
   startPot: number;
   effectiveStackBb: number;
+  /** Back to the first preflop decision, once a hand is over. */
+  onNewHand: () => void;
   /** Where each street's StreetBox is portaled — the end of the seat-bar row, so the whole hand reads as one timeline. */
   streetBarSlot: HTMLElement | null;
 }
@@ -356,9 +359,40 @@ export function PostflopPanel(props: PostflopPanelProps) {
     currentNode: SerializedTreeNode,
   ) {
     const isFlop = stage.streetLabel === "Flop";
+    const stackLeft = stage.effectiveStackAtStart - (currentNode.type === "decision" ? 0 : currentNode.committed.P1);
+    const allIn = currentNode.type === "terminal-showdown" && stackLeft <= 0;
+    const handOver = currentNode.type === "terminal-fold" || allIn || (currentNode.type === "terminal-showdown" && !hasNextStreet(stage.board.length));
+    const links = (
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+        {handOver && (
+          <button
+            type="button"
+            onClick={props.onNewHand}
+            className="w-full rounded bg-accent px-3 py-1.5 text-sm font-medium text-canvas pointer-coarse:min-h-11"
+          >
+            New hand
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={() => handleResetStreet(i)}
+          className="text-xs text-ink-muted underline hover:text-ink pointer-coarse:py-2"
+        >
+          Reset to start of street
+        </button>
+        <button
+          type="button"
+          onClick={() => handlePickDifferentBoard(i)}
+          className="text-xs text-ink-muted underline hover:text-ink pointer-coarse:py-2"
+        >
+          {isFlop ? "Pick a different board" : `Pick a different ${stage.streetLabel.toLowerCase()} card`}
+        </button>
+      </div>
+    );
     return (
       <>
         {solveState.result.exploitability && <ExploitabilityBadge exploitability={solveState.result.exploitability} />}
+        {handOver && renderHandSummary(stage, i, solveState, currentNode, allIn, links)}
         {currentNode.type === "chance" && (
           <>
             <p className="text-sm text-ink-muted">
@@ -375,25 +409,18 @@ export function PostflopPanel(props: PostflopPanelProps) {
             )}
           </>
         )}
-        {(currentNode.type === "terminal-fold" || currentNode.type === "terminal-showdown") && (
+        {!handOver && currentNode.type === "terminal-showdown" && (
           <PostflopTerminalMessage
             node={currentNode}
             heroLabel={props.heroLabel}
             villainLabel={props.villainLabel}
             showdownMessage={(potBb) => {
-              const stackLeft = stage.effectiveStackAtStart - currentNode.committed.P1;
-              if (currentNode.type === "terminal-showdown" && stackLeft <= 0) {
-                return `All-in — hand is already decided, pot ${potBb.toFixed(1)}bb runs out to showdown automatically.`;
-              }
-              if (!hasNextStreet(stage.board.length)) {
-                return `Showdown — pot ${potBb.toFixed(1)}bb. Hand complete.`;
-              }
               const nextStreetLabel = streetLabelForBoardLength(stage.board.length + 1);
               return `Street ends — pot ${potBb.toFixed(1)}bb, ${nextStreetLabel.toLowerCase()} card coming next.`;
             }}
           />
         )}
-        {currentNode.type === "terminal-showdown" && hasNextStreet(stage.board.length) && currentNode.checkdownEquity && (
+        {currentNode.type === "terminal-showdown" && !handOver && currentNode.checkdownEquity && (
           <>
             <CheckdownEquityNote
               equity={currentNode.checkdownEquity}
@@ -453,23 +480,44 @@ export function PostflopPanel(props: PostflopPanelProps) {
               </div>
             );
           })()}
-        <div className="flex gap-3">
-          <button
-            type="button"
-            onClick={() => handleResetStreet(i)}
-            className="text-xs text-ink-muted underline hover:text-ink pointer-coarse:py-2"
-          >
-            Reset to start of street
-          </button>
-          <button
-            type="button"
-            onClick={() => handlePickDifferentBoard(i)}
-            className="text-xs text-ink-muted underline hover:text-ink pointer-coarse:py-2"
-          >
-            {isFlop ? "Pick a different board" : `Pick a different ${stage.streetLabel.toLowerCase()} card`}
-          </button>
-        </div>
+        {!handOver && links}
       </>
+    );
+  }
+
+  function renderHandSummary(
+    stage: StreetStage,
+    i: number,
+    solveState: Extract<SolveState, { kind: "done" }>,
+    node: SerializedTreeNode,
+    allIn: boolean,
+    links: ReactNode,
+  ) {
+    if (node.type !== "terminal-fold" && node.type !== "terminal-showdown") return null;
+    const firstStage = streets[0].state;
+    if (firstStage.kind !== "done") return null;
+    const seatLabel = (actor: "P1" | "P2") => (actor === "P1" ? props.heroLabel : props.villainLabel);
+    const outcome: HandOutcome =
+      node.type === "terminal-fold"
+        ? { kind: "fold", winnerLabel: seatLabel(node.winner!) }
+        : allIn
+          ? { kind: "allin", note: `All-in — hand is already decided, pot ${node.potBb.toFixed(1)}bb runs out to showdown automatically.` }
+          : { kind: "showdown" };
+    return (
+      <PostflopHandSummary
+        outcome={outcome}
+        board={stage.board}
+        potBb={node.potBb}
+        equity={node.type === "terminal-showdown" ? node.checkdownEquity : undefined}
+        streets={streets.slice(0, i + 1).map((street, k) => ({
+          label: street.streetLabel,
+          potBb: k === i ? node.potBb : streetStartPot(k + 1),
+          actions: street.path.map((step) => `${seatLabel(step.node.actor)} ${step.node.actions[step.actionIndex].label}`),
+        }))}
+        hero={{ label: props.heroLabel, start: firstStage.result.heroRange, end: narrowRangeAlongPath(solveState.result.heroRange, "P1", stage.path) }}
+        villain={{ label: props.villainLabel, start: firstStage.result.villainRange, end: narrowRangeAlongPath(solveState.result.villainRange, "P2", stage.path) }}
+        actions={links}
+      />
     );
   }
 

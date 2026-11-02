@@ -34,6 +34,34 @@ describe("computeCheckdownEquities", () => {
     expect(summary.villainEvBb).toBeCloseTo(0.3 * 10 - 0, 9);
   });
 
+  it("averages over pairs of hands, so both sides sum to 100% even when combos block each other", () => {
+    const state = initialPostflopPotState(10);
+    const showdown: PostflopTreeNode = { type: "terminal-showdown", state };
+    const solution: CfrSolution = { iterations: 1, getAverageStrategy: () => [[1]] };
+    const aces: [string, string] = ["As", "Ad"];
+    const kings: [string, string] = ["Ks", "Kd"];
+    const open: [string, string] = ["Jh", "Tc"];
+    const heroRange: ComboRange = [
+      { cards: aces, weight: 1 },
+      { cards: kings, weight: 1 },
+    ];
+    const villainRange: ComboRange = [
+      { cards: ["As", "Qd"], weight: 1 }, // shares a card with aces, so aces only face the other combo
+      { cards: open, weight: 1 },
+    ];
+    const entries = new Map([
+      [tableKey(aces, open), 0.8],
+      [tableKey(kings, villainRange[0].cards), 0.4],
+      [tableKey(kings, open), 0.6],
+    ]);
+    const table = equityTableFromEntries(heroRange, villainRange, entries);
+
+    const summary = computeCheckdownEquities(showdown, solution, heroRange, villainRange, table).get(showdown)!;
+
+    expect(summary.heroEquityPercent + summary.villainEquityPercent).toBeCloseTo(100, 9);
+    expect(summary.heroEquityPercent).toBeCloseTo(((0.8 + 0.4 + 0.6) / 3) * 100, 9);
+  });
+
   it("terminal-fold nodes never get a summary (they never reach showdown)", () => {
     const state = initialPostflopPotState(10);
     const fold: PostflopTreeNode = { type: "terminal-fold", winner: "P1", state };

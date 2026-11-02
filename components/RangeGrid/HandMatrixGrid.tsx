@@ -14,6 +14,8 @@ interface HandMatrixGridProps {
   detail?: ReactNode;
   /** The action buttons above already carry these colors, so small screens can spend the height on the chart. */
   hideLegendOnSmallScreens?: boolean;
+  /** Stay square on a desktop too, for a grid that isn't filling the screen's height. */
+  alwaysSquare?: boolean;
 }
 
 const GRID_STYLE = {
@@ -26,24 +28,28 @@ const GRID_STYLE = {
  * full 13x13 grid fits without scrolling. A phone has too little height for
  * that, so there the grid is square, as wide as it can be, and the page scrolls.
  */
-export function HandMatrixGrid({ renderCell, legend, detail, hideLegendOnSmallScreens }: HandMatrixGridProps) {
+export function HandMatrixGrid({ renderCell, legend, detail, hideLegendOnSmallScreens, alwaysSquare }: HandMatrixGridProps) {
   return (
-    <div className="flex flex-col gap-2 lg:h-full lg:min-h-0">
+    <div className={`flex flex-col gap-2 ${alwaysSquare ? "" : "lg:h-full lg:min-h-0"}`}>
       <div
-        className="mx-auto grid aspect-square w-full max-w-[100dvh] gap-[2px] lg:mx-0 lg:aspect-auto lg:min-h-0 lg:max-w-none lg:flex-1"
+        className={`mx-auto grid aspect-square w-full max-w-[100dvh] gap-[2px] ${
+          alwaysSquare ? "" : "lg:mx-0 lg:aspect-auto lg:min-h-0 lg:max-w-none lg:flex-1"
+        }`}
         style={GRID_STYLE}
       >
         {HAND_MATRIX.flatMap((row) => row.map((hand) => <Fragment key={hand}>{renderCell(hand)}</Fragment>))}
       </div>
       {detail}
-      <div className={`flex-wrap gap-3 text-xs text-ink-muted ${hideLegendOnSmallScreens ? "hidden lg:flex" : "flex"}`}>
-        {legend.map((item) => (
-          <div key={item.key} className="flex items-center gap-1.5">
-            <span className="inline-block h-2 w-2 rounded-[2px] ring-1 ring-line-strong" style={{ backgroundColor: item.color }} />
-            <span>{item.label}</span>
-          </div>
-        ))}
-      </div>
+      {legend.length > 0 && (
+        <div className={`flex-wrap gap-3 text-xs text-ink-muted ${hideLegendOnSmallScreens ? "hidden lg:flex" : "flex"}`}>
+          {legend.map((item) => (
+            <div key={item.key} className="flex items-center gap-1.5">
+              <span className="inline-block h-2 w-2 rounded-[2px] ring-1 ring-line-strong" style={{ backgroundColor: item.color }} />
+              <span>{item.label}</span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
