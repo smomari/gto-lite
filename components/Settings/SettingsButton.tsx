@@ -1,12 +1,14 @@
 import type { GameFormat } from "@/lib/solveEngine/gameFormat";
+import { rakeSummary, type RakeStructure } from "@/lib/solveEngine/rake";
 
 interface SettingsButtonProps {
   format: GameFormat;
+  rake: RakeStructure;
   stackBb: number;
   onClick: () => void;
 }
 
-export function SettingsButton({ format, stackBb, onClick }: SettingsButtonProps) {
+export function SettingsButton({ format, rake, stackBb, onClick }: SettingsButtonProps) {
   return (
     <button
       type="button"
@@ -15,6 +17,7 @@ export function SettingsButton({ format, stackBb, onClick }: SettingsButtonProps
     >
       <span>
         {format.label} · <span className="font-mono tabular-nums">{stackBb}</span>bb
+        {format.allowsRake && <span className="hidden sm:inline"> · {rakeSummary(rake)}</span>}
       </span>
       <svg aria-hidden="true" viewBox="0 0 24 24" className="size-4 fill-none stroke-current" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
         <circle cx="12" cy="12" r="3" />

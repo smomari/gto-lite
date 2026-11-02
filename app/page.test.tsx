@@ -78,6 +78,25 @@ describe("Home", () => {
     expect(solveNode).toHaveBeenLastCalledWith(expect.objectContaining({ actionPath: [], format: "cash-6" }), expect.anything());
   });
 
+  it("a new rake restarts the hand and asks for that rake", async () => {
+    render(<Home />);
+    await screen.findAllByRole("button", { name: "Fold" });
+    openSettings();
+    fireEvent.click(screen.getByRole("radio", { name: "Cash 8-max" }));
+    fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+    await screen.findAllByRole("button", { name: "Fold" });
+    expect(screen.getByRole("button", { name: /Settings/ })).toHaveTextContent("5%/5bb");
+    fireEvent.click(within(activeSeat()).getByRole("button", { name: "Fold" }));
+    await screen.findByRole("button", { name: "New hand" });
+
+    openSettings();
+    fireEvent.click(screen.getByRole("radio", { name: /Live/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+    await screen.findAllByRole("button", { name: "Fold" });
+    expect(screen.queryByRole("button", { name: "New hand" })).not.toBeInTheDocument();
+    expect(solveNode).toHaveBeenLastCalledWith(expect.objectContaining({ actionPath: [], format: "cash-8", rake: "live", noFlopNoDrop: true }), expect.anything());
+  });
+
   it("Apply without a change keeps the hand; a new stack restarts it", async () => {
     render(<Home />);
     await screen.findAllByRole("button", { name: "Fold" });

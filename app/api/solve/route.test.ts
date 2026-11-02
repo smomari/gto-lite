@@ -38,6 +38,14 @@ describe("POST /api/solve", () => {
     expect((await res.json()).code).toBe("INVALID_FORMAT");
   });
 
+  it("rejects an unknown rake or a malformed drop rule", async () => {
+    for (const body of [{ rake: "rake-free" }, { noFlopNoDrop: "yes" }]) {
+      const res = await POST(makeRequest({ effectiveStackBb: 100, actionPath: [], format: "cash-6", ...body }));
+      expect(res.status).toBe(400);
+      expect((await res.json()).code).toBe("INVALID_RAKE");
+    }
+  });
+
   it("offers SB a limp when folded to it", async () => {
     const actionPath = ["UTG", "UTG1", "LJ", "HJ", "CO", "BTN"].map((actor) => ({ actor, action: "fold" }));
     const res = await POST(makeRequest({ effectiveStackBb: 100, actionPath }));
