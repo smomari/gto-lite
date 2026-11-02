@@ -1,6 +1,6 @@
 import type { ComboRange } from "./types";
 import type { EquityTable } from "./terminalEquity";
-import { equityVsRange } from "./terminalEquity";
+import { equityVsRange, liveOpponentReach } from "./terminalEquity";
 import { totalPot } from "./potState";
 import type { PostflopTreeNode } from "./treeBuilder";
 import type { CfrSolution } from "./cfr";
@@ -44,8 +44,10 @@ export function computeCheckdownEquities(
       const heroEquities = heroCombos.map((_, i) => equityVsRange(equityTable, "P1", i, reachP2));
       const villainEquities = villainCombos.map((_, i) => equityVsRange(equityTable, "P2", i, reachP1));
 
-      const heroEquity = weightedAverage(heroEquities, reachP1);
-      const villainEquity = weightedAverage(villainEquities, reachP2);
+      // Over pairs of hands that can both exist, not combos: a combo facing fewer
+      // opponents counts for less, and both sides then average the same pairs and sum to 1.
+      const heroEquity = weightedAverage(heroEquities, reachP1.map((r, i) => r * liveOpponentReach(equityTable, "P1", i, reachP2)));
+      const villainEquity = weightedAverage(villainEquities, reachP2.map((r, j) => r * liveOpponentReach(equityTable, "P2", j, reachP1)));
 
       summaries.set(node, {
         heroEquityPercent: heroEquity * 100,

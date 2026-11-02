@@ -253,6 +253,7 @@ function baseProps(effectiveStackBb: number) {
     villainHands: HANDS,
     villainActionKey: "call" as const,
     startPot: 7.5,
+    onNewHand: () => {},
     effectiveStackBb,
   };
 }
@@ -457,6 +458,8 @@ describe("PostflopPanel", () => {
     expect(liveStage()).toHaveAttribute("data-street", "Flop");
     expect(streetBoxSummary()).toEqual([["Flop", "live"]]);
     expect(screen.getByText(/All-in — hand is already decided/)).toBeInTheDocument();
+    expect(screen.getByTestId("hand-summary")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "New hand" })).toBeInTheDocument();
   });
 
   async function reachTurnCheckCheck() {

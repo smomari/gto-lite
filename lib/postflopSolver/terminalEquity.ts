@@ -209,6 +209,18 @@ export function buildEquityTable(
   return { heroCount, villainCount, heroEquity, villainEquity };
 }
 
+/** Opponent reach that can actually face this combo: its total minus the combos sharing a card with it. */
+export function liveOpponentReach(table: EquityTable, target: PostflopPlayer, targetIdx: number, opponentReach: number[]): number {
+  const equities = target === "P1" ? table.heroEquity : table.villainEquity;
+  const opponentCount = target === "P1" ? table.villainCount : table.heroCount;
+  const base = targetIdx * opponentCount;
+  let live = 0;
+  for (let k = 0; k < opponentCount; k++) {
+    if (opponentReach[k] > 0 && !Number.isNaN(equities[base + k])) live += opponentReach[k];
+  }
+  return live;
+}
+
 /**
  * `target`'s combo (`targetIdx`, an index into its own range array) equity
  * against a (reach-weighted) opponent range, card-removal corrected: any
