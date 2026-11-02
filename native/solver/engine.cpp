@@ -87,7 +87,6 @@ struct Arena {
  * exchange buffers, one `width` = n1 + n2 row per leaf.
  */
 struct Split {
-  bool active = false;
   std::vector<int32_t> leafNodes;    // leaf slot → node
   std::vector<int32_t> leafSlot;     // node → leaf slot, or -1
   std::vector<int32_t> leafOrder;    // slots, most regret storage (≈ work) first — the pool's queue order
@@ -805,7 +804,7 @@ void linkSameCombos(Player& self, const Player& opp) {
   }
 }
 
-/** Runs `work(slot)` for every owned leaf, spread over the pool: each thread takes the next slot until none are left. */
+/** Runs `work(slot)` for every leaf, spread over the pool: each thread takes the next slot until none are left. */
 template <typename Work>
 void forEachLeaf(Engine& e, const Work& work) {
   Pool& pool = e.pool;
@@ -928,7 +927,6 @@ int eng_add_river_board(Engine* e, const uint32_t* heroStrength, const uint32_t*
  */
 void eng_partition(Engine* e, int leafCount, const int32_t* leafNodes) {
   Split& sp = e->split;
-  sp.active = true;
   sp.leafNodes.assign(leafNodes, leafNodes + leafCount);
   sp.leafSlot.assign(e->nodeCount, -1);
   for (int k = 0; k < leafCount; k++) sp.leafSlot[leafNodes[k]] = k;
@@ -1088,7 +1086,7 @@ int eng_set_threads(Engine* e, int threads) {
 #endif
 }
 
-/** DCFR iterations on a split engine owning the trunk and every leaf: trunk down, all leaves across the pool, trunk up. */
+/** DCFR iterations on a split engine: trunk down, all leaves across the pool, trunk up. */
 void eng_iterate_parallel(Engine* e, int firstT, int count) {
   for (int t = firstT; t < firstT + count; t++) {
     const Update update = updateFor(t);
@@ -1157,10 +1155,7 @@ void eng_exploitability(Engine* e, double* out) {
       ev[p][br] = sum;
     }
   }
-  // Compatible pair mass: Σ_i w1_i × (P2 weight not sharing a card with i).
-  const CardSums s = cardSums(p2, p2.weights.data());
-  double pairs = 0;
-  for (int i = 0; i < p1.n; i++) pairs += p1.weights[i] * live(p1, i, s, p2.weights.data());
+  const double pairs = eng_pair_mass(e);
   for (auto& player : ev) for (double& x : player) x = pairs > 0 ? x / pairs : 0;
 
   const double startPot = e->pot[0] - e->committed1[0] - e->committed2[0];
