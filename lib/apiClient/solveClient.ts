@@ -26,7 +26,9 @@ export async function solveNode(params: SolveRequest, signal?: AbortSignal): Pro
     signal,
   });
   if (!res.ok) {
-    const body: SolveErrorBody = await res.json();
+    const body: SolveErrorBody = await res
+      .json()
+      .catch(() => ({ error: `Request failed (${res.status})`, code: "INTERNAL" as const }));
     throw new SolveApiError(body);
   }
   return res.json();

@@ -10,6 +10,7 @@ import { RangeGrid } from "@/components/RangeGrid/RangeGrid";
 import { solveNode, SolveApiError } from "@/lib/apiClient/solveClient";
 import { TOURNAMENT_8, type GameFormat } from "@/lib/solveEngine/gameFormat";
 import { buildFoldPrefixPath } from "@/lib/solveEngine/preview";
+import { replayActionPath } from "@/lib/solveEngine/replay";
 import { DEFAULT_RAKE_SETTINGS, NO_RAKE, type RakeSettings } from "@/lib/solveEngine/rake";
 import { actionPathKey, resolvePostflopHandoff } from "@/lib/solveEngine/postflopHandoff";
 import { PostflopPanel } from "@/components/PostflopBoard/PostflopPanel";
@@ -38,6 +39,8 @@ export default function Home() {
   const [format, setFormat] = useState<GameFormat>(TOURNAMENT_8);
   const [rake, setRake] = useState<RakeSettings>(DEFAULT_RAKE_SETTINGS);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  /** Bumped to send the same request again. */
+  const [attempt, setAttempt] = useState(0);
   const [requestPath, setRequestPath] = useState<RequestStep[]>([]);
   const [result, setResult] = useState<Result | null>(null);
   // Every decision-point response seen so far, keyed by the path that led to
@@ -51,7 +54,7 @@ export default function Home() {
   const rangeFetchesRef = useRef(new Set<AbortController>());
   const [streetBarSlot, setStreetBarSlot] = useState<HTMLDivElement | null>(null);
 
-  const requestKey = JSON.stringify({ stackBb, format: format.id, rake: rake.structure.id, noFlopNoDrop: rake.noFlopNoDrop, requestPath });
+  const requestKey = JSON.stringify({ stackBb, format: format.id, rake: rake.structure.id, noFlopNoDrop: rake.noFlopNoDrop, requestPath, attempt });
   const loading = result === null || result.key !== requestKey;
 
   useEffect(() => {
@@ -88,7 +91,7 @@ export default function Home() {
 
     return () => controller.abort();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stackBb, format, rake, requestPath]);
+  }, [stackBb, format, rake, requestPath, attempt]);
 
   function handleSettingsApply(nextStackBb: number, nextFormat: GameFormat, nextRake: RakeSettings) {
     setSettingsOpen(false);
@@ -106,6 +109,7 @@ export default function Home() {
 
   function handleNewHand() {
     setRequestPath([]);
+    setAttempt((n) => n + 1);
     setRangeLoadFailed(false);
   }
 
@@ -150,8 +154,16 @@ export default function Home() {
   }
 
   const current = !loading && result ? result : null;
-  const displayedActionPath =
-    current?.kind === "success" ? current.data.actionPath : current?.kind === "resolved" ? current.actionPath : [];
+  function pathOnScreen(): ActionNode[] {
+    if (current?.kind === "success") return current.data.actionPath;
+    if (current?.kind === "resolved") return current.actionPath;
+    if (current?.kind === "error") {
+      const replayed = replayActionPath(requestPath, stackBb, format);
+      return replayed.status === "invalid" ? [] : replayed.canonicalActionPath;
+    }
+    return [];
+  }
+  const displayedActionPath = pathOnScreen();
   const activeSeat = current?.kind === "success" ? current.data.heroPosition : null;
   const availableActions = current?.kind === "success" ? current.data.availableActions : null;
 
@@ -194,7 +206,23 @@ export default function Home() {
       />
 
       {current?.kind === "error" && (
-        <p className="text-sm text-[#d98a82]">Error: {current.message}</p>
+        <div role="alert" className="flex flex-wrap items-center gap-3">
+          <p className="text-sm text-[#d98a82]">Error: {current.message}</p>
+          <button
+            type="button"
+            onClick={() => setAttempt((n) => n + 1)}
+            className="rounded bg-accent px-3 py-1.5 text-sm font-medium text-canvas pointer-coarse:min-h-11"
+          >
+            Retry
+          </button>
+          <button
+            type="button"
+            onClick={handleNewHand}
+            className="rounded px-3 py-1.5 text-sm text-ink-muted hover:bg-raised hover:text-ink pointer-coarse:min-h-11"
+          >
+            New hand
+          </button>
+        </div>
       )}
 
       {current?.kind === "resolved" && handoff && (

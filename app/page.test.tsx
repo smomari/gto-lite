@@ -57,6 +57,31 @@ describe("Home", () => {
     expect(screen.getByRole("button", { name: /Settings/ })).toHaveTextContent("40bb");
   });
 
+  it("keeps the hand on screen when a request fails, with a way to retry or start over", async () => {
+    render(<Home />);
+    await screen.findAllByRole("button", { name: "Fold" });
+    vi.mocked(solveNode).mockRejectedValueOnce(new Error("Network down"));
+    fireEvent.click(within(activeSeat()).getByRole("button", { name: "Raise 2.5bb" }));
+
+    expect(await screen.findByText(/Network down/)).toBeInTheDocument();
+    expect(screen.getAllByTestId("seat-box").some((b) => b.getAttribute("data-position") === "UTG")).toBe(true);
+
+    vi.mocked(solveNode).mockResolvedValueOnce({ ...firstDecision, heroPosition: "UTG1", actionPath: [] } as never);
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect(await screen.findByRole("button", { name: "Raise 2.5bb" })).toBeInTheDocument();
+    expect(screen.queryByText(/Network down/)).not.toBeInTheDocument();
+  });
+
+  it("starts over from a failed first request", async () => {
+    vi.mocked(solveNode).mockRejectedValueOnce(new Error("Network down"));
+    render(<Home />);
+    expect(await screen.findByText(/Network down/)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "New hand" }));
+    await screen.findAllByRole("button", { name: "Fold" });
+    expect(screen.queryByText(/Network down/)).not.toBeInTheDocument();
+  });
+
   it("a new format restarts the hand and asks for that format; Cancel leaves it alone", async () => {
     render(<Home />);
     await screen.findAllByRole("button", { name: "Fold" });
