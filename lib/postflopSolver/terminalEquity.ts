@@ -1,19 +1,17 @@
 import { FULL_DECK, remainingDeck } from "@/lib/cards";
+import { CARD_INDEX } from "./flattenTree";
 import { compareHands, handRank } from "./handEval";
 import type { ComboRange } from "./types";
 import type { PostflopPlayer } from "./potState";
 
-const CARD_INDEX: Record<string, number> = Object.fromEntries(FULL_DECK.map((c, i) => [c, i]));
 const DECK_SIZE = FULL_DECK.length; // 52
 /** Number of unordered 2-card combos from a 52-card deck: C(52,2). */
 const PAIR_COUNT = (DECK_SIZE * (DECK_SIZE - 1)) / 2; // 1326
 
-/** Stable 0..1325 index for an unordered pair of cards, independent of board/combo — used to align two combos' precomputed runout-rank arrays for a fast intersection scan (no string hashing). */
-function pairIndex(a: string, b: string): number {
-  const ia = CARD_INDEX[a];
-  const ib = CARD_INDEX[b];
-  const lo = Math.min(ia, ib);
-  const hi = Math.max(ia, ib);
+/** Stable 0..1325 index for an unordered pair of card indexes, independent of board/combo — used to align two combos' precomputed runout-rank arrays for a fast intersection scan (no string hashing). */
+export function pairSlot(a: number, b: number): number {
+  const lo = Math.min(a, b);
+  const hi = Math.max(a, b);
   return lo * DECK_SIZE - (lo * (lo + 1)) / 2 + (hi - lo - 1);
 }
 
@@ -88,7 +86,7 @@ function shareCard(a: [string, string], b: [string, string]): boolean {
  * string keys:
  *  - river board (remaining 0): a single-slot array, the combo's exact rank.
  *  - turn board (remaining 1): indexed by `CARD_INDEX[riverCard]` (0..51).
- *  - flop board (remaining 2): indexed by `pairIndex(turnCard, riverCard)` (0..1325).
+ *  - flop board (remaining 2): indexed by `pairSlot(turnCard, riverCard)` (0..1325).
  * NaN marks a slot that isn't a valid runout for this combo (e.g. it uses
  * one of the combo's own cards).
  */
@@ -115,7 +113,7 @@ function computeComboRanks(combo: [string, string], board: string[]): Float64Arr
   const ranks = new Float64Array(PAIR_COUNT).fill(NaN);
   for (let x = 0; x < deck.length; x++) {
     for (let y = x + 1; y < deck.length; y++) {
-      ranks[pairIndex(deck[x], deck[y])] = handRank([...combo, ...board, deck[x], deck[y]]);
+      ranks[pairSlot(CARD_INDEX[deck[x]], CARD_INDEX[deck[y]])] = handRank([...combo, ...board, deck[x], deck[y]]);
     }
   }
   return ranks;

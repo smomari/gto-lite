@@ -7,7 +7,7 @@ import {
 import { engineEquityTable, riverStrengths } from "../engineBoards";
 import type { RakeTerms } from "@/lib/solveEngine/rake";
 import type { ExploitabilityResult } from "../exploitability";
-import { CARD_INDEX, flattenTree, type FlatTree } from "../flattenTree";
+import { CARD_INDEX, NODE_CHANCE, NODE_DECISION_P2, flattenTree, type FlatTree } from "../flattenTree";
 import type { EquityTable } from "../terminalEquity";
 import { narrowReach } from "../treeMath";
 import type { ChanceNode, DecisionNode, PostflopTreeNode } from "../treeBuilder";
@@ -29,9 +29,7 @@ export interface NativeCfrInput {
 }
 
 /**
- * Everything eng_create and the board registrations need, as plain typed
- * arrays — so a solve's helper workers can build identical engines from a
- * postMessage copy without re-deriving any of it.
+ * Everything eng_create and the board registrations need, as plain typed arrays.
  */
 export interface EngineBuild {
   nodeCount: number;
@@ -99,8 +97,7 @@ export class NativeCfrEngine {
   private constructor(
     private readonly solver: SolverModule,
     private readonly handle: number,
-    /** Only on the engine that maps tree nodes (the one owning the trunk); helpers' engines go by index. */
-    readonly flat: FlatTree | undefined,
+    readonly flat: FlatTree,
     readonly heroCount: number,
     readonly villainCount: number,
   ) {}
@@ -110,7 +107,7 @@ export class NativeCfrEngine {
     return NativeCfrEngine.fromBuild(solver, build, flat);
   }
 
-  static fromBuild(solver: SolverModule, build: EngineBuild, flat?: FlatTree): NativeCfrEngine {
+  static fromBuild(solver: SolverModule, build: EngineBuild, flat: FlatTree): NativeCfrEngine {
     const pointers: number[] = [];
     const put = (array: Typed) => {
       const ptr = solver._malloc(Math.max(array.byteLength, 4));
@@ -166,7 +163,7 @@ export class NativeCfrEngine {
 
   /** [comboIndex][actionIndex], normalized — same shape as CfrSolution.getAverageStrategy. */
   averageStrategy(node: DecisionNode): number[][] {
-    const index = this.flat?.decisionIndex.get(node);
+    const index = this.flat.decisionIndex.get(node);
     if (index === undefined) throw new Error("averageStrategy: node was not part of the solved tree");
     const actions = node.actions.length;
     const combos = node.actor === "P1" ? this.heroCount : this.villainCount;
@@ -182,7 +179,7 @@ export class NativeCfrEngine {
 
   /** Both players' EV at any node, arriving with these reaches (NaN when no pair reaches it). */
   nodeEv(node: PostflopTreeNode, reachP1: number[], reachP2: number[]): { p1: number; p2: number } {
-    const index = this.flat?.nodeIndex.get(node);
+    const index = this.flat.nodeIndex.get(node);
     if (index === undefined) throw new Error("nodeEv: node was not part of the solved tree");
     const r1 = this.solver._malloc(Math.max(reachP1.length, 1) * 4);
     const r2 = this.solver._malloc(Math.max(reachP2.length, 1) * 4);
@@ -245,7 +242,7 @@ export class NativeCfrEngine {
 
   /** Both players' EV at a trunk chance node, from the last EV-mode evaluation of each (NaN when unreached). */
   trunkChanceEv(node: ChanceNode): { p1: number; p2: number } {
-    const index = this.flat?.nodeIndex.get(node);
+    const index = this.flat.nodeIndex.get(node);
     if (index === undefined) throw new Error("trunkChanceEv: node was not part of the solved tree");
     const out = this.solver._malloc(2 * 8);
     try {
@@ -393,9 +390,6 @@ export function solveNativeSession(
     throw err;
   }
 }
-
-const NODE_DECISION_P2 = 1;
-const NODE_CHANCE = 5;
 
 /** Leaf roots in slot order: the children of the chance nodes that end the root street. */
 export function findLeafRoots(build: EngineBuild): number[] {

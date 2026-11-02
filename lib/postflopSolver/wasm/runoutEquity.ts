@@ -1,20 +1,13 @@
 import { remainingDeck } from "@/lib/cards";
 import { handRank } from "../handEval";
 import { CARD_INDEX } from "../flattenTree";
-import type { EquityTable } from "../terminalEquity";
+import { pairSlot, type EquityTable } from "../terminalEquity";
 import type { ComboRange } from "../types";
 import type { SolverModule } from "./solverModule";
 
 /** Above phe's largest rank (7462), so every real hand maps to a positive strength; 0 marks "not a runout". */
 const STRENGTH_BASE = 7463;
 const SLOTS = 1326;
-
-/** Stable slot for an unordered card pair — same indexing as terminalEquity.ts's pairIndex. */
-function pairSlot(a: number, b: number): number {
-  const lo = Math.min(a, b);
-  const hi = Math.max(a, b);
-  return lo * 52 - (lo * (lo + 1)) / 2 + (hi - lo - 1);
-}
 
 /** Each combo's strength on every (turn, river) runout of the flop: [combo * 1326 + slot], bigger = better, 0 = not a runout. */
 function runoutStrengths(range: ComboRange, flop: string[]): Uint16Array {
