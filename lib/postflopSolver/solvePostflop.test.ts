@@ -149,4 +149,22 @@ describe("solvePostflopStreet", () => {
     const villainRange = [{ cards: ["Ad", "Qc"] as [string, string], weight: 1 }];
     expect(() => solvePostflopStreet({ ...riverInput, heroRange, villainRange }, { solver })).toThrow("never reached");
   });
+
+  it("goes straight to a showdown when both players are already all-in", async () => {
+    const result = solvePostflopStreet(
+      {
+        kind: "canonical",
+        board: ["Kh", "7s", "2d"],
+        heroHandFrequencies: narrowHands(["AA"]),
+        heroActionWeight: (hf) => hf.call,
+        villainHandFrequencies: narrowHands(["QQ"]),
+        villainActionWeight: (hf) => hf.call,
+        startPot: 200,
+        effectiveStackBb: 0,
+        maxIterations: 10,
+      },
+      { solver: await loadNodeSolverModule() },
+    );
+    expect(result.tree.type).toBe("terminal-showdown");
+  });
 });
