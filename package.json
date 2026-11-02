@@ -10,7 +10,6 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "generate:equity": "tsx scripts/generate-equity-matrix.ts",
-    "generate:preflop-rfi": "tsx scripts/generate-preflop-rfi.ts",
     "bench:postflop": "tsx scripts/bench-postflop.ts",
     "accuracy:postflop": "tsx scripts/accuracy-postflop.ts",
     "build:wasm": "native/build-wasm.sh",

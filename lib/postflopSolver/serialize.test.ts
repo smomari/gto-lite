@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { ComboRange } from "./types";
 import { buildEquityTable } from "./terminalEquity";
 import { buildStreetTree } from "./treeBuilder";
-import { runCfr } from "./cfr";
+import type { CfrSolution } from "./cfr";
 import { computeCheckdownEquities } from "./checkdownEquity";
 import { serializeCombos, serializeTree } from "./serialize";
 
@@ -16,10 +16,19 @@ const villainRange: ComboRange = [
   { cards: ["9c", "8d"], weight: 1 },
 ];
 
+/** Every combo mixes evenly over the node's actions. */
+function uniformSolution(hero: ComboRange, villain: ComboRange): CfrSolution {
+  return {
+    iterations: 1,
+    getAverageStrategy: (node) =>
+      (node.actor === "P1" ? hero : villain).map(() => node.actions.map(() => 1 / node.actions.length)),
+  };
+}
+
 describe("serializeTree", () => {
   const tree = buildStreetTree(7.5, 10, "flop");
   const table = buildEquityTable(heroRange, villainRange, BOARD);
-  const solution = runCfr(tree, heroRange, villainRange, table, { maxIterations: 300 });
+  const solution = uniformSolution(heroRange, villainRange);
   const serialized = serializeTree(tree, solution);
 
   it("produces a JSON-safe plain object (no functions survive a roundtrip)", () => {
@@ -55,7 +64,7 @@ describe("serializeTree", () => {
     // A deeper stack than the shared fixture's (10bb) is needed for a
     // full-pot raise to have room to exist rather than collapsing into allin.
     const deepTree = buildStreetTree(7.5, 40, "flop");
-    const deepSolution = runCfr(deepTree, heroRange, villainRange, buildEquityTable(heroRange, villainRange, BOARD), { maxIterations: 300 });
+    const deepSolution = uniformSolution(heroRange, villainRange);
     const deepSerialized = serializeTree(deepTree, deepSolution);
     if (deepSerialized.type !== "decision") throw new Error("expected decision");
     const betChild = deepSerialized.actions.find((a) => a.action === "bet")!.child;

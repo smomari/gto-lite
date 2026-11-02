@@ -49,11 +49,6 @@ export interface ChanceNode {
 
 export type PostflopTreeNode = DecisionNode | TerminalFoldNode | TerminalShowdownNode | ChanceNode;
 
-/** For code that only handles one street (the TypeScript engine and its tree walks): multi-street trees need the C++ engine. */
-export function singleStreetOnly(where: string): never {
-  throw new Error(`${where}: chance nodes (multi-street trees) are only supported by the C++ engine`);
-}
-
 /** Next cards to deal after `board`, with their probabilities. */
 export type DealNextCards = (board: string[]) => { card: string; weight: number }[];
 
