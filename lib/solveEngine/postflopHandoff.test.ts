@@ -176,4 +176,13 @@ describe("resolvePostflopHandoff", () => {
     const bb = handoff.liveSeats.find((s) => s.seat === "BB")!;
     expect(bb.hands![0].allin).toBe(1);
   });
+
+  it("says which decision each seat's range comes from, so a missing one can be fetched", () => {
+    const path = [step("UTG", "raise"), step("BB", "call")];
+    const { liveSeats } = resolvePostflopHandoff(path, { UTG: 2.5, BB: 2.5 }, 100, {});
+    expect(liveSeats.map((s) => [s.seat, s.hands, s.decisionPath])).toEqual([
+      ["UTG", null, []],
+      ["BB", null, [path[0]]],
+    ]);
+  });
 });

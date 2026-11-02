@@ -19,6 +19,8 @@ export interface HandoffSeat {
   /** The range this seat entered the flop with — the frequencies at its last preflop decision. Null until that decision's response has arrived. */
   hands: HandFrequency[] | null;
   actionKey: ActionWeightKey;
+  /** The path to that decision, to fetch its range when `hands` is missing. Null if the seat never acted. */
+  decisionPath: ActionNode[] | null;
 }
 
 export type ReadyHandoffSeat = HandoffSeat & { hands: HandFrequency[] };
@@ -75,6 +77,7 @@ export function resolvePostflopHandoff(
       remainingBb: stackBb - (committedBb ?? 0),
       hands: response?.heroPosition === seat ? withAggressiveRange(response.hands, actionKey) : null,
       actionKey,
+      decisionPath: lastIdx === -1 ? null : actionPath.slice(0, lastIdx),
     });
   }
 

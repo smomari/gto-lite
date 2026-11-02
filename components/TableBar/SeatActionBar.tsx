@@ -76,7 +76,7 @@ export function SeatActionBar({
           kind="pending"
           position={position}
           stackBb={stackBb}
-          quickActions={activeSeat ? previewQuickAction(actionPath, activeSeat, position, stackBb, format) : null}
+          quickActions={activeSeat && !loading ? previewQuickAction(actionPath, activeSeat, position, stackBb, format) : null}
           onQuickAction={(action) => onQuickAction(position, action)}
         />
       ))}
