@@ -1,6 +1,7 @@
 import type { ActionNode, ActionType, Position } from "@/types/rangeData";
 import type { HandResolvedReason } from "@/types/solveApi";
 import { computeAvailableActions } from "./actionSizing";
+import type { GameFormat } from "./gameFormat";
 import { initialPotState, applyAction, type PotState } from "./potState";
 import { computeNextActor } from "./rotation";
 
@@ -38,8 +39,9 @@ function canonicalLabel(action: ActionType, actor: Position, state: PotState): s
 export function replayActionPath(
   actionPath: Pick<ActionNode, "actor" | "action">[],
   effectiveStackBb: number,
+  format: GameFormat,
 ): ReplayResult {
-  let state = initialPotState();
+  let state = initialPotState(format);
   const canonicalActionPath: ActionNode[] = [];
 
   for (const node of actionPath) {

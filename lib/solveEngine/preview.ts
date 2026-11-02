@@ -2,6 +2,7 @@ import type { ActionNode, Position } from "@/types/rangeData";
 import type { AvailableActions } from "@/types/solveApi";
 import { SEAT_ORDER } from "@/lib/actionTree/seatOrder";
 import { nextLiveSeatAfter } from "./rotation";
+import type { GameFormat } from "./gameFormat";
 import { replayActionPath } from "./replay";
 import { computeAvailableActions } from "./actionSizing";
 
@@ -21,8 +22,9 @@ export function computeRoundActingOrder(
   actionPath: Pick<ActionNode, "actor" | "action">[],
   activeSeat: Position,
   effectiveStackBb: number,
+  format: GameFormat,
 ): Position[] {
-  const result = replayActionPath(actionPath, effectiveStackBb);
+  const result = replayActionPath(actionPath, effectiveStackBb, format);
   if (result.status !== "active" || result.activeSeat !== activeSeat) return [];
   const { foldedSeats, lastAggressor } = result.potState;
 
@@ -47,8 +49,9 @@ export function buildFoldPrefixPath(
   activeSeat: Position,
   target: Position,
   effectiveStackBb: number,
+  format: GameFormat,
 ): Pick<ActionNode, "actor" | "action">[] | null {
-  const order = computeRoundActingOrder(actionPath, activeSeat, effectiveStackBb);
+  const order = computeRoundActingOrder(actionPath, activeSeat, effectiveStackBb, format);
   const targetIdx = order.indexOf(target);
   if (targetIdx <= 0) return null;
   return [...actionPath, ...order.slice(0, targetIdx).map((actor) => ({ actor, action: "fold" as const }))];
@@ -70,11 +73,12 @@ export function previewQuickAction(
   activeSeat: Position,
   target: Position,
   effectiveStackBb: number,
+  format: GameFormat,
 ): AvailableActions | null {
-  const prefixPath = buildFoldPrefixPath(actionPath, activeSeat, target, effectiveStackBb);
+  const prefixPath = buildFoldPrefixPath(actionPath, activeSeat, target, effectiveStackBb, format);
   if (!prefixPath) return null;
 
-  const result = replayActionPath(prefixPath, effectiveStackBb);
+  const result = replayActionPath(prefixPath, effectiveStackBb, format);
   if (result.status !== "active" || result.activeSeat !== target) return null;
 
   return computeAvailableActions(target, result.potState, effectiveStackBb);

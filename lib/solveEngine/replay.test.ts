@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { replayActionPath } from "./replay";
+import { TOURNAMENT_8 } from "@/lib/solveEngine/gameFormat";
 
 describe("replayActionPath — legal sequences", () => {
   it("simple RFI: everyone before CO folds, CO's opening decision comes up next", () => {
@@ -12,6 +13,7 @@ describe("replayActionPath — legal sequences", () => {
         { actor: "HJ", action: "fold" },
       ],
       100,
+      TOURNAMENT_8,
     );
     expect(result.status).toBe("active");
     if (result.status === "active") expect(result.activeSeat).toBe("CO");
@@ -31,6 +33,7 @@ describe("replayActionPath — legal sequences", () => {
         { actor: "LJ", action: "call" },
       ],
       100,
+      TOURNAMENT_8,
     );
     expect(result.status).toBe("resolved");
     if (result.status === "resolved") expect(result.reason).toBe("action-closed");
@@ -51,6 +54,7 @@ describe("replayActionPath — legal sequences", () => {
         { actor: "BB", action: "call" },
       ],
       100,
+      TOURNAMENT_8,
     );
     expect(result.status).toBe("resolved");
     if (result.status === "resolved") expect(result.reason).toBe("action-closed");
@@ -70,6 +74,7 @@ describe("replayActionPath — legal sequences", () => {
         { actor: "LJ", action: "raise" },
       ],
       100,
+      TOURNAMENT_8,
     );
     expect(result.status).toBe("active");
     if (result.status !== "active") throw new Error("expected active");
@@ -91,6 +96,7 @@ describe("replayActionPath — legal sequences", () => {
         { actor: "UTG", action: "raise" }, // UTG reopens with a 4-bet, sized off BB's 3-bet
       ],
       100,
+      TOURNAMENT_8,
     );
     expect(result.status).toBe("active");
     if (result.status !== "active") throw new Error("expected active");
@@ -110,6 +116,7 @@ describe("replayActionPath — legal sequences", () => {
         { actor: "BB", action: "allin" },
       ],
       20,
+      TOURNAMENT_8,
     );
     expect(result.status).toBe("resolved");
     if (result.status !== "resolved") throw new Error("expected resolved");
@@ -121,7 +128,7 @@ describe("replayActionPath — legal sequences", () => {
 
   it("closes the action at the minimum 2bb stack when everyone goes all-in", () => {
     const seats = ["UTG", "UTG1", "LJ", "HJ", "CO", "BTN", "SB", "BB"] as const;
-    const result = replayActionPath(seats.map((actor) => ({ actor, action: "allin" as const })), 2);
+    const result = replayActionPath(seats.map((actor) => ({ actor, action: "allin" as const })), 2, TOURNAMENT_8);
     expect(result.status).toBe("resolved");
     if (result.status === "resolved") expect(result.reason).toBe("action-closed");
   });
@@ -139,6 +146,7 @@ describe("replayActionPath — legal sequences", () => {
         { actor: "UTG1", action: "raise" },
       ],
       6.9,
+      TOURNAMENT_8,
     );
     expect(result.status).toBe("active");
     if (result.status !== "active") throw new Error("expected active");
@@ -152,7 +160,7 @@ const foldsToSb = (["UTG", "UTG1", "LJ", "HJ", "CO", "BTN"] as const).map((actor
 
 describe("replayActionPath — limped pots", () => {
   it("closes the action when BB checks behind SB's limp", () => {
-    const result = replayActionPath([...foldsToSb, { actor: "SB", action: "call" }, { actor: "BB", action: "call" }], 40);
+    const result = replayActionPath([...foldsToSb, { actor: "SB", action: "call" }, { actor: "BB", action: "call" }], 40, TOURNAMENT_8);
     expect(result).toMatchObject({ status: "resolved", reason: "action-closed" });
     if (result.status !== "resolved") return;
     expect(result.potState.committed).toMatchObject({ SB: 1, BB: 1 });
@@ -160,27 +168,27 @@ describe("replayActionPath — limped pots", () => {
   });
 
   it("sends the action back to SB after BB raises a limp", () => {
-    const result = replayActionPath([...foldsToSb, { actor: "SB", action: "call" }, { actor: "BB", action: "raise" }], 40);
+    const result = replayActionPath([...foldsToSb, { actor: "SB", action: "call" }, { actor: "BB", action: "raise" }], 40, TOURNAMENT_8);
     expect(result).toMatchObject({ status: "active", activeSeat: "SB" });
     if (result.status !== "active") return;
     expect(result.potState.committed.BB).toBe(3.5);
   });
 
   it("rejects a limp from any other seat, at push/fold stacks, and a BB fold when checking is free", () => {
-    expect(replayActionPath([{ actor: "UTG", action: "call" }], 40).status).toBe("invalid");
-    expect(replayActionPath([...foldsToSb, { actor: "SB", action: "call" }], 15).status).toBe("invalid");
-    expect(replayActionPath([...foldsToSb, { actor: "SB", action: "call" }, { actor: "BB", action: "fold" }], 40).status).toBe("invalid");
+    expect(replayActionPath([{ actor: "UTG", action: "call" }], 40, TOURNAMENT_8).status).toBe("invalid");
+    expect(replayActionPath([...foldsToSb, { actor: "SB", action: "call" }], 15, TOURNAMENT_8).status).toBe("invalid");
+    expect(replayActionPath([...foldsToSb, { actor: "SB", action: "call" }, { actor: "BB", action: "fold" }], 40, TOURNAMENT_8).status).toBe("invalid");
   });
 });
 
 describe("replayActionPath — illegal sequences", () => {
   it("rejects the wrong actor for the computed next turn", () => {
-    const result = replayActionPath([{ actor: "BB", action: "raise" }], 100);
+    const result = replayActionPath([{ actor: "BB", action: "raise" }], 100, TOURNAMENT_8);
     expect(result.status).toBe("invalid");
   });
 
   it("rejects a call before any raise has occurred", () => {
-    const result = replayActionPath([{ actor: "UTG", action: "call" }], 100);
+    const result = replayActionPath([{ actor: "UTG", action: "call" }], 100, TOURNAMENT_8);
     expect(result.status).toBe("invalid");
   });
 
@@ -197,6 +205,7 @@ describe("replayActionPath — illegal sequences", () => {
         { actor: "BB", action: "fold" }, // BB can't even act — hand is already uncontested before this
       ],
       100,
+      TOURNAMENT_8,
     );
     expect(result.status).toBe("invalid");
   });
@@ -215,6 +224,7 @@ describe("replayActionPath — illegal sequences", () => {
         { actor: "BTN", action: "raise" }, // action already closed once BB called
       ],
       100,
+      TOURNAMENT_8,
     );
     expect(result.status).toBe("invalid");
   });

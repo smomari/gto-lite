@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { ALL_HANDS, TOTAL_COMBOS } from "@/lib/handRange/handList";
 import { loadEquityMatrix } from "@/lib/equity/loadEquityMatrix";
 import { computePlayabilityRanking } from "@/lib/equity/handStrength";
+import { COLD_CALL_BASE, THREE_BET_WIDTH_RATIO } from "./config";
 import {
   generateBbVsLimpScenario,
   generateFacingRaiseScenario,
@@ -129,7 +130,16 @@ describe("generateBbVsLimpScenario", () => {
 });
 
 describe("generateFacingRaiseScenario", () => {
-  const base = { raiseDepth: 1, isIP: true, potBb: 5, amountOwedBb: 2, aggressorOpenWidth: 0.3, seatsBehind: 2 };
+  const base = {
+    raiseDepth: 1,
+    isIP: true,
+    potBb: 5,
+    amountOwedBb: 2,
+    aggressorOpenWidth: 0.3,
+    seatsBehind: 2,
+    threeBetWidthRatio: THREE_BET_WIDTH_RATIO,
+    coldCallBase: COLD_CALL_BASE,
+  };
 
   it("has 169 entries with fold+call+raise summing to ~1", () => {
     const hands = generateFacingRaiseScenario(ranking, base);

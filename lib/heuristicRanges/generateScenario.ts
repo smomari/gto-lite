@@ -1,5 +1,6 @@
 import { RANKS } from "@/lib/cards";
 import { ALL_HANDS, TOTAL_COMBOS, type CanonicalHand } from "@/lib/handRange/handList";
+import type { FirstInAnchor } from "@/lib/solveEngine/gameFormat";
 import type { HandFrequency } from "@/types/rangeData";
 import {
   MIX_BUFFER,
@@ -10,10 +11,8 @@ import {
   RAISE_KEEP_SHARE,
   BB_VS_LIMP_VALUE_WIDTH,
   BB_VS_LIMP_BLUFF_WIDTH,
-  COLD_CALL_BASE,
   COLD_CALL_PER_SEAT_BEHIND,
   COLD_CALL_OOP_MULTIPLIER,
-  THREE_BET_WIDTH_RATIO,
   RAISE_VALUE_SHARE,
   BASE_CONTINUE_THRESHOLD,
   RAISE_DEPTH_TIGHTEN_FACTOR,
@@ -60,10 +59,11 @@ function handFrequencies(
   });
 }
 
-type FirstInWidths = (typeof FIRST_IN_WIDTHS_BY_STACK)[number];
-
-function firstInWidth(pick: (anchor: FirstInWidths) => number, effectiveStackBb: number): number {
-  const anchors = FIRST_IN_WIDTHS_BY_STACK;
+function firstInWidth<A extends FirstInAnchor>(
+  anchors: readonly A[],
+  pick: (anchor: A) => number,
+  effectiveStackBb: number,
+): number {
   const upperIndex = anchors.findIndex((a) => a.stackBb >= effectiveStackBb);
   if (upperIndex === 0) return pick(anchors[0]);
   if (upperIndex === -1) return pick(anchors[anchors.length - 1]);
@@ -74,11 +74,15 @@ function firstInWidth(pick: (anchor: FirstInWidths) => number, effectiveStackBb:
 }
 
 /** Share of combos seat `seatIdx` (0=UTG..6=SB) opens at this stack. BB (index 7) never opens. */
-export function openWidthFor(seatIdx: number, effectiveStackBb: number): number {
+export function openWidthFor(
+  seatIdx: number,
+  effectiveStackBb: number,
+  anchors: readonly FirstInAnchor[] = FIRST_IN_WIDTHS_BY_STACK,
+): number {
   if (seatIdx < 0 || seatIdx > 6) {
     throw new Error(`openWidthFor: seat index ${seatIdx} cannot open`);
   }
-  return firstInWidth((a) => a.widths[seatIdx], effectiveStackBb);
+  return firstInWidth(anchors, (a) => a.widths[seatIdx], effectiveStackBb);
 }
 
 function jamShareFor(effectiveStackBb: number): number {
@@ -98,8 +102,9 @@ export function generateOpeningScenario(
   ranking: PercentileRanking,
   seatIdx: number,
   effectiveStackBb: number,
+  anchors: readonly FirstInAnchor[] = FIRST_IN_WIDTHS_BY_STACK,
 ): HandFrequency[] {
-  const threshold = openWidthFor(seatIdx, effectiveStackBb);
+  const threshold = openWidthFor(seatIdx, effectiveStackBb, anchors);
   return handFrequencies(ranking, (p) => {
     const raise = softInclude(p, threshold);
     return { fold: 1 - raise, call: 0, raise };
@@ -108,8 +113,8 @@ export function generateOpeningScenario(
 
 /** SB folded to: raises its best hands, limps most of the rest, folds the bottom. */
 export function generateSbFirstInScenario(ranking: PercentileRanking, effectiveStackBb: number): HandFrequency[] {
-  const playThreshold = firstInWidth((a) => a.sbPlay, effectiveStackBb);
-  const raiseThreshold = firstInWidth((a) => a.sbRaise, effectiveStackBb);
+  const playThreshold = firstInWidth(FIRST_IN_WIDTHS_BY_STACK, (a) => a.sbPlay, effectiveStackBb);
+  const raiseThreshold = firstInWidth(FIRST_IN_WIDTHS_BY_STACK, (a) => a.sbRaise, effectiveStackBb);
   return handFrequencies(ranking, (p) => {
     const play = softInclude(p, playThreshold);
     const raise = softInclude(p, raiseThreshold);
@@ -130,6 +135,10 @@ export interface FacingRaiseParams {
   aggressorOpenWidth: number;
   /** Seats left to act after hero; 0 means hero closes the action. */
   seatsBehind: number;
+  /** 3-bet width as a share of the opener's width. */
+  threeBetWidthRatio: number;
+  /** Share of the BB's continuing range that a cold caller keeps: IP, with two seats behind. */
+  coldCallBase: number;
 }
 
 function potOddsAdjustFor(params: FacingRaiseParams): number {
@@ -142,7 +151,7 @@ function vsOpenContinueThreshold(params: FacingRaiseParams): number {
   const seatShare =
     params.seatsBehind === 0
       ? 1
-      : COLD_CALL_BASE *
+      : params.coldCallBase *
         Math.pow(COLD_CALL_PER_SEAT_BEHIND, params.seatsBehind - 2) *
         (params.isIP ? 1 : COLD_CALL_OOP_MULTIPLIER);
   // The square root keeps a cheap call from pulling in nearly every hand: price matters less than the opener's range here.
@@ -194,7 +203,7 @@ export function generateBbVsLimpScenario(ranking: PercentileRanking): HandFreque
 
 function generateVsOpenScenario(ranking: PercentileRanking, params: FacingRaiseParams): HandFrequency[] {
   const continueThreshold = vsOpenContinueThreshold(params);
-  const threeBetWidth = Math.min(params.aggressorOpenWidth * THREE_BET_WIDTH_RATIO, continueThreshold);
+  const threeBetWidth = Math.min(params.aggressorOpenWidth * params.threeBetWidthRatio, continueThreshold);
   const valueThreshold = threeBetWidth * RAISE_VALUE_SHARE;
   const bluffs = threeBetBluffs(ranking, valueThreshold, threeBetWidth - valueThreshold);
   return ALL_HANDS.map((h) => {

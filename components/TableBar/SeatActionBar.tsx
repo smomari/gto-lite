@@ -1,11 +1,13 @@
 import { useEffect, useRef } from "react";
 import type { ActionNode, ActionType, Position } from "@/types/rangeData";
 import type { AvailableActions } from "@/types/solveApi";
+import type { GameFormat } from "@/lib/solveEngine/gameFormat";
 import { computeRoundActingOrder, previewQuickAction } from "@/lib/solveEngine/preview";
 import { SeatBox } from "./SeatBox";
 
 interface SeatActionBarProps {
   stackBb: number;
+  format: GameFormat;
   actionPath: ActionNode[];
   activeSeat: Position | null;
   availableActions: AvailableActions | null;
@@ -19,6 +21,7 @@ interface SeatActionBarProps {
 
 export function SeatActionBar({
   stackBb,
+  format,
   actionPath,
   activeSeat,
   availableActions,
@@ -28,7 +31,7 @@ export function SeatActionBar({
   onQuickAction,
   trailing,
 }: SeatActionBarProps) {
-  const pendingSeats = activeSeat ? computeRoundActingOrder(actionPath, activeSeat, stackBb).slice(1) : [];
+  const pendingSeats = activeSeat ? computeRoundActingOrder(actionPath, activeSeat, stackBb, format).slice(1) : [];
   const rowRef = useRef<HTMLDivElement>(null);
 
   // Once a re-raise sends action back around the table, the row grows past
@@ -73,7 +76,7 @@ export function SeatActionBar({
           kind="pending"
           position={position}
           stackBb={stackBb}
-          quickActions={activeSeat ? previewQuickAction(actionPath, activeSeat, position, stackBb) : null}
+          quickActions={activeSeat ? previewQuickAction(actionPath, activeSeat, position, stackBb, format) : null}
           onQuickAction={(action) => onQuickAction(position, action)}
         />
       ))}

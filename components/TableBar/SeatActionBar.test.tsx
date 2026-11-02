@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { SeatActionBar } from "./SeatActionBar";
+import { TOURNAMENT_8 } from "@/lib/solveEngine/gameFormat";
 import { initialPotState } from "@/lib/solveEngine/potState";
 import { computeAvailableActions } from "@/lib/solveEngine/actionSizing";
 import type { ActionNode } from "@/types/rangeData";
@@ -13,6 +14,7 @@ describe("SeatActionBar", () => {
     render(
       <SeatActionBar
         stackBb={100}
+        format={TOURNAMENT_8}
         actionPath={[]}
         activeSeat="UTG"
         availableActions={availableActions}
@@ -51,6 +53,7 @@ describe("SeatActionBar", () => {
     render(
       <SeatActionBar
         stackBb={100}
+        format={TOURNAMENT_8}
         actionPath={actionPath}
         activeSeat="CO"
         availableActions={{ fold: true, call: { label: "Call", amountBb: 6 }, raise: null, allin: { toBb: 100 } }}
@@ -84,6 +87,7 @@ describe("SeatActionBar", () => {
     render(
       <SeatActionBar
         stackBb={20}
+        format={TOURNAMENT_8}
         actionPath={[{ actor: "UTG", action: "allin", label: "allin", sizeBb: 20 }]}
         activeSeat="UTG1"
         availableActions={{ fold: true, call: { label: "Call", amountBb: 20 }, raise: null, allin: null }}
@@ -103,6 +107,7 @@ describe("SeatActionBar", () => {
     render(
       <SeatActionBar
         stackBb={40}
+        format={TOURNAMENT_8}
         actionPath={[...folds, { actor: "SB", action: "call", label: "limp", sizeBb: 1 }]}
         activeSeat="BB"
         availableActions={{ fold: false, call: { label: "Check", amountBb: 0 }, raise: { toBb: 3.5 }, allin: { toBb: 40 } }}
@@ -123,6 +128,7 @@ describe("SeatActionBar", () => {
     const { container } = render(
       <SeatActionBar
         stackBb={100}
+        format={TOURNAMENT_8}
         actionPath={[]}
         activeSeat="UTG"
         availableActions={computeAvailableActions("UTG", initialPotState(), 100)}
@@ -154,6 +160,7 @@ describe("SeatActionBar", () => {
     render(
       <SeatActionBar
         stackBb={100}
+        format={TOURNAMENT_8}
         actionPath={threeBetBackToUtg}
         activeSeat="UTG"
         availableActions={{ fold: true, call: { label: "Call", amountBb: 5.6 }, raise: { toBb: 33.6 }, allin: { toBb: 100 } }}
@@ -174,6 +181,7 @@ describe("SeatActionBar", () => {
   it("scrolls to the end of the row once the hand is over, and not while a request is loading", () => {
     const props = {
       stackBb: 100,
+      format: TOURNAMENT_8,
       actionPath: threeBetBackToUtg,
       activeSeat: null,
       availableActions: null,
@@ -196,6 +204,7 @@ describe("SeatActionBar", () => {
     render(
       <SeatActionBar
         stackBb={100}
+        format={TOURNAMENT_8}
         actionPath={[]}
         activeSeat="UTG"
         availableActions={computeAvailableActions("UTG", initialPotState(), 100)}
