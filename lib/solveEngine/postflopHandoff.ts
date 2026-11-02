@@ -37,15 +37,22 @@ function lastActionIndex(actionPath: ActionNode[], seat: Position): number {
 }
 
 /**
- * Each range engine only produces one aggressive action — Nash shoves, the
- * heuristic engine and solver export raise — but a seat can click either, so
- * read off that action's frequency alone and the range comes back empty.
- * Both clicks mean "this seat's aggressive range": an approximation of what
- * it would really do with the size it didn't produce, but a usable one.
+ * What a seat that raised or shoved from this chart holds. Each range engine
+ * produces only some of the actions on offer: Nash shoves, the heuristic
+ * engine raises, and a chart facing a shove only calls, though the buttons
+ * still offer more. Whichever was clicked, the seat's range is the chart's
+ * aggressive one, or its continuing one if it has none: an approximation of
+ * what it would really do with that action, but a usable one.
  */
+export function aggressiveFrequencies(hands: HandFrequency[]): number[] {
+  const aggressive = hands.map((hf) => hf.raise + (hf.allin ?? 0));
+  return aggressive.some((frequency) => frequency > 0) ? aggressive : hands.map((hf) => hf.call);
+}
+
 function withAggressiveRange(hands: HandFrequency[], actionKey: ActionWeightKey): HandFrequency[] {
   if (actionKey !== "raise" && actionKey !== "allin") return hands;
-  return hands.map((hf) => ({ ...hf, [actionKey]: hf.raise + (hf.allin ?? 0) }));
+  const frequencies = aggressiveFrequencies(hands);
+  return hands.map((hf, i) => ({ ...hf, [actionKey]: frequencies[i] }));
 }
 
 export function resolvePostflopHandoff(

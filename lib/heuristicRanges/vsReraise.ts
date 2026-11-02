@@ -27,6 +27,22 @@ export interface VsReraiseParams {
   rake: RakeTerms;
 }
 
+export type VsShoveParams = Pick<VsReraiseParams, "heroRange" | "villainRange" | "potBb" | "amountOwedBb" | "rake">;
+
+/**
+ * Facing a raise that all but gets the stacks in, equity is what a hand wins:
+ * it calls if that beats the real price of the real pot. Nothing here re-raises.
+ */
+export function generateCallShoveScenario(matrix: EquityMatrix, params: VsShoveParams): HandFrequency[] {
+  const { heroRange, villainRange, potBb, amountOwedBb, rake } = params;
+  const equityToCall = amountOwedBb / netPot(potBb + amountOwedBb, rake);
+  return ALL_HANDS.map((h) => {
+    const reached = (heroRange.get(h.hand) ?? 0) > 0;
+    const call = reached && weightedEquityVsRange(matrix, h.hand, villainRange) > equityToCall ? 1 : 0;
+    return { hand: h.hand, fold: 1 - call, call, raise: 0 };
+  });
+}
+
 /**
  * Facing a re-raise with a range of its own, a seat keeps a share of it set by
  * how far the range's equity against the raiser's actual range clears the

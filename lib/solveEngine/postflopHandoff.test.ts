@@ -168,4 +168,12 @@ describe("resolvePostflopHandoff", () => {
     expect(liveSeats).toHaveLength(3);
     expect(matchup).toBeNull();
   });
+
+  it("takes a call-only chart's continuing range for a seat that re-raised from it", () => {
+    const path = [step("UTG", "raise"), step("BB", "allin"), step("UTG", "call")];
+    const byKey = capture(path);
+    const handoff = resolvePostflopHandoff(path, { UTG: 40, BB: 40 }, 40, byKey);
+    const bb = handoff.liveSeats.find((s) => s.seat === "BB")!;
+    expect(bb.hands![0].allin).toBe(1);
+  });
 });

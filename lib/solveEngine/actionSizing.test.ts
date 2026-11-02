@@ -142,4 +142,9 @@ describe("computeAvailableActions", () => {
     const actions = computeAvailableActions("UTG1", alreadyMatched, 100);
     expect(actions.call).toEqual({ label: "Check", amountBb: 0 });
   });
+
+  it("only offers all-in at the push/fold stacks, whose charts have no smaller raise", () => {
+    expect(computeAvailableActions("UTG", initialPotState(), 15)).toMatchObject({ raise: null, allin: { toBb: 15 } });
+    expect(computeAvailableActions("UTG", initialPotState(), 16).raise).not.toBeNull();
+  });
 });
