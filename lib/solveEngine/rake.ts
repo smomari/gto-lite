@@ -19,6 +19,9 @@ export interface RakeSettings {
   noFlopNoDrop: boolean;
 }
 
+/** A pot that checks down, takes one bet, takes two, and gets the stacks in: the cap only bites on the last ones. */
+const TYPICAL_POTS_BB = [5.5, 20, 60, 200];
+
 export const NO_RAKE: RakeStructure = { id: "none", label: "No rake", rate: 0, capBb: 0, stakes: "" };
 const ONLINE_LOW: RakeStructure = { id: "online-low", label: "Online low", rate: 0.05, capBb: 5, stakes: "NL10~25" };
 
@@ -32,6 +35,7 @@ export const RAKE_PRESETS: RakeStructure[] = [
 ];
 
 export const DEFAULT_RAKE_SETTINGS: RakeSettings = { structure: ONLINE_LOW, noFlopNoDrop: true };
+export const NO_RAKE_SETTINGS: RakeSettings = { structure: NO_RAKE, noFlopNoDrop: true };
 
 export function rakeById(id: string): RakeStructure | undefined {
   return RAKE_PRESETS.find((rake) => rake.id === id);
@@ -44,6 +48,11 @@ export function rakeForPot(potBb: number, rake: RakeTerms): number {
 /** What the winner actually collects. */
 export function netPot(potBb: number, rake: RakeTerms): number {
   return potBb - rakeForPot(potBb, rake);
+}
+
+/** The share of a typical pot this rake takes. */
+export function rakeShare(rake: RakeTerms): number {
+  return TYPICAL_POTS_BB.reduce((sum, pot) => sum + rakeForPot(pot, rake) / pot, 0) / TYPICAL_POTS_BB.length;
 }
 
 /** "5%/3bb", or the label when there is no rake to state. */

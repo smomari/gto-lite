@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { loadEquityMatrix } from "@/lib/equity/loadEquityMatrix";
 import { computePlayabilityRanking } from "@/lib/equity/handStrength";
 import { solvePushFold } from "@/lib/nashSolver/pushFoldSolver";
+import { rakeById } from "./rake";
 import { getPlayabilityRanking, getPushFoldResult } from "./solveCache";
 
 const matrix = loadEquityMatrix();
@@ -30,6 +31,16 @@ describe("getPushFoldResult", () => {
     const noAnte = getPushFoldResult(matrix, 10, 1, 0);
     expect(noAnte).not.toBe(withAnte);
     expect(noAnte).toEqual(solvePushFold(matrix, { effectiveStackBb: 10, bbAnte: 0 }));
+  });
+
+  it("caches each rake apart", () => {
+    const flat = getPushFoldResult(matrix, 10, 1, 0);
+    const live = { structure: rakeById("live")!, noFlopNoDrop: true };
+    const raked = getPushFoldResult(matrix, 10, 1, 0, live);
+    const stolenToo = getPushFoldResult(matrix, 10, 1, 0, { ...live, noFlopNoDrop: false });
+    expect(raked).not.toBe(flat);
+    expect(stolenToo).not.toBe(raked);
+    expect(getPushFoldResult(matrix, 10, 1, 0, live)).toBe(raked);
   });
 
   it("caches each number of opponents behind apart", () => {

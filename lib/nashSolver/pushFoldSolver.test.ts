@@ -3,6 +3,7 @@ import { ALL_HANDS } from "@/lib/handRange/handList";
 import type { EquityMatrix } from "@/lib/equity/loadEquityMatrix";
 import { loadEquityMatrix } from "@/lib/equity/loadEquityMatrix";
 import { solvePushFold } from "./pushFoldSolver";
+import type { RakeSettings } from "@/lib/solveEngine/rake";
 
 /**
  * A fully synthetic, self-consistent equity matrix where hand at array index i
@@ -122,5 +123,14 @@ describe("solvePushFold (real 20bb equity matrix — directional regression)", (
       expect(freq).toBeGreaterThanOrEqual(0);
       expect(freq).toBeLessThanOrEqual(1);
     }
+  });
+
+  it("calls tighter when the pot pays rake, and rake on the blinds only matters without no flop no drop", () => {
+    const callWidth = (rake?: RakeSettings) => [...solvePushFold(matrix, { effectiveStackBb: 10, bbAnte: 0, rake }).callFrequency.values()].reduce((a, b) => a + b, 0);
+    const structure = { id: "live", label: "Live", rate: 0.1, capBb: 3, stakes: "" } as const;
+    expect(callWidth({ structure, noFlopNoDrop: true })).toBeLessThan(callWidth());
+    expect(solvePushFold(matrix, { effectiveStackBb: 10, bbAnte: 0, rake: { structure, noFlopNoDrop: false } }).shoveFrequency).not.toEqual(
+      solvePushFold(matrix, { effectiveStackBb: 10, bbAnte: 0, rake: { structure, noFlopNoDrop: true } }).shoveFrequency,
+    );
   });
 });

@@ -26,6 +26,15 @@ export const FIRST_IN_WIDTHS_BY_STACK = [
  */
 export const CASH_FIRST_IN_WIDTHS = [{ stackBb: 100, widths: [0.12, 0.14, 0.17, 0.21, 0.28, 0.46, 0.38] }];
 /**
+ * How much rake moves the charts. Rake is not in these tables' equity ranking,
+ * so these are rules of thumb, not solved results: `rakeShare` is the cut of a
+ * typical pot, opens scale away from the share the cash table was drawn at
+ * (DEFAULT_RAKE_SETTINGS), and flats pay most, being the hands that must see a
+ * flop to win. With no flop no drop off, stealing the blinds pays rake too.
+ */
+export const RAKE_OPEN_SENSITIVITY = 1.5;
+export const RAKE_CONTINUE_SENSITIVITY = 3;
+/**
  * Between the push/fold stacks and JAM_MAX_STACK_BB, a share of each first-in
  * raising range jams instead, growing as the stack shrinks and reaching
  * JAM_MAX_SHARE at JAM_MIN_STACK_BB. The top RAISE_KEEP_SHARE of the range

@@ -3,9 +3,10 @@ import { loadEquityMatrix } from "@/lib/equity/loadEquityMatrix";
 import { HAND_BY_LABEL } from "@/lib/handRange/handList";
 import type { ActionType, HandFrequency, Position } from "@/types/rangeData";
 import { computeAvailableActions, computeRawRaiseTo } from "./actionSizing";
-import { GAME_FORMATS, TOURNAMENT_8, gameFormatById, type GameFormat } from "./gameFormat";
-import { initialPotState } from "./potState";
+import { GAME_FORMATS, TOURNAMENT_8, firstInWidthsUnder, gameFormatById, type GameFormat } from "./gameFormat";
+import { initialPotState, type PotState } from "./potState";
 import { computeRoundActingOrder } from "./preview";
+import { DEFAULT_RAKE_SETTINGS, NO_RAKE_SETTINGS, rakeById, type RakeSettings } from "./rake";
 import { replayActionPath } from "./replay";
 import { solveActiveSeat } from "./solve";
 
@@ -119,5 +120,53 @@ describe("cash ranges", () => {
   it("shoves tighter than the tournament without an ante to win", () => {
     const shove = (format: GameFormat) => playedShare(solveActiveSeat(matrix, "BTN", initialPotState(format), 10).hands);
     expect(shove(CASH_8)).toBeLessThan(shove(TOURNAMENT_8));
+  });
+});
+
+describe("rake", () => {
+  const preset = (id: string, noFlopNoDrop = true): RakeSettings => ({ structure: rakeById(id)!, noFlopNoDrop });
+  const btnOpen = (rake: RakeSettings) => playedShare(solveActiveSeat(matrix, "BTN", initialPotState(CASH_8), 100, rake).hands);
+  const bbVsBtn = (rake: RakeSettings) => {
+    const result = path(
+      CASH_8,
+      ...(["UTG", "UTG1", "LJ", "HJ", "CO"] as const).map((s) => [s, "fold"] as [Position, ActionType]),
+      ["BTN", "raise"],
+      ["SB", "fold"],
+    );
+    if (result.status !== "active") throw new Error("expected BB to act");
+    return solveActiveSeat(matrix, "BB", result.potState, 100, rake).hands;
+  };
+
+  it("keeps the cash table as drawn at the default rake", () => {
+    expect(firstInWidthsUnder(CASH_8, DEFAULT_RAKE_SETTINGS)).toEqual(CASH_8.firstInWidths);
+  });
+
+  it("opens and defends tighter as rake grows", () => {
+    const order = [NO_RAKE_SETTINGS, preset("online-high"), preset("online-mid"), preset("online-std"), preset("online-low"), preset("live")];
+    const opens = order.map(btnOpen);
+    const defends = order.map((rake) => playedShare(bbVsBtn(rake)));
+    expect([...opens].sort((a, b) => b - a)).toEqual(opens);
+    expect([...defends].sort((a, b) => b - a)).toEqual(defends);
+    expect(opens[0]).toBeGreaterThan(opens[5] + 0.03);
+    expect(defends[0]).toBeGreaterThan(defends[5] + 0.08);
+  });
+
+  it("tightens opens further when stolen blinds pay rake too", () => {
+    expect(btnOpen(preset("live", false))).toBeLessThan(btnOpen(preset("live")));
+  });
+
+  it("calls a shove tighter under rake, which lets the shover widen", () => {
+    const steps = ["UTG", "UTG1", "LJ", "HJ", "CO"].map((actor) => ({ actor: actor as Position, action: "fold" as const }));
+    const facingShove = replayActionPath([...steps, { actor: "BTN", action: "allin" }, { actor: "SB", action: "fold" }], 10, CASH_8);
+    if (facingShove.status !== "active") throw new Error("expected BB to act");
+    const share = (seat: Position, state: PotState, rake: RakeSettings) => playedShare(solveActiveSeat(matrix, seat, state, 10, rake).hands);
+    expect(share("BB", facingShove.potState, preset("live"))).toBeLessThan(share("BB", facingShove.potState, NO_RAKE_SETTINGS));
+    expect(share("BTN", initialPotState(CASH_8), preset("live"))).toBeGreaterThan(share("BTN", initialPotState(CASH_8), NO_RAKE_SETTINGS));
+  });
+
+  it("leaves the tournament alone", () => {
+    const hands = (rake: RakeSettings) => solveActiveSeat(matrix, "BTN", initialPotState(TOURNAMENT_8), 100, rake).hands;
+    expect(firstInWidthsUnder(TOURNAMENT_8, DEFAULT_RAKE_SETTINGS)).toBe(TOURNAMENT_8.firstInWidths);
+    expect(hands(NO_RAKE_SETTINGS)).toEqual(solveActiveSeat(matrix, "BTN", initialPotState(TOURNAMENT_8), 100).hands);
   });
 });

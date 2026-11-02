@@ -139,6 +139,7 @@ describe("generateFacingRaiseScenario", () => {
     seatsBehind: 2,
     threeBetWidthRatio: THREE_BET_WIDTH_RATIO,
     coldCallBase: COLD_CALL_BASE,
+    continueFactor: 1,
   };
 
   it("has 169 entries with fold+call+raise summing to ~1", () => {
@@ -203,5 +204,12 @@ describe("generateFacingRaiseScenario", () => {
       generateFacingRaiseScenario(ranking, { ...base, potBb: 6, amountOwedBb: 2 }),
     );
     expect(betterOdds).toBeGreaterThan(worseOdds);
+  });
+
+  it("flats less under continueFactor but keeps the 3-bet range", () => {
+    const full = generateFacingRaiseScenario(ranking, { ...base, seatsBehind: 0 });
+    const raked = generateFacingRaiseScenario(ranking, { ...base, seatsBehind: 0, continueFactor: 0.85 });
+    expect(continuingCombos(raked)).toBeLessThan(continuingCombos(full));
+    expect(raked.map((h) => h.raise)).toEqual(full.map((h) => h.raise));
   });
 });

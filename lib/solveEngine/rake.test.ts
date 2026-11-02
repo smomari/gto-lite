@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_RAKE_SETTINGS, NO_RAKE, RAKE_PRESETS, netPot, rakeById, rakeForPot, rakeSummary } from "./rake";
+import { DEFAULT_RAKE_SETTINGS, NO_RAKE, RAKE_PRESETS, netPot, rakeById, rakeForPot, rakeShare, rakeSummary } from "./rake";
 
 describe("rakeForPot", () => {
   const terms = { rate: 0.05, capBb: 3 };
@@ -17,6 +17,15 @@ describe("rakeForPot", () => {
 
   it("leaves the winner the rest of the pot", () => {
     expect(netPot(200, terms)).toBe(197);
+  });
+});
+
+describe("rakeShare", () => {
+  it("is nothing with no rake, and sets every preset apart", () => {
+    expect(rakeShare(NO_RAKE)).toBe(0);
+    const shares = RAKE_PRESETS.map(rakeShare);
+    expect([...shares].sort((a, b) => a - b)).toEqual(shares);
+    expect(new Set(shares).size).toBe(RAKE_PRESETS.length);
   });
 });
 

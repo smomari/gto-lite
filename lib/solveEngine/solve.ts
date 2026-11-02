@@ -9,7 +9,10 @@ import {
   generateSbFirstInScenario,
   openWidthFor,
 } from "@/lib/heuristicRanges/generateScenario";
+import { RAKE_CONTINUE_SENSITIVITY } from "@/lib/heuristicRanges/config";
+import { firstInWidthsUnder } from "./gameFormat";
 import type { PotState } from "./potState";
+import { NO_RAKE_SETTINGS, rakeShare, type RakeSettings } from "./rake";
 import { shouldUseNash } from "./classify";
 import { getPlayabilityRanking, getPushFoldResult } from "./solveCache";
 
@@ -42,15 +45,17 @@ export function solveActiveSeat(
   activeSeat: Position,
   potState: PotState,
   effectiveStackBb: number,
+  rake: RakeSettings = NO_RAKE_SETTINGS,
 ): SolvedNode {
   const { format } = potState;
+  const firstInWidths = firstInWidthsUnder(format, rake);
   const hasOpener = potState.raiseDepth >= 1;
   const remainingStackBb = effectiveStackBb - (potState.committed[activeSeat] ?? 0);
 
   if (shouldUseNash(effectiveStackBb, remainingStackBb, potState.potBb, hasOpener)) {
     const shover = potState.lastAggressor ?? activeSeat;
     const opponentsBehind = Math.max(1, SEAT_ORDER.length - 1 - seatIndex(shover));
-    const result = getPushFoldResult(matrix, remainingStackBb, opponentsBehind, format.bbAnteBb);
+    const result = getPushFoldResult(matrix, remainingStackBb, opponentsBehind, format.bbAnteBb, rake);
     return {
       source: "nash-shove-fold",
       hands: hasOpener ? callFrequencyToHands(result.callFrequency) : shoveFrequencyToHands(result.shoveFrequency),
@@ -65,7 +70,7 @@ export function solveActiveSeat(
     }
     return {
       source: "heuristic-approx",
-      hands: generateOpeningScenario(ranking, seatIndex(activeSeat), effectiveStackBb, format.firstInWidths),
+      hands: generateOpeningScenario(ranking, seatIndex(activeSeat), effectiveStackBb, firstInWidths),
     };
   }
 
@@ -78,11 +83,12 @@ export function solveActiveSeat(
       isIP: postflopSeatIndex(activeSeat) > postflopSeatIndex(lastAggressor),
       potBb: potState.potBb,
       amountOwedBb,
-      aggressorOpenWidth: openWidthFor(Math.min(seatIndex(lastAggressor), 6), effectiveStackBb, format.firstInWidths),
+      aggressorOpenWidth: openWidthFor(Math.min(seatIndex(lastAggressor), 6), effectiveStackBb, firstInWidths),
       // BB's raise over a limp leaves SB closing the action, though BB sits "behind" it.
       seatsBehind: seatIndex(lastAggressor) > seatIndex(activeSeat) ? 0 : SEAT_ORDER.length - 1 - seatIndex(activeSeat),
       threeBetWidthRatio: format.threeBetWidthRatio,
       coldCallBase: format.coldCallBase,
+      continueFactor: 1 - RAKE_CONTINUE_SENSITIVITY * rakeShare(rake.structure),
     }),
   };
 }
