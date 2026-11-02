@@ -7,9 +7,8 @@ import { computeCheckdownEquities } from "../checkdownEquity";
 import { loadWebSolverModule } from "../wasm/loadWeb";
 
 // Runs entirely client-side in a Worker: no Node `fs`, no equity-matrix file,
-// nothing from lib/equity/loadEquityMatrix.ts — only the pure postflop CFR
-// engine (which needs phe, a plain-JS lookup-table evaluator, not the 124MB
-// Node-only poker-evaluator table the preflop /api/solve route uses).
+// nothing from lib/equity/loadEquityMatrix.ts — only the C++ solver core, and
+// phe, a plain-JS lookup-table evaluator, for the hand strengths it's given.
 
 function actionWeight(key: ActionWeightKey): (hf: HandFrequency) => number {
   return (hf) => hf[key] ?? 0;
@@ -65,7 +64,7 @@ self.onmessage = async (event: MessageEvent<PostflopSolveInMessage>) => {
       result.equityTable,
       request.rake,
     );
-    // A lookahead solve (turn): its EV at each street change, read while the engine is still alive.
+    // A lookahead solve (flop, turn): its EV at each street change, read while the engine is still alive.
     const nextStreetEv = result.session?.nextStreetEv();
     const tree = serializeTree(result.tree, result.solution, checkdown, nextStreetEv);
     result.session?.dispose();

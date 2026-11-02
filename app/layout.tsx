@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "gtoLite — Poker Solver",
-  description: "Tournament preflop ranges and postflop GTO solving in the browser.",
+  description: "Tournament and cash preflop ranges, and postflop GTO solving in the browser.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

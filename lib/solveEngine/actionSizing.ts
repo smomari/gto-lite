@@ -71,7 +71,7 @@ function callOptionFor(
   effectiveStackBb: number,
   amountOwed: number,
 ): CallOption | null {
-  if (potState.lastAggressor !== null) return { label: amountOwed === 0 ? "Check" : "Call", amountBb: amountOwed };
+  if (potState.lastAggressor !== null) return { label: "Call", amountBb: amountOwed };
   if (activeSeat === "BB") return { label: "Check", amountBb: 0 };
   if (activeSeat === "SB" && potState.format.sbCanLimp && effectiveStackBb > NASH_FLAT_STACK_THRESHOLD_BB) {
     return { label: "Limp", amountBb: amountOwed };

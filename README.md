@@ -15,18 +15,17 @@ npm run dev
 
 ## 아키텍처
 
-레인지는 정적 파일이 아니라 **요청마다 서버에서 즉시 계산**된다 (`POST /api/solve`) — 8-max ×
-연속 스택(100가지) × 자유로운 액션 시퀀스는 조합이 너무 많아 미리 생성해둘 수 없기 때문.
+레인지는 정적 파일이 아니라 **요청마다 서버에서 즉시 계산**된다 (`POST /api/solve`) — 게임 형식 × 레이크 ×
+연속 스택 × 자유로운 액션 시퀀스는 조합이 너무 많아 미리 생성해둘 수 없기 때문.
 
 - `lib/solveEngine/potState.ts` + `rotation.ts` + `replay.ts` — 액션 시퀀스를 실제 포커 규칙
   (재오픈 포함)으로 검증/재생하며 팟/콜금액/다음 차례를 추적.
-- `lib/solveEngine/actionSizing.ts` — 레이즈 사이즈 자동 계산(오픈: 앞쪽 포지션 4bb/뒤쪽
-  3bb, 리레이즈: 포스트플랍에서 마지막 공격자보다 뒤에 행동(IP)하면 이전 베팅의 3배, 앞(OOP)이면 4배
-  — SB·BB는 항상 OOP 쪽).
+- `lib/solveEngine/actionSizing.ts` — 레이즈 사이즈 자동 계산(오픈 사이즈는 `gameFormat.ts`, 리레이즈는
+  포스트플랍에서 마지막 공격자보다 뒤에 행동(IP)하면 이전 베팅의 3배, 앞(OOP)이면 4배 — SB는 항상 OOP, BB는 SB 상대로만 IP).
 - SB는 16bb 이상에서 림프할 수 있고, BB는 그 뒤에서 체크하거나 3.5bb로 레이즈한다. BB 체크로 프리플랍이 끝난다.
-- `lib/solveEngine/classify.ts` — 스택이 얕거나(≤15bb) 팟 대비 남은 스택이 적으면 Nash
-  push/fold 솔버(`lib/nashSolver/pushFoldSolver.ts`)로, 아니면 근사 레인지 엔진
-  (`lib/heuristicRanges/`)으로 라우팅.
+- `lib/solveEngine/classify.ts` — 스택이 얕거나(≤15bb) 팟 대비 남은 스택이 적으면 푸시/폴드 구간으로, 아니면 근사 레인지 엔진
+  (`lib/heuristicRanges/`)으로 라우팅. 푸시/폴드 구간의 새 쇼브는 Nash 솔버(`lib/nashSolver/pushFoldSolver.ts`)로 풀고,
+  액션이 더 있었던 스팟은 실제 팟과 상대 범위로 콜을 판단한다.
 - 자기 범위가 있는 좌석이 재레이즈를 맞으면 `lib/heuristicRanges/vsReraise.ts`로 간다. 범위 전체의 에쿼티가 콜 가격을 얼마나 넘는지로
   계속할 비율을 정하고, 플레이어빌리티가 높은 핸드부터 채운다. 핸드별 EV 기준은 쓰지 않는다: 올인 에쿼티가 좁은 구간에 몰려 있어
   작은 변화에도 거의 전부 또는 거의 0으로 뒤집히기 때문이다. 실현율과 계속 비율 상수는 추정치다.

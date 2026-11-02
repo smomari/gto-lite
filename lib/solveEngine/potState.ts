@@ -110,16 +110,15 @@ function settleAction(
     }
 
     case "allin": {
-      const delta = effectiveStackBb - prevCommitted;
-      const isGenuineRaise = effectiveStackBb > state.currentBetToCall;
+      // Every seat has the same stack, and replay turns an all-in that can't raise into a call.
       return {
         ...state,
         committed: { ...state.committed, [actor]: effectiveStackBb },
-        potBb: state.potBb + delta,
-        currentBetToCall: isGenuineRaise ? effectiveStackBb : state.currentBetToCall,
-        lastAggressor: isGenuineRaise ? actor : state.lastAggressor,
-        lastAggressorRaiseToBb: isGenuineRaise ? effectiveStackBb : state.lastAggressorRaiseToBb,
-        raiseDepth: isGenuineRaise ? state.raiseDepth + 1 : state.raiseDepth,
+        potBb: state.potBb + effectiveStackBb - prevCommitted,
+        currentBetToCall: effectiveStackBb,
+        lastAggressor: actor,
+        lastAggressorRaiseToBb: effectiveStackBb,
+        raiseDepth: state.raiseDepth + 1,
         lastActor: actor,
       };
     }

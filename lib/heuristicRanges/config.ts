@@ -1,12 +1,6 @@
 /** Percentile buffer width (in percentile units, 0..1) for soft threshold cutoffs. */
 export const MIX_BUFFER = 0.03;
 
-// --- Opening threshold curve ---------------------------------------------
-// Percentile (by equity-vs-random) that opens, interpolated linearly across
-// seat index 0(UTG)..5(BTN). SB (index 6) is handled as a discount off BTN's
-// value rather than continuing the linear ramp, since SB is a blind and
-// conventionally opens tighter than BTN despite sitting "later" in raw seat
-// order. BB (index 7) never opens (nothing to solve — see rotation.ts).
 /**
  * Share of combos played first-in, interpolated between these stacks and flat
  * outside them. `widths` are each seat's raise-or-fold opens (UTG..SB, SB's
@@ -48,7 +42,7 @@ export const RAISE_KEEP_SHARE = 0.3;
  * Facing a re-raise, how much of its range a seat keeps. All-in equities bunch
  * tightly, so a hand-by-hand "does this call show a profit" cliff swings from
  * nearly all to nearly none on a point of equity. The range's edge over the
- * price sets a share instead, and equity only ranks the hands inside it.
+ * price sets a share instead, and playability ranks the hands inside it.
  * Realization is the part of its all-in equity a range wins, by position. All
  * of these are estimates, set against defense frequencies rather than solved.
  */
