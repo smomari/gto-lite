@@ -103,6 +103,7 @@ export function buildHandTree(
   board: string[],
   options: HandTreeOptions = {},
 ): PostflopTreeNode {
+  if (effectiveStackBb <= 0) return { type: "terminal-showdown", state: initialPostflopPotState(startPot) };
   return buildStreetsFrom(startPot, effectiveStackBb, board, options, true);
 }
 

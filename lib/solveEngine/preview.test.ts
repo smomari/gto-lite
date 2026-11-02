@@ -138,4 +138,10 @@ describe("previewQuickAction", () => {
     expect(actions).not.toBeNull();
     expect(actions!.call).not.toBeNull();
   });
+
+  it("ends at BB in a limped pot: it closes the action unless it raises", () => {
+    const folds = (["UTG", "UTG1", "LJ", "HJ", "CO", "BTN"] as const).map((actor) => ({ actor, action: "fold" as const }));
+    const path = [...folds, { actor: "SB" as const, action: "call" as const }];
+    expect(computeRoundActingOrder(path, "BB", 40, TOURNAMENT_8)).toEqual(["BB"]);
+  });
 });

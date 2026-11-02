@@ -31,6 +31,7 @@ export function computeRoundActingOrder(
   const order: Position[] = [activeSeat];
   let cursor: Position = activeSeat;
   for (let step = 0; step < SEAT_ORDER.length; step++) {
+    if (cursor === "BB" && lastAggressor === null) break; // BB closes an unraised pot, as in rotation.ts.
     const next = nextLiveSeatAfter(cursor, foldedSeats);
     if (next === activeSeat || next === lastAggressor) break;
     order.push(next);

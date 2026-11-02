@@ -367,6 +367,31 @@ function heroActsTwiceFlopResult(): PostflopResultMessage {
 }
 
 describe("PostflopPanel", () => {
+  it("goes straight to the summary after the board when both players are all-in", async () => {
+    const tree: SerializedTreeNode = { type: "terminal-showdown", potBb: 200, committed: { P1: 0, P2: 0 }, checkdownEquity: makeCheckdownEquity() };
+    solvePostflopInWorker.mockResolvedValue({ ...checkCheckFlopResult({ P1: 0, P2: 0 }), tree });
+    renderPanel(0);
+    pickFlopBoard();
+    expect(await screen.findByTestId("hand-summary")).toHaveTextContent("All-in");
+    expect(screen.queryByRole("button", { name: "Check" })).not.toBeInTheDocument();
+  });
+
+  it("starts a picker fresh when going back a street", async () => {
+    solvePostflopInWorker.mockResolvedValue(checkCheckFlopResult({ P1: 0, P2: 0 }));
+    renderPanel(20);
+    pickFlopBoard();
+    fireEvent.click(await screen.findByRole("button", { name: "Check" }));
+    fireEvent.click(screen.getByRole("button", { name: "Check" }));
+    await within(liveStage()).findByText(/Pick the turn card/);
+    fireEvent.click(within(liveStage()).getByRole("button", { name: "2c" }));
+
+    fireEvent.click(within(openStreetDetails("Flop")).getByRole("button", { name: /Pick a different/ }));
+    const stage = await screen.findByTestId("street-stage");
+    fireEvent.click(within(stage).getByRole("button", { name: "As" }));
+    fireEvent.click(within(stage).getByRole("button", { name: "Kd" }));
+    expect(within(stage).getByRole("button", { name: "Solve flop" })).toBeDisabled();
+  });
+
   it("shows a later decision for the hands that reached it, not the street's starting range", async () => {
     solvePostflopInWorker.mockResolvedValue(heroActsTwiceFlopResult());
     renderPanel(20);
