@@ -39,6 +39,8 @@ export interface GameFormat {
   absentSeats: readonly Position[];
   /** Single ante the BB posts for the table; 0 when there is none. */
   bbAnteBb: number;
+  /** Whether the house takes a cut of each pot, as it does in cash games. */
+  allowsRake: boolean;
   openSizes: { oop: OpenSizeRange; ip: OpenSizeRange; sb: OpenSizeRange };
   sbCanLimp: boolean;
   firstInWidths: readonly FirstInAnchor[];
@@ -53,6 +55,7 @@ export const TOURNAMENT_8: GameFormat = {
   label: "Tournament 8-max",
   absentSeats: [],
   bbAnteBb: BB_ANTE_BB,
+  allowsRake: false,
   openSizes: {
     oop: { shallowBb: OPEN_RAISE_OOP_SHALLOW_BB, deepBb: OPEN_RAISE_OOP_DEEP_BB },
     ip: TOURNAMENT_IP_OPEN,
@@ -71,6 +74,7 @@ const CASH_8: GameFormat = {
   label: "Cash 8-max",
   absentSeats: [],
   bbAnteBb: 0,
+  allowsRake: true,
   openSizes: {
     oop: CASH_OPEN,
     ip: CASH_OPEN,

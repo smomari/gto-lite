@@ -10,6 +10,7 @@ import { RangeGrid } from "@/components/RangeGrid/RangeGrid";
 import { solveNode, SolveApiError } from "@/lib/apiClient/solveClient";
 import { TOURNAMENT_8, type GameFormat } from "@/lib/solveEngine/gameFormat";
 import { buildFoldPrefixPath } from "@/lib/solveEngine/preview";
+import { DEFAULT_RAKE_SETTINGS, type RakeSettings } from "@/lib/solveEngine/rake";
 import { actionPathKey, resolvePostflopHandoff } from "@/lib/solveEngine/postflopHandoff";
 import { PostflopPanel } from "@/components/PostflopBoard/PostflopPanel";
 import type { ActionNode, ActionType, Position } from "@/types/rangeData";
@@ -35,6 +36,7 @@ type Result =
 export default function Home() {
   const [stackBb, setStackBb] = useState(100);
   const [format, setFormat] = useState<GameFormat>(TOURNAMENT_8);
+  const [rake, setRake] = useState<RakeSettings>(DEFAULT_RAKE_SETTINGS);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [requestPath, setRequestPath] = useState<RequestStep[]>([]);
   const [result, setResult] = useState<Result | null>(null);
@@ -49,13 +51,16 @@ export default function Home() {
   const rangeFetchesRef = useRef(new Set<AbortController>());
   const [streetBarSlot, setStreetBarSlot] = useState<HTMLDivElement | null>(null);
 
-  const requestKey = JSON.stringify({ stackBb, format: format.id, requestPath });
+  const requestKey = JSON.stringify({ stackBb, format: format.id, rake: rake.structure.id, noFlopNoDrop: rake.noFlopNoDrop, requestPath });
   const loading = result === null || result.key !== requestKey;
 
   useEffect(() => {
     const controller = new AbortController();
 
-    solveNode({ effectiveStackBb: stackBb, actionPath: requestPath, format: format.id }, controller.signal)
+    solveNode(
+      { effectiveStackBb: stackBb, actionPath: requestPath, format: format.id, rake: rake.structure.id, noFlopNoDrop: rake.noFlopNoDrop },
+      controller.signal,
+    )
       .then((data) => {
         if (controller.signal.aborted) return;
         setResult({ key: requestKey, kind: "success", data });
@@ -83,15 +88,17 @@ export default function Home() {
 
     return () => controller.abort();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stackBb, format, requestPath]);
+  }, [stackBb, format, rake, requestPath]);
 
-  function handleSettingsApply(nextStackBb: number, nextFormat: GameFormat) {
+  function handleSettingsApply(nextStackBb: number, nextFormat: GameFormat, nextRake: RakeSettings) {
     setSettingsOpen(false);
-    if (nextStackBb === stackBb && nextFormat === format) return;
+    const sameRake = nextRake.structure === rake.structure && nextRake.noFlopNoDrop === rake.noFlopNoDrop;
+    if (nextStackBb === stackBb && nextFormat === format && sameRake) return;
     for (const controller of rangeFetchesRef.current) controller.abort();
     rangeFetchesRef.current.clear();
     setStackBb(nextStackBb);
     setFormat(nextFormat);
+    setRake(nextRake);
     setRequestPath([]);
     setRangeByPathKey({});
     setRangeLoadFailed(false);
@@ -124,7 +131,10 @@ export default function Home() {
     // failed fetch only shows up if the hand-off ends up needing this range.
     const controller = new AbortController();
     rangeFetchesRef.current.add(controller);
-    solveNode({ effectiveStackBb: stackBb, actionPath: prefixPath, format: format.id }, controller.signal)
+    solveNode(
+      { effectiveStackBb: stackBb, actionPath: prefixPath, format: format.id, rake: rake.structure.id, noFlopNoDrop: rake.noFlopNoDrop },
+      controller.signal,
+    )
       .then((data) => {
         if (controller.signal.aborted) return;
         if (data.heroPosition === target) {
@@ -157,11 +167,11 @@ export default function Home() {
     <div className="mx-auto flex min-h-dvh w-full max-w-6xl flex-col gap-2 px-2 py-2 sm:px-4 lg:h-dvh lg:min-h-0 lg:overflow-hidden lg:px-6 lg:py-3">
       <header className="flex items-center justify-between border-b border-line pb-2">
         <span className="text-xl font-semibold tracking-tight text-ink">gtoLite</span>
-        <SettingsButton format={format} stackBb={stackBb} onClick={() => setSettingsOpen(true)} />
+        <SettingsButton format={format} rake={rake.structure} stackBb={stackBb} onClick={() => setSettingsOpen(true)} />
       </header>
 
       {settingsOpen && (
-        <SettingsDialog format={format} stackBb={stackBb} onApply={handleSettingsApply} onClose={() => setSettingsOpen(false)} />
+        <SettingsDialog format={format} rake={rake} stackBb={stackBb} onApply={handleSettingsApply} onClose={() => setSettingsOpen(false)} />
       )}
 
       <SeatActionBar

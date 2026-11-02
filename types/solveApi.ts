@@ -1,4 +1,5 @@
 import type { GameFormatId } from "@/lib/solveEngine/gameFormat";
+import type { RakeId } from "@/lib/solveEngine/rake";
 import type { ActionNode, ActionType, Position, RangeScenario } from "./rangeData";
 
 export interface SolveRequest {
@@ -6,6 +7,10 @@ export interface SolveRequest {
   actionPath: Pick<ActionNode, "actor" | "action">[];
   /** Defaults to the tournament format. */
   format?: GameFormatId;
+  /** Ignored by formats without rake. Defaults to no rake. */
+  rake?: RakeId;
+  /** Defaults to true. */
+  noFlopNoDrop?: boolean;
 }
 
 export interface CallOption {
@@ -36,7 +41,7 @@ export interface SolveResponse extends RangeScenario {
   availableActions: AvailableActions;
 }
 
-export type SolveErrorCode = "INVALID_STACK" | "INVALID_ACTION_PATH" | "INVALID_FORMAT" | "HAND_RESOLVED" | "INTERNAL";
+export type SolveErrorCode = "INVALID_STACK" | "INVALID_ACTION_PATH" | "INVALID_FORMAT" | "INVALID_RAKE" | "HAND_RESOLVED" | "INTERNAL";
 export type HandResolvedReason = "uncontested" | "action-closed";
 
 export interface SolveErrorBody {

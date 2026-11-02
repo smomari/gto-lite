@@ -4,6 +4,7 @@ import { SEAT_ORDER } from "@/lib/actionTree/seatOrder";
 import { buildNodeId } from "@/lib/actionTree/nodeId";
 import { STACK_MIN_BB, STACK_MAX_BB } from "@/lib/solveEngine/constants";
 import { TOURNAMENT_8, gameFormatById, type GameFormat } from "@/lib/solveEngine/gameFormat";
+import { NO_RAKE, rakeById, type RakeSettings } from "@/lib/solveEngine/rake";
 import { replayActionPath } from "@/lib/solveEngine/replay";
 import { computeAvailableActions } from "@/lib/solveEngine/actionSizing";
 import { solveActiveSeat } from "@/lib/solveEngine/solve";
@@ -20,7 +21,7 @@ function errorResponse(status: number, body: SolveErrorBody): Response {
 }
 
 type ValidationResult =
-  | { ok: true; value: Omit<SolveRequest, "format"> & { format: GameFormat } }
+  | { ok: true; value: Pick<SolveRequest, "effectiveStackBb" | "actionPath"> & { format: GameFormat; rake: RakeSettings } }
   | { ok: false; error: SolveErrorBody };
 
 function validateRequest(body: unknown): ValidationResult {
@@ -71,7 +72,17 @@ function validateRequest(body: unknown): ValidationResult {
     return { ok: false, error: { error: `Unknown format: ${String(b.format)}`, code: "INVALID_FORMAT" } };
   }
 
-  return { ok: true, value: { effectiveStackBb: stack, actionPath: cleaned, format } };
+  const structure = b.rake === undefined ? NO_RAKE : rakeById(String(b.rake));
+  if (!structure) {
+    return { ok: false, error: { error: `Unknown rake: ${String(b.rake)}`, code: "INVALID_RAKE" } };
+  }
+  const noFlopNoDrop = b.noFlopNoDrop ?? true;
+  if (typeof noFlopNoDrop !== "boolean") {
+    return { ok: false, error: { error: "noFlopNoDrop must be a boolean", code: "INVALID_RAKE" } };
+  }
+  const rake = { structure: format.allowsRake ? structure : NO_RAKE, noFlopNoDrop };
+
+  return { ok: true, value: { effectiveStackBb: stack, actionPath: cleaned, format, rake } };
 }
 
 export async function POST(request: Request): Promise<Response> {
