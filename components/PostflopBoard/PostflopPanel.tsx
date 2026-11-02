@@ -6,7 +6,6 @@ import { BoardPicker } from "./BoardPicker";
 import { CardChip } from "./CardChip";
 import { StreetBox } from "./StreetBox";
 import { PostflopActionBar } from "./PostflopActionBar";
-import { PostflopTerminalMessage } from "./PostflopTerminalMessage";
 import { PostflopHandSummary, type HandOutcome } from "./PostflopHandSummary";
 import { PostflopRangeGrid } from "@/components/PostflopStrategy/PostflopRangeGrid";
 import { BetSizeFilterBar } from "@/components/PostflopStrategy/BetSizeFilterBar";
@@ -14,13 +13,10 @@ import { SuitedComboBreakdown } from "@/components/PostflopStrategy/SuitedComboB
 import { buildActionColorScale } from "@/components/PostflopStrategy/postflopColorLegend";
 import { SolveProgress } from "@/components/PostflopStrategy/SolveProgress";
 import { ExploitabilityBadge } from "@/components/PostflopStrategy/ExploitabilityBadge";
-import { CheckdownEquityNote } from "./CheckdownEquityNote";
-import { AverageNextCardEv, type PreciseAvgState } from "./AverageNextCardEv";
 import { NextStreetEvNote } from "./NextStreetEvNote";
 import { solvePostflopInWorker } from "@/lib/postflopSolver/worker/workerClient";
 import { narrowRangeAlongPath, type TreePathStep } from "@/lib/postflopSolver/rangeNarrowing";
 import { DEFAULT_MAX_CFR_ITERATIONS, DEFAULT_TARGET_EXPLOITABILITY_PERCENT } from "@/lib/postflopSolver/cfr";
-import { DEFAULT_PRECISE_SAMPLE_COUNT, sampleNextCards } from "@/lib/postflopSolver/nextCardSampling";
 import { rakeablePot } from "@/lib/postflopSolver/potState";
 import { rakeForPot, type RakeStructure } from "@/lib/solveEngine/rake";
 import type {
@@ -32,7 +28,7 @@ import type {
   SerializedTreeNode,
 } from "@/types/postflopSolver";
 import type { HandFrequency } from "@/types/rangeData";
-import { hasNextStreet, streetLabelForBoardLength, type StreetLabel } from "./streetLabel";
+import { streetLabelForBoardLength, type StreetLabel } from "./streetLabel";
 
 interface PostflopPanelProps {
   heroLabel: string;
@@ -88,9 +84,7 @@ const FAST_FLOP_MAX_CORES = 4;
 
 export function PostflopPanel(props: PostflopPanelProps) {
   const [streets, setStreets] = useState<StreetStage[]>([idleStage(3, props.effectiveStackBb)]);
-  const [preciseAvgByStage, setPreciseAvgByStage] = useState<Record<number, PreciseAvgState>>({});
   const [fastFlop, setFastFlop] = useState(() => navigator.hardwareConcurrency <= FAST_FLOP_MAX_CORES);
-  const preciseAbortRef = useRef<{ stageIndex: number; controller: AbortController } | null>(null);
   const solveAbortRef = useRef(new Map<number, AbortController>());
   const [selectedHand, setSelectedHand] = useState<string | null>(null);
   const [isolatedActionIndex, setIsolatedActionIndex] = useState<number | null>(null);
@@ -116,7 +110,6 @@ export function PostflopPanel(props: PostflopPanelProps) {
     return () => {
       for (const controller of solves.values()) controller.abort();
       solves.clear();
-      preciseAbortRef.current?.controller.abort();
     };
   }, []);
 
@@ -128,20 +121,6 @@ export function PostflopPanel(props: PostflopPanelProps) {
         solveAbortRef.current.delete(index);
       }
     }
-    if (preciseAbortRef.current && preciseAbortRef.current.stageIndex >= stageIndex) {
-      preciseAbortRef.current.controller.abort();
-      preciseAbortRef.current = null;
-    }
-  }
-
-  function clearPreciseAvgFrom(stageIndex: number) {
-    setPreciseAvgByStage((prev) => {
-      const next = { ...prev };
-      for (const key of Object.keys(next)) {
-        if (Number(key) >= stageIndex) delete next[Number(key)];
-      }
-      return next;
-    });
   }
 
   /** The grid's selection/isolation state only ever applies to the current (last) street — clear it any time the current stage's decision context changes. */
@@ -152,7 +131,6 @@ export function PostflopPanel(props: PostflopPanelProps) {
 
   function handleNavigate(stageIndex: number, action: SerializedDecisionAction) {
     abortSolvesFrom(stageIndex);
-    clearPreciseAvgFrom(stageIndex);
     resetGridSelection();
     setStreets((prev) => {
       const stage = prev[stageIndex];
@@ -165,17 +143,10 @@ export function PostflopPanel(props: PostflopPanelProps) {
       };
       const next = [...prev.slice(0, stageIndex), updatedStage];
 
-      // A live stack still behind, on a street short of the river, is what
-      // makes a next street worth solving — an all-in-call terminal already
-      // has its final runout equity baked into this street's own CFR result,
-      // and the river itself has no further street to deal.
-      // A chance node is the same street change in a solve that looked ahead
-      // to the river: the next street still gets its own full solve.
-      if (
-        (action.child.type === "terminal-showdown" || action.child.type === "chance") &&
-        hasNextStreet(stage.board.length) &&
-        stage.effectiveStackAtStart - action.child.committed.P1 > 0
-      ) {
+      // A chance node is where a street that looked ahead closes with stack
+      // behind: the next street still gets its own full solve. An all-in has
+      // its runout equity in this street's result, and the river closes on a showdown.
+      if (action.child.type === "chance") {
         next.push(idleStage(stage.board.length + 1, stage.effectiveStackAtStart - action.child.committed.P1));
       }
 
@@ -185,7 +156,6 @@ export function PostflopPanel(props: PostflopPanelProps) {
 
   function handleResetStreet(stageIndex: number) {
     abortSolvesFrom(stageIndex);
-    clearPreciseAvgFrom(stageIndex);
     resetGridSelection();
     setExpandedPastStage(null);
     setStreets((prev) => {
@@ -197,7 +167,6 @@ export function PostflopPanel(props: PostflopPanelProps) {
 
   function handlePickDifferentBoard(stageIndex: number) {
     abortSolvesFrom(stageIndex);
-    clearPreciseAvgFrom(stageIndex);
     resetGridSelection();
     setExpandedPastStage(null);
     setStreets((prev) => [
@@ -229,8 +198,8 @@ export function PostflopPanel(props: PostflopPanelProps) {
     } else {
       const prevStage = streets[stageIndex - 1];
       const terminal = prevStage.currentNode;
-      if (prevStage.state.kind !== "done" || (terminal?.type !== "terminal-showdown" && terminal?.type !== "chance")) {
-        throw new Error("handleBoardConfirm: the next street requires the previous street to end at a terminal-showdown or chance node");
+      if (prevStage.state.kind !== "done" || terminal?.type !== "chance") {
+        throw new Error("handleBoardConfirm: the next street requires the previous street to end at a chance node");
       }
       request = {
         kind: "combos",
@@ -296,66 +265,12 @@ export function PostflopPanel(props: PostflopPanelProps) {
       });
   }
 
-  async function handleComputePreciseAverageEv(stageIndex: number) {
-    const stage = streets[stageIndex];
-    if (stage.state.kind !== "done" || stage.currentNode?.type !== "terminal-showdown") return;
-    const terminal = stage.currentNode;
-
-    const controller = new AbortController();
-    preciseAbortRef.current = { stageIndex, controller };
-
-    const cards = sampleNextCards(stage.board, DEFAULT_PRECISE_SAMPLE_COUNT);
-    const heroNarrowed = narrowRangeAlongPath(stage.state.result.heroRange, "P1", stage.path);
-    const villainNarrowed = narrowRangeAlongPath(stage.state.result.villainRange, "P2", stage.path);
-    const samples: { card: string; heroEvBb: number; villainEvBb: number }[] = [];
-
-    for (let i = 0; i < cards.length; i++) {
-      setPreciseAvgByStage((prev) => ({ ...prev, [stageIndex]: { kind: "solving", sampleIndex: i, sampleCount: cards.length } }));
-      const request: PostflopSolveRequest = {
-        kind: "combos",
-        board: [...stage.board, cards[i]],
-        heroRange: heroNarrowed,
-        villainRange: villainNarrowed,
-        startPot: terminal.potBb,
-        effectiveStackBb: stage.effectiveStackAtStart - terminal.committed.P1,
-        maxIterations: DEFAULT_MAX_CFR_ITERATIONS,
-        targetExploitabilityPercent: DEFAULT_TARGET_EXPLOITABILITY_PERCENT,
-        rake: props.rake,
-      };
-      try {
-        const result = await solvePostflopInWorker(request, { signal: controller.signal });
-        if (!result.exploitability) throw new Error("missing exploitability on sample result");
-        samples.push({
-          card: cards[i],
-          heroEvBb: result.exploitability.p1ActualBb,
-          villainEvBb: result.exploitability.p2ActualBb,
-        });
-      } catch (err) {
-        if (err instanceof DOMException && err.name === "AbortError") {
-          setPreciseAvgByStage((prev) => ({ ...prev, [stageIndex]: { kind: "idle" } }));
-          return;
-        }
-        const message = err instanceof Error ? err.message : String(err);
-        setPreciseAvgByStage((prev) => ({ ...prev, [stageIndex]: { kind: "error", message } }));
-        return;
-      }
-    }
-
-    const avgHeroEvBb = samples.reduce((s, x) => s + x.heroEvBb, 0) / samples.length;
-    const avgVillainEvBb = samples.reduce((s, x) => s + x.villainEvBb, 0) / samples.length;
-    setPreciseAvgByStage((prev) => ({ ...prev, [stageIndex]: { kind: "done", samples, avgHeroEvBb, avgVillainEvBb } }));
-  }
-
-  function handleCancelPreciseAverageEv() {
-    preciseAbortRef.current?.controller.abort();
-  }
-
   /**
    * The "done" state's content — identical whether it's the live current
    * street or an expanded past one, since a past stage is (by
    * PostflopPanel's own invariant: a next stage is only ever pushed once the
-   * previous one reaches a terminal-showdown or chance node) always resolved
-   * at one of those, never a decision node — so the 2-column grid branch
+   * previous one reaches a chance node) always resolved there, never at a
+   * decision node — so the 2-column grid branch
    * below simply never fires for past stages, no separate "past" variant needed.
    */
   function renderDoneContent(
@@ -367,7 +282,7 @@ export function PostflopPanel(props: PostflopPanelProps) {
     const isFlop = stage.streetLabel === "Flop";
     const stackLeft = stage.effectiveStackAtStart - (currentNode.type === "decision" ? 0 : currentNode.committed.P1);
     const allIn = currentNode.type === "terminal-showdown" && stackLeft <= 0;
-    const handOver = currentNode.type === "terminal-fold" || allIn || (currentNode.type === "terminal-showdown" && !hasNextStreet(stage.board.length));
+    const handOver = currentNode.type === "terminal-fold" || currentNode.type === "terminal-showdown";
     const links = (
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
         {handOver && (
@@ -413,34 +328,6 @@ export function PostflopPanel(props: PostflopPanelProps) {
                 nextStreetLabel={streetLabelForBoardLength(stage.board.length + 1)}
               />
             )}
-          </>
-        )}
-        {!handOver && currentNode.type === "terminal-showdown" && (
-          <PostflopTerminalMessage
-            node={currentNode}
-            heroLabel={props.heroLabel}
-            villainLabel={props.villainLabel}
-            showdownMessage={(potBb) => {
-              const nextStreetLabel = streetLabelForBoardLength(stage.board.length + 1);
-              return `Street ends — pot ${potBb.toFixed(1)}bb, ${nextStreetLabel.toLowerCase()} card coming next.`;
-            }}
-          />
-        )}
-        {currentNode.type === "terminal-showdown" && !handOver && currentNode.checkdownEquity && (
-          <>
-            <CheckdownEquityNote
-              equity={currentNode.checkdownEquity}
-              heroLabel={props.heroLabel}
-              villainLabel={props.villainLabel}
-            />
-            <AverageNextCardEv
-              state={preciseAvgByStage[i] ?? { kind: "idle" }}
-              heroLabel={props.heroLabel}
-              villainLabel={props.villainLabel}
-              sampleCount={DEFAULT_PRECISE_SAMPLE_COUNT}
-              onCompute={() => handleComputePreciseAverageEv(i)}
-              onCancel={handleCancelPreciseAverageEv}
-            />
           </>
         )}
         {currentNode.type === "decision" &&
@@ -529,7 +416,7 @@ export function PostflopPanel(props: PostflopPanelProps) {
     );
   }
 
-  /** Pot entering street `i` — the previous street's closing (terminal-showdown) pot, or the preflop pot for the flop. */
+  /** Pot entering street `i` — the previous street's closing pot, or the preflop pot for the flop. */
   function streetStartPot(i: number): number {
     return i === 0 ? props.startPot : (streets[i - 1].currentNode?.potBb ?? props.startPot);
   }
@@ -541,7 +428,7 @@ export function PostflopPanel(props: PostflopPanelProps) {
   function renderPastStreetDetails(i: number) {
     const stage = streets[i];
     // Invariant: a stage is only ever non-last once its own action reached a
-    // terminal-showdown or chance node (see handleNavigate) — so a past stage is always done.
+    // chance node (see handleNavigate) — so a past stage is always done.
     if (stage.state.kind !== "done" || !stage.currentNode) return null;
     return (
       <div
