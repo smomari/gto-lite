@@ -33,10 +33,14 @@ import {
   CASH_THREE_BET_BB_MULTIPLIER,
   CASH_THREE_BET_IP_MULTIPLIER,
   CASH_THREE_BET_SB_MULTIPLIER,
-  OPEN_RAISE_IP_DEEP_BB,
-  OPEN_RAISE_IP_SHALLOW_BB,
-  OPEN_RAISE_OOP_DEEP_BB,
-  OPEN_RAISE_OOP_SHALLOW_BB,
+  OPEN_RAISE_BTN_DEEP_BB,
+  OPEN_RAISE_BTN_SHALLOW_BB,
+  OPEN_RAISE_CO_DEEP_BB,
+  OPEN_RAISE_CO_SHALLOW_BB,
+  OPEN_RAISE_EARLY_DEEP_BB,
+  OPEN_RAISE_EARLY_SHALLOW_BB,
+  OPEN_RAISE_SB_DEEP_BB,
+  OPEN_RAISE_SB_SHALLOW_BB,
   REACTIVE_RAISE_IP_MULTIPLIER,
   REACTIVE_RAISE_OOP_MULTIPLIER,
 } from "./constants";
@@ -83,7 +87,8 @@ export interface GameFormat {
   bbAnteBb: number;
   /** Whether the house takes a cut of each pot, as it does in cash games. */
   allowsRake: boolean;
-  openSizes: { oop: OpenSizeRange; ip: OpenSizeRange; sb: OpenSizeRange };
+  /** By seat: UTG to HJ, CO, BTN, SB. */
+  openSizes: { oop: OpenSizeRange; ip: OpenSizeRange; btn: OpenSizeRange; sb: OpenSizeRange };
   reraiseSizes: ReraiseSizes;
   sbCanLimp: boolean;
   firstInWidths: readonly FirstInAnchor[];
@@ -104,7 +109,6 @@ export interface GameFormat {
   fourBet: { widthRatio: number; valueShare: number; bluffShare: number };
 }
 
-const TOURNAMENT_IP_OPEN: OpenSizeRange = { shallowBb: OPEN_RAISE_IP_SHALLOW_BB, deepBb: OPEN_RAISE_IP_DEEP_BB };
 
 export const TOURNAMENT_8: GameFormat = {
   id: "tournament-8",
@@ -113,9 +117,10 @@ export const TOURNAMENT_8: GameFormat = {
   bbAnteBb: BB_ANTE_BB,
   allowsRake: false,
   openSizes: {
-    oop: { shallowBb: OPEN_RAISE_OOP_SHALLOW_BB, deepBb: OPEN_RAISE_OOP_DEEP_BB },
-    ip: TOURNAMENT_IP_OPEN,
-    sb: TOURNAMENT_IP_OPEN,
+    oop: { shallowBb: OPEN_RAISE_EARLY_SHALLOW_BB, deepBb: OPEN_RAISE_EARLY_DEEP_BB },
+    ip: { shallowBb: OPEN_RAISE_CO_SHALLOW_BB, deepBb: OPEN_RAISE_CO_DEEP_BB },
+    btn: { shallowBb: OPEN_RAISE_BTN_SHALLOW_BB, deepBb: OPEN_RAISE_BTN_DEEP_BB },
+    sb: { shallowBb: OPEN_RAISE_SB_SHALLOW_BB, deepBb: OPEN_RAISE_SB_DEEP_BB },
   },
   reraiseSizes: {
     threeBet: { ip: REACTIVE_RAISE_IP_MULTIPLIER, sbOop: REACTIVE_RAISE_OOP_MULTIPLIER, bbOop: REACTIVE_RAISE_OOP_MULTIPLIER },
@@ -145,6 +150,7 @@ const CASH_8: GameFormat = {
   openSizes: {
     oop: CASH_OPEN,
     ip: CASH_OPEN,
+    btn: CASH_OPEN,
     sb: { shallowBb: CASH_SB_OPEN_RAISE_BB, deepBb: CASH_SB_OPEN_RAISE_BB },
   },
   reraiseSizes: {

@@ -14,16 +14,21 @@ export const NASH_SPR_THRESHOLD = 1;
 
 /**
  * Opening raise-to size (bb) scales linearly with effective stack depth:
- * flat at/below OPEN_RAISE_SCALING_MIN_STACK_BB, reaching its deepest
- * calibrated value at STACK_MAX_BB (the app's max supported depth). OOP
- * opens 0.3bb bigger than IP at every depth (worse position, a roughly
- * depth-independent penalty) — UTG, UTG1, LJ, HJ vs CO, BTN, SB.
+ * flat at/below OPEN_RAISE_SCALING_MIN_STACK_BB, reaching its deepest value
+ * at STACK_MAX_BB (the app's max supported depth). Set to GTO Wizard's MTT
+ * 8max ChipEV solutions: 2bb from every seat at 40bb and below (3bb from the
+ * SB), and at 100bb 2.1bb from UTG to HJ, 2.2bb from CO, 2.5bb from BTN and
+ * 3.5bb from the SB.
  */
 export const OPEN_RAISE_SCALING_MIN_STACK_BB = 40;
-export const OPEN_RAISE_IP_SHALLOW_BB = 2.0; // CO, BTN, SB at/below the scaling threshold
-export const OPEN_RAISE_IP_DEEP_BB = 2.5; // CO, BTN, SB at STACK_MAX_BB
-export const OPEN_RAISE_OOP_SHALLOW_BB = 2.3; // UTG, UTG1, LJ, HJ at/below the scaling threshold
-export const OPEN_RAISE_OOP_DEEP_BB = 2.8; // UTG, UTG1, LJ, HJ at STACK_MAX_BB
+export const OPEN_RAISE_EARLY_SHALLOW_BB = 2.0; // UTG, UTG1, LJ, HJ
+export const OPEN_RAISE_EARLY_DEEP_BB = 2.1;
+export const OPEN_RAISE_CO_SHALLOW_BB = 2.0;
+export const OPEN_RAISE_CO_DEEP_BB = 2.2;
+export const OPEN_RAISE_BTN_SHALLOW_BB = 2.0;
+export const OPEN_RAISE_BTN_DEEP_BB = 2.5;
+export const OPEN_RAISE_SB_SHALLOW_BB = 3.0;
+export const OPEN_RAISE_SB_DEEP_BB = 3.5;
 
 /** Cash opens one size from every seat, a little bigger from the SB, which plays the pot out of position. */
 export const CASH_OPEN_RAISE_BB = 2.5;
