@@ -70,6 +70,43 @@ export interface ReraiseSizes {
   byStack?: { stackBb: number; threeBet: ReraiseSizes["threeBet"]; fourBetPlus: ReraiseSizes["fourBetPlus"] }[];
 }
 
+export interface DepthTuning {
+  stackBb: number;
+  /** 3-bet width as a share of the opener's: the SB's, and everyone else's. */
+  sbThreeBetWidthRatio: number;
+  threeBetWidthRatio: number;
+  coldCallOopMultiplier: number;
+  closingContinueFactor: number;
+  /** Share of a 3-bet range that is value, and the share of its flats the SB keeps. */
+  threeBetValueShare: number;
+  sbFlatFactor: number;
+  reraiseKeepBase: number;
+  fourBetWidthRatio: number;
+}
+
+/** The format with its depth tuning applied at this effective stack. Formats without any come back as they are. */
+export function tunedAt(format: GameFormat, effectiveStackBb: number): GameFormat {
+  const anchors = format.tuningByStack;
+  if (!anchors) return format;
+  const upper = anchors.findIndex((a) => a.stackBb >= effectiveStackBb);
+  const lo = anchors[upper <= 0 ? 0 : upper === -1 ? anchors.length - 1 : upper - 1];
+  const hi = anchors[upper === -1 ? anchors.length - 1 : Math.max(upper, 0)];
+  const t = hi.stackBb === lo.stackBb ? 0 : (effectiveStackBb - lo.stackBb) / (hi.stackBb - lo.stackBb);
+  const mix = (key: Exclude<keyof DepthTuning, "stackBb">) => lo[key] + (hi[key] - lo[key]) * t;
+  return {
+    ...format,
+    sbThreeBetWidthRatio: mix("sbThreeBetWidthRatio"),
+    threeBetWidthRatio: mix("threeBetWidthRatio"),
+    nonBlindThreeBetWidthRatio: mix("threeBetWidthRatio"),
+    coldCallOopMultiplier: mix("coldCallOopMultiplier"),
+    closingContinueFactor: mix("closingContinueFactor"),
+    threeBetValueShare: mix("threeBetValueShare"),
+    sbFlatFactor: mix("sbFlatFactor"),
+    reraiseKeepBase: mix("reraiseKeepBase"),
+    fourBet: { ...format.fourBet, widthRatio: mix("fourBetWidthRatio") },
+  };
+}
+
 /** A format's 3-bet and 4-bet multiples at this effective stack. */
 export function reraiseSizesAt(format: GameFormat, effectiveStackBb: number): Pick<ReraiseSizes, "threeBet" | "fourBetPlus"> {
   const anchors = format.reraiseSizes.byStack;
@@ -112,8 +149,9 @@ export interface GameFormat {
   sbCanLimp: boolean;
   firstInWidths: readonly FirstInAnchor[];
   threeBetWidthRatio: number;
-  /** 3-bet width of a seat that isn't a blind. */
+  /** 3-bet width of a seat that isn't a blind, and of the SB when it differs from the BB's. */
   nonBlindThreeBetWidthRatio: number;
+  sbThreeBetWidthRatio?: number;
   coldCallBase: number;
   coldCallOopMultiplier: number;
   /** Flats facing an open someone already called, per caller: in position on hero, and not. */
@@ -122,6 +160,15 @@ export interface GameFormat {
   squeezeKeepFactor: { opener: number; caller: number };
   /** A seat whose last action was a call re-raises at most this share of what it keeps. */
   calledReraiseShareCap: number;
+  /** Multiplies what a seat closing the action (the BB) continues with against an open. */
+  closingContinueFactor: number;
+  /** Share of a 3-bet range that is value; default RAISE_VALUE_SHARE. And the share of its flats the SB keeps; default 1. */
+  threeBetValueShare?: number;
+  sbFlatFactor?: number;
+  /** Re-raises that would put in at least this share of the stack go all-in instead: over an open, and over a 3-bet or more. */
+  jamReraiseShare?: { threeBet: number; fourBet: number };
+  /** Tuning that changes with depth, interpolated between these stacks and flat outside them; see tunedAt. */
+  tuningByStack?: DepthTuning[];
   /** Facing a re-raise with a range of its own, the share of it kept before price and equity move it. */
   reraiseKeepBase: number;
   /** Re-raising a re-raise: a share of the raiser's range, part value and part bluff. */
@@ -136,6 +183,21 @@ export interface GameFormat {
  * 100bb. In-position 3-bets and out-of-position 4-bets weren't seen there and
  * keep the old 3x and 4x.
  */
+/**
+ * Tournament tuning by depth, set against GTO Wizard's MTT 8max ChipEV
+ * solutions at 20bb, 40bb and 100bb: 3-bets widen and the SB stops flatting
+ * as stacks shorten, the BB defends wider, and facing a 3-bet a seat keeps a
+ * different share of its range. 100bb is the old tuning, which already fit.
+ */
+const TOURNAMENT_TUNING_BY_STACK: DepthTuning[] = [
+  { stackBb: 20, sbThreeBetWidthRatio: 0.62, threeBetWidthRatio: 0.48, coldCallOopMultiplier: 0.55, closingContinueFactor: 1.16, threeBetValueShare: 0.85, sbFlatFactor: 0.1, reraiseKeepBase: 0.39, fourBetWidthRatio: 0.65 },
+  { stackBb: 40, sbThreeBetWidthRatio: 0.345, threeBetWidthRatio: 0.325, coldCallOopMultiplier: 0.5, closingContinueFactor: 1.04, threeBetValueShare: RAISE_VALUE_SHARE, sbFlatFactor: 1, reraiseKeepBase: 0.4, fourBetWidthRatio: 0.55 },
+  { stackBb: 100, sbThreeBetWidthRatio: THREE_BET_WIDTH_RATIO, threeBetWidthRatio: THREE_BET_WIDTH_RATIO, coldCallOopMultiplier: COLD_CALL_OOP_MULTIPLIER, closingContinueFactor: 1, threeBetValueShare: RAISE_VALUE_SHARE, sbFlatFactor: 1, reraiseKeepBase: 0.41, fourBetWidthRatio: 0.38 },
+];
+/** In tournaments a 3-bet of a quarter of the stack, or a 4-bet of 40% of it, goes all-in, as GTO Wizard's 20bb and 40bb solutions do. */
+const TOURNAMENT_JAM_THREE_BET_SHARE = 0.25;
+const TOURNAMENT_JAM_FOUR_BET_SHARE = 0.4;
+
 const TOURNAMENT_RERAISE_SIZES_BY_STACK = [
   { stackBb: 20, threeBet: { ip: 3, sbOop: 2.5, bbOop: 3 }, fourBetPlus: { ip: 3, oop: 4 } },
   { stackBb: 40, threeBet: { ip: 3, sbOop: 3.5, bbOop: 4.25 }, fourBetPlus: { ip: 2.2, oop: 4 } },
@@ -168,6 +230,9 @@ export const TOURNAMENT_8: GameFormat = {
   overcallFactor: { ipCaller: 1, oopCaller: 1 },
   squeezeKeepFactor: { opener: 1, caller: 1 },
   calledReraiseShareCap: RERAISE_MAX_SHARE_OF_KEPT,
+  closingContinueFactor: 1,
+  jamReraiseShare: { threeBet: TOURNAMENT_JAM_THREE_BET_SHARE, fourBet: TOURNAMENT_JAM_FOUR_BET_SHARE },
+  tuningByStack: TOURNAMENT_TUNING_BY_STACK,
   reraiseKeepBase: RERAISE_KEEP_BASE,
   fourBet: { widthRatio: THREE_BET_WIDTH_RATIO, valueShare: RAISE_VALUE_SHARE, bluffShare: 0 },
 };
@@ -200,6 +265,7 @@ const CASH_8: GameFormat = {
   overcallFactor: { ipCaller: CASH_OVERCALL_FACTOR_IP_CALLER, oopCaller: CASH_OVERCALL_FACTOR_OOP_CALLER },
   squeezeKeepFactor: { opener: CASH_SQUEEZE_KEEP_FACTOR, caller: CASH_CALLER_SQUEEZE_KEEP_FACTOR },
   calledReraiseShareCap: CASH_CALLED_RERAISE_SHARE_CAP,
+  closingContinueFactor: 1,
   reraiseKeepBase: CASH_RERAISE_KEEP_BASE,
   fourBet: { widthRatio: CASH_FOUR_BET_WIDTH_RATIO, valueShare: RAISE_VALUE_SHARE, bluffShare: CASH_FOUR_BET_BLUFF_SHARE },
 };

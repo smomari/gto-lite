@@ -147,6 +147,10 @@ export interface FacingRaiseParams {
   coldCallOopMultiplier: number;
   /** Shrinks the flats, but not the 3-bets, against an open someone already called. 1 when no one has. */
   callFactor: number;
+  /** Multiplies what a seat closing the action continues with. */
+  closingContinueFactor: number;
+  /** Share of the 3-bets that are value. Default RAISE_VALUE_SHARE. */
+  threeBetValueShare?: number;
 }
 
 function potOddsAdjustFor(params: FacingRaiseParams): number {
@@ -158,7 +162,7 @@ function potOddsAdjustFor(params: FacingRaiseParams): number {
 function vsOpenContinueThreshold(params: FacingRaiseParams): number {
   const seatShare =
     params.seatsBehind === 0
-      ? 1
+      ? params.closingContinueFactor
       : params.coldCallBase *
         Math.pow(COLD_CALL_PER_SEAT_BEHIND, params.seatsBehind - 2) *
         (params.isIP ? 1 : params.coldCallOopMultiplier);
@@ -212,7 +216,7 @@ export function generateBbVsLimpScenario(ranking: PercentileRanking): HandFreque
 function generateVsOpenScenario(ranking: PercentileRanking, params: FacingRaiseParams): HandFrequency[] {
   const continueThreshold = vsOpenContinueThreshold(params);
   const threeBetWidth = Math.min(params.aggressorOpenWidth * params.threeBetWidthRatio, continueThreshold);
-  const valueThreshold = threeBetWidth * RAISE_VALUE_SHARE;
+  const valueThreshold = threeBetWidth * (params.threeBetValueShare ?? RAISE_VALUE_SHARE);
   const bluffs = threeBetBluffs(ranking, valueThreshold, threeBetWidth - valueThreshold);
   // The flats sit between the 3-bets and the continuing threshold; a caller in front narrows only that band.
   const callThreshold =
