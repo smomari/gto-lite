@@ -1,16 +1,16 @@
 import type { EquityMatrix } from "@/lib/equity/loadEquityMatrix";
-import { ALL_HANDS, TOTAL_COMBOS } from "@/lib/handRange/handList";
+import { ALL_HANDS, HAND_BY_LABEL, TOTAL_COMBOS } from "@/lib/handRange/handList";
 import { weightedEquityVsRange, type FrequencyMap } from "@/lib/nashSolver/pushFoldSolver";
 import { netPot, type RakeTerms } from "@/lib/solveEngine/rake";
 import type { HandFrequency } from "@/types/rangeData";
 import {
   EQUITY_REALIZATION_IP,
   EQUITY_REALIZATION_OOP,
-  RERAISE_KEEP_BASE,
   RERAISE_KEEP_MAX,
   RERAISE_KEEP_MIN,
   RERAISE_KEEP_PER_EQUITY,
 } from "./config";
+import { isThreeBetBluffCandidate } from "./generateScenario";
 
 export interface VsReraiseParams {
   /** The hands this seat got here with. Anything else folds: it isn't really being dealt here. */
@@ -22,8 +22,12 @@ export interface VsReraiseParams {
   potBb: number;
   /** Amount (bb) hero must add to call. */
   amountOwedBb: number;
-  /** Share of all combos that re-raises. Only value does: no bluffs here. */
+  /** Share of all combos that re-raises for value: the best hands kept. */
   raiseWidth: number;
+  /** Share of all combos that re-raises as a bluff, from hands that would otherwise fold. */
+  bluffWidth: number;
+  /** The share of the range kept before price and equity move it. */
+  keepBase: number;
   rake: RakeTerms;
 }
 
@@ -49,14 +53,15 @@ export function generateCallShoveScenario(matrix: EquityMatrix, params: VsShoveP
  * price — so the width follows the raiser's range, the price, position and
  * rake, not a fixed share of the deck. The range's most playable hands are the
  * ones kept, not its best all-in equities, which would drop suited connectors
- * for weak offsuit hands. The very best re-raise: value only, no bluffs here.
+ * for weak offsuit hands. The very best re-raise for value, and the most
+ * playable bluff candidates among the hands that would fold re-raise as bluffs.
  */
 export function generateVsReraiseScenario(
   matrix: EquityMatrix,
   ranking: Map<string, number>,
   params: VsReraiseParams,
 ): HandFrequency[] {
-  const { heroRange, villainRange, isIP, potBb, amountOwedBb, raiseWidth, rake } = params;
+  const { heroRange, villainRange, isIP, potBb, amountOwedBb, raiseWidth, bluffWidth, keepBase, rake } = params;
   const realization = isIP ? EQUITY_REALIZATION_IP : EQUITY_REALIZATION_OOP;
   const equityToCall = amountOwedBb / (realization * netPot(potBb + amountOwedBb, rake));
 
@@ -69,7 +74,7 @@ export function generateVsReraiseScenario(
     .sort((a, b) => (ranking.get(a.hand) ?? 1) - (ranking.get(b.hand) ?? 1));
   const rangeCombos = reached.reduce((sum, h) => sum + h.combos, 0);
   const rangeEquity = reached.reduce((sum, h) => sum + h.equity * h.combos, 0) / rangeCombos;
-  const keep = RERAISE_KEEP_BASE + RERAISE_KEEP_PER_EQUITY * (rangeEquity - equityToCall);
+  const keep = keepBase + RERAISE_KEEP_PER_EQUITY * (rangeEquity - equityToCall);
 
   const frequencies = new Map<string, { continueFreq: number; raise: number }>();
   let continueCombosLeft = Math.min(RERAISE_KEEP_MAX, Math.max(RERAISE_KEEP_MIN, keep)) * rangeCombos;
@@ -80,6 +85,16 @@ export function generateVsReraiseScenario(
     continueCombosLeft = Math.max(0, continueCombosLeft - continueFreq * combos);
     raiseCombosLeft = Math.max(0, raiseCombosLeft - raise * combos);
     frequencies.set(hand, { continueFreq, raise });
+  }
+
+  let bluffCombosLeft = bluffWidth * TOTAL_COMBOS;
+  for (const { hand, combos } of reached) {
+    if (bluffCombosLeft <= 0) break;
+    const entry = frequencies.get(hand)!;
+    if (!isThreeBetBluffCandidate(HAND_BY_LABEL.get(hand)!) || entry.continueFreq >= 1) continue;
+    const bluff = Math.min(1 - entry.continueFreq, bluffCombosLeft / combos);
+    frequencies.set(hand, { continueFreq: entry.continueFreq + bluff, raise: entry.raise + bluff });
+    bluffCombosLeft -= bluff * combos;
   }
 
   return ALL_HANDS.map((h) => {

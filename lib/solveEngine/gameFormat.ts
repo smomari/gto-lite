@@ -2,10 +2,15 @@ import type { Position } from "@/types/rangeData";
 import {
   CASH_COLD_CALL_BASE,
   CASH_FIRST_IN_WIDTHS,
+  CASH_FOUR_BET_BLUFF_SHARE,
+  CASH_FOUR_BET_WIDTH_RATIO,
+  CASH_RERAISE_KEEP_BASE,
   CASH_THREE_BET_WIDTH_RATIO,
   COLD_CALL_BASE,
   FIRST_IN_WIDTHS_BY_STACK,
+  RAISE_VALUE_SHARE,
   RAKE_OPEN_SENSITIVITY,
+  RERAISE_KEEP_BASE,
   THREE_BET_WIDTH_RATIO,
 } from "@/lib/heuristicRanges/config";
 import {
@@ -63,6 +68,10 @@ export interface GameFormat {
   firstInWidths: readonly FirstInAnchor[];
   threeBetWidthRatio: number;
   coldCallBase: number;
+  /** Facing a re-raise with a range of its own, the share of it kept before price and equity move it. */
+  reraiseKeepBase: number;
+  /** Re-raising a re-raise: a share of the raiser's range, part value and part bluff. */
+  fourBet: { widthRatio: number; valueShare: number; bluffShare: number };
 }
 
 const TOURNAMENT_IP_OPEN: OpenSizeRange = { shallowBb: OPEN_RAISE_IP_SHALLOW_BB, deepBb: OPEN_RAISE_IP_DEEP_BB };
@@ -86,6 +95,8 @@ export const TOURNAMENT_8: GameFormat = {
   firstInWidths: FIRST_IN_WIDTHS_BY_STACK,
   threeBetWidthRatio: THREE_BET_WIDTH_RATIO,
   coldCallBase: COLD_CALL_BASE,
+  reraiseKeepBase: RERAISE_KEEP_BASE,
+  fourBet: { widthRatio: THREE_BET_WIDTH_RATIO, valueShare: RAISE_VALUE_SHARE, bluffShare: 0 },
 };
 
 const CASH_OPEN: OpenSizeRange = { shallowBb: CASH_OPEN_RAISE_BB, deepBb: CASH_OPEN_RAISE_BB };
@@ -109,6 +120,8 @@ const CASH_8: GameFormat = {
   firstInWidths: CASH_FIRST_IN_WIDTHS,
   threeBetWidthRatio: CASH_THREE_BET_WIDTH_RATIO,
   coldCallBase: CASH_COLD_CALL_BASE,
+  reraiseKeepBase: CASH_RERAISE_KEEP_BASE,
+  fourBet: { widthRatio: CASH_FOUR_BET_WIDTH_RATIO, valueShare: RAISE_VALUE_SHARE, bluffShare: CASH_FOUR_BET_BLUFF_SHARE },
 };
 
 const CASH_6: GameFormat = { ...CASH_8, id: "cash-6", label: "Cash 6-max", absentSeats: ["UTG", "UTG1"] };
