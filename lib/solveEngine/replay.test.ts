@@ -104,7 +104,7 @@ describe("replayActionPath — legal sequences", () => {
     expect(utgNodes).toHaveLength(2);
     expect(utgNodes[0].sizeBb).toBe(2.1); // UTG's own open at 100bb
     expect(utgNodes[1].label).toBe("4bet");
-    expect(utgNodes[1].sizeBb).toBe(25.2); // BB's 3bet (2.1*4=8.4, BB OOP) re-raised 3x (UTG IP vs BB) = 25.2
+    expect(utgNodes[1].sizeBb).toBe(24.2); // BB's 3bet (2.1*5.25=11, BB OOP) re-raised 2.2x (UTG IP vs BB) = 24.2
   });
 
   it("normalizes an allin facing an all-in into a call", () => {

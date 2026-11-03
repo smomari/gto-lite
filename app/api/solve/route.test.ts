@@ -129,7 +129,7 @@ describe("POST /api/solve", () => {
     expect(utgNode.sizeBb).toBe(2.1); // UTG's open at 100bb
     const bbNode = body.actionPath.find((n: { actor: string }) => n.actor === "BB");
     expect(bbNode.label).toBe("3bet");
-    expect(bbNode.sizeBb).toBe(8.4); // 2.1 * 4 (BB is OOP reacting to UTG)
+    expect(bbNode.sizeBb).toBe(11); // 2.1 * 5.25 (BB is OOP reacting to UTG)
     expect(body.source).toBe("heuristic-approx");
   });
 });

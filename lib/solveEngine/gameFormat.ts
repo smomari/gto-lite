@@ -66,6 +66,25 @@ export interface ReraiseSizes {
    * for each further caller. Without it a squeeze is sized like a 3-bet.
    */
   squeeze?: { blind: number; perCaller: number };
+  /** Sizes that change with depth, interpolated between these stacks and flat outside them. Overrides threeBet and fourBetPlus. */
+  byStack?: { stackBb: number; threeBet: ReraiseSizes["threeBet"]; fourBetPlus: ReraiseSizes["fourBetPlus"] }[];
+}
+
+/** A format's 3-bet and 4-bet multiples at this effective stack. */
+export function reraiseSizesAt(format: GameFormat, effectiveStackBb: number): Pick<ReraiseSizes, "threeBet" | "fourBetPlus"> {
+  const anchors = format.reraiseSizes.byStack;
+  if (!anchors) return format.reraiseSizes;
+  const upper = anchors.findIndex((a) => a.stackBb >= effectiveStackBb);
+  if (upper === 0) return anchors[0];
+  if (upper === -1) return anchors[anchors.length - 1];
+  const lo = anchors[upper - 1];
+  const hi = anchors[upper];
+  const t = (effectiveStackBb - lo.stackBb) / (hi.stackBb - lo.stackBb);
+  const mix = (a: number, b: number) => a + (b - a) * t;
+  return {
+    threeBet: { ip: mix(lo.threeBet.ip, hi.threeBet.ip), sbOop: mix(lo.threeBet.sbOop, hi.threeBet.sbOop), bbOop: mix(lo.threeBet.bbOop, hi.threeBet.bbOop) },
+    fourBetPlus: { ip: mix(lo.fourBetPlus.ip, hi.fourBetPlus.ip), oop: mix(lo.fourBetPlus.oop, hi.fourBetPlus.oop) },
+  };
 }
 
 export interface FirstInAnchor {
@@ -110,6 +129,19 @@ export interface GameFormat {
 }
 
 
+/**
+ * Tournament blinds 3-bet a button open bigger the deeper it gets, as GTO
+ * Wizard's MTT 8max ChipEV solutions do: the SB to 2.5x at 20bb, 3.5x at 40bb
+ * and 4.5x at 100bb, the BB to 3x, 4.25x and 5.25x; the button 4-bets 2.2x at
+ * 100bb. In-position 3-bets and out-of-position 4-bets weren't seen there and
+ * keep the old 3x and 4x.
+ */
+const TOURNAMENT_RERAISE_SIZES_BY_STACK = [
+  { stackBb: 20, threeBet: { ip: 3, sbOop: 2.5, bbOop: 3 }, fourBetPlus: { ip: 3, oop: 4 } },
+  { stackBb: 40, threeBet: { ip: 3, sbOop: 3.5, bbOop: 4.25 }, fourBetPlus: { ip: 2.2, oop: 4 } },
+  { stackBb: 100, threeBet: { ip: 3, sbOop: 4.5, bbOop: 5.25 }, fourBetPlus: { ip: 2.2, oop: 4 } },
+];
+
 export const TOURNAMENT_8: GameFormat = {
   id: "tournament-8",
   label: "Tournament 8-max",
@@ -125,6 +157,7 @@ export const TOURNAMENT_8: GameFormat = {
   reraiseSizes: {
     threeBet: { ip: REACTIVE_RAISE_IP_MULTIPLIER, sbOop: REACTIVE_RAISE_OOP_MULTIPLIER, bbOop: REACTIVE_RAISE_OOP_MULTIPLIER },
     fourBetPlus: { ip: REACTIVE_RAISE_IP_MULTIPLIER, oop: REACTIVE_RAISE_OOP_MULTIPLIER },
+    byStack: TOURNAMENT_RERAISE_SIZES_BY_STACK,
   },
   sbCanLimp: true,
   firstInWidths: FIRST_IN_WIDTHS_BY_STACK,
