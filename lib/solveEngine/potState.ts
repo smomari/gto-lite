@@ -1,4 +1,5 @@
 import type { ActionType, Position } from "@/types/rangeData";
+import { SEAT_ORDER } from "@/lib/actionTree/seatOrder";
 import { SMALL_BLIND_BB, BIG_BLIND_BB } from "./constants";
 import { TOURNAMENT_8, type GameFormat } from "./gameFormat";
 
@@ -39,6 +40,18 @@ export function initialPotState(format: GameFormat = TOURNAMENT_8): PotState {
     lastActor: null,
     lastDecision: {},
   };
+}
+
+/** Seats that called the current raise: live, not its raiser, and level with it. `except` is left out too. */
+export function callersOf(state: PotState, except: Position): Position[] {
+  if (state.lastAggressor === null) return [];
+  return SEAT_ORDER.filter(
+    (seat) =>
+      seat !== except &&
+      seat !== state.lastAggressor &&
+      !state.foldedSeats.has(seat) &&
+      state.committed[seat] === state.currentBetToCall,
+  );
 }
 
 export interface ApplyActionOptions {

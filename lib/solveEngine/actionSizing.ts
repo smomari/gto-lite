@@ -2,7 +2,7 @@ import type { Position } from "@/types/rangeData";
 import type { AvailableActions, CallOption } from "@/types/solveApi";
 import { postflopSeatIndex, seatIndex } from "@/lib/actionTree/seatOrder";
 import type { OpenSizeRange } from "./gameFormat";
-import type { PotState } from "./potState";
+import { callersOf, type PotState } from "./potState";
 import {
   BIG_BLIND_BB,
   STACK_MAX_BB,
@@ -51,11 +51,17 @@ export function computeRawRaiseTo(
     return interpolateOpenRaiseBb(openSizeFor(activeSeat, potState), effectiveStackBb);
   }
   const isIP = postflopSeatIndex(activeSeat) > postflopSeatIndex(potState.lastAggressor);
-  const { threeBet, fourBetPlus } = potState.format.reraiseSizes;
+  const { threeBet, fourBetPlus, squeeze } = potState.format.reraiseSizes;
+  const isBlind = activeSeat === "SB" || activeSeat === "BB";
+  const callers = potState.raiseDepth === 1 && squeeze ? callersOf(potState, activeSeat).length : 0;
   const multiplier =
     potState.raiseDepth >= 2
       ? isIP ? fourBetPlus.ip : fourBetPlus.oop
-      : isIP ? threeBet.ip : activeSeat === "SB" ? threeBet.sbOop : threeBet.bbOop;
+      : callers > 0
+        ? isBlind
+          ? squeeze!.blind + (callers - 1) * squeeze!.perCaller
+          : threeBet.ip + callers * squeeze!.perCaller
+        : isIP ? threeBet.ip : activeSeat === "SB" ? threeBet.sbOop : threeBet.bbOop;
   // Round for the same reason interpolateOpenRaiseBb does — now that opening
   // sizes can be non-integer bb amounts, multiplying them by an integer
   // multiplier can still leak binary-float noise (e.g. 2.8 * 3 === 8.399999999999999).

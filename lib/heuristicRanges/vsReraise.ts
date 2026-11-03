@@ -30,6 +30,8 @@ export interface VsReraiseParams {
   keepBase: number;
   /** Cap on the value re-raises, as a share of what's kept. Default: none. */
   maxRaiseShareOfKept?: number;
+  /** Scales what's kept, e.g. facing a squeeze. Default 1. */
+  keepFactor?: number;
   rake: RakeTerms;
 }
 
@@ -79,7 +81,7 @@ export function generateVsReraiseScenario(
   const keep = keepBase + RERAISE_KEEP_PER_EQUITY * (rangeEquity - equityToCall);
 
   const frequencies = new Map<string, { continueFreq: number; raise: number }>();
-  let continueCombosLeft = Math.min(RERAISE_KEEP_MAX, Math.max(RERAISE_KEEP_MIN, keep)) * rangeCombos;
+  let continueCombosLeft = Math.min(RERAISE_KEEP_MAX, Math.max(RERAISE_KEEP_MIN, keep)) * (params.keepFactor ?? 1) * rangeCombos;
   let raiseCombosLeft = Math.min(raiseWidth * TOTAL_COMBOS, continueCombosLeft * (params.maxRaiseShareOfKept ?? 1));
   for (const { hand, combos } of reached) {
     const continueFreq = Math.min(1, continueCombosLeft / combos);

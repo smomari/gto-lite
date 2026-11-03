@@ -97,9 +97,9 @@ describe("cash pots and sizes", () => {
     const toBb = path(CASH_6, ["LJ", "fold"], ["HJ", "fold"], ["CO", "fold"], ["BTN", "raise"], ["SB", "fold"]);
     expect(toBb.status === "active" && computeRawRaiseTo("BB", toBb.potState, 100)).toBe(13.5);
     const coOpen = path(CASH_6, ["LJ", "fold"], ["HJ", "fold"], ["CO", "raise"]);
-    expect(coOpen.status === "active" && computeRawRaiseTo("BTN", coOpen.potState, 100)).toBe(7.5);
+    expect(coOpen.status === "active" && computeRawRaiseTo("BTN", coOpen.potState, 100)).toBe(8);
     const sbOpen = path(CASH_6, ["LJ", "fold"], ["HJ", "fold"], ["CO", "fold"], ["BTN", "fold"], ["SB", "raise"]);
-    expect(sbOpen.status === "active" && computeRawRaiseTo("BB", sbOpen.potState, 100)).toBe(10.5);
+    expect(sbOpen.status === "active" && computeRawRaiseTo("BB", sbOpen.potState, 100)).toBe(11.2);
     const threeBet = path(CASH_6, ["LJ", "fold"], ["HJ", "fold"], ["CO", "fold"], ["BTN", "raise"], ["SB", "fold"], ["BB", "raise"]);
     expect(threeBet.status === "active" && computeRawRaiseTo("BTN", threeBet.potState, 100)).toBe(28.5);
   });
@@ -183,4 +183,45 @@ describe("rake", () => {
     expect(firstInWidthsUnder(TOURNAMENT_8, DEFAULT_RAKE_SETTINGS)).toBe(TOURNAMENT_8.firstInWidths);
     expect(hands(NO_RAKE_SETTINGS)).toEqual(solveActiveSeat(matrix, "BTN", initialPotState(TOURNAMENT_8), 100).hands);
   });
+
+describe("multiway", () => {
+  const steps = (...moves: string[]) => moves.map((m) => m.split(":") as [Position, ActionType]);
+  const facing = (format: GameFormat, ...moves: string[]) => {
+    const result = path(format, ...steps(...moves));
+    if (result.status !== "active") throw new Error("expected a seat to act");
+    return result;
+  };
+
+  it("sizes a squeeze up for each caller, in cash only", () => {
+    const oneCaller = facing(CASH_8, "UTG:raise", "UTG1:call", "LJ:fold", "HJ:fold", "CO:fold", "BTN:fold", "SB:fold");
+    expect(computeRawRaiseTo("BB", oneCaller.potState, 100)).toBe(14);
+    const twoCallers = facing(CASH_8, "UTG:raise", "UTG1:call", "LJ:call", "HJ:fold", "CO:fold", "BTN:fold", "SB:fold");
+    expect(computeRawRaiseTo("BB", twoCallers.potState, 100)).toBe(16.5);
+    const tournament = facing(TOURNAMENT_8, "UTG:raise", "UTG1:call", "LJ:fold", "HJ:fold", "CO:fold", "BTN:fold", "SB:fold");
+    expect(computeRawRaiseTo("BB", tournament.potState, 100)).toBe(computeRawRaiseTo("BB", facing(TOURNAMENT_8, "UTG:raise", "UTG1:fold", "LJ:fold", "HJ:fold", "CO:fold", "BTN:fold", "SB:fold").potState, 100));
+  });
+
+  it("overcalls less behind a caller in position than one out of position, without touching the 3-bets", () => {
+    const flats = (...moves: string[]) => {
+      const state = facing(CASH_6, ...moves);
+      const hands = solveActiveSeat(matrix, "BB", state.potState, 100, DEFAULT_RAKE_SETTINGS).hands;
+      return { call: hands.reduce((s, h) => s + h.call * HAND_BY_LABEL.get(h.hand)!.combos, 0), raise: hands.map((h) => h.raise) };
+    };
+    const headsUp = flats("LJ:fold", "HJ:fold", "CO:fold", "BTN:raise", "SB:fold");
+    const behindSb = flats("LJ:fold", "HJ:fold", "CO:fold", "BTN:raise", "SB:call");
+    expect(behindSb.call).toBeLessThan(headsUp.call);
+    const coOpen = flats("LJ:fold", "HJ:fold", "CO:raise", "BTN:fold", "SB:fold");
+    const behindBtn = flats("LJ:fold", "HJ:fold", "CO:raise", "BTN:call", "SB:fold");
+    expect(behindBtn.call / coOpen.call).toBeLessThan(behindSb.call / headsUp.call);
+    expect(behindBtn.raise).toEqual(coOpen.raise);
+  });
+
+  it.each([["cash", CASH_8], ["tournament", TOURNAMENT_8]] as const)("leaves a %s cold caller facing a squeeze some calls", (_, format) => {
+    const state = facing(format, "UTG:raise", "UTG1:call", "LJ:fold", "HJ:fold", "CO:fold", "BTN:fold", "SB:fold", "BB:raise", "UTG:fold");
+    const hands = solveActiveSeat(matrix, "UTG1", state.potState, 100, format.allowsRake ? DEFAULT_RAKE_SETTINGS : NO_RAKE_SETTINGS).hands;
+    const raises = hands.reduce((s, h) => s + h.raise * HAND_BY_LABEL.get(h.hand)!.combos, 0);
+    const calls = hands.reduce((s, h) => s + h.call * HAND_BY_LABEL.get(h.hand)!.combos, 0);
+    expect(calls).toBeGreaterThan(raises);
+  });
+});
 });

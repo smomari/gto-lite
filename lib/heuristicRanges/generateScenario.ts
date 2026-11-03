@@ -12,7 +12,6 @@ import {
   BB_VS_LIMP_VALUE_WIDTH,
   BB_VS_LIMP_BLUFF_WIDTH,
   COLD_CALL_PER_SEAT_BEHIND,
-  COLD_CALL_OOP_MULTIPLIER,
   RAISE_VALUE_SHARE,
   BASE_CONTINUE_THRESHOLD,
   RAISE_DEPTH_TIGHTEN_FACTOR,
@@ -145,6 +144,9 @@ export interface FacingRaiseParams {
   coldCallBase: number;
   /** Multiplies the width that continues against an open. */
   continueFactor: number;
+  coldCallOopMultiplier: number;
+  /** Shrinks the flats, but not the 3-bets, against an open someone already called. 1 when no one has. */
+  callFactor: number;
 }
 
 function potOddsAdjustFor(params: FacingRaiseParams): number {
@@ -159,7 +161,7 @@ function vsOpenContinueThreshold(params: FacingRaiseParams): number {
       ? 1
       : params.coldCallBase *
         Math.pow(COLD_CALL_PER_SEAT_BEHIND, params.seatsBehind - 2) *
-        (params.isIP ? 1 : COLD_CALL_OOP_MULTIPLIER);
+        (params.isIP ? 1 : params.coldCallOopMultiplier);
   // The square root keeps a cheap call from pulling in nearly every hand: price matters less than the opener's range here.
   return clamp(Math.sqrt(params.aggressorOpenWidth * potOddsAdjustFor(params)) * seatShare * params.continueFactor, 0.01, 0.95);
 }
@@ -212,10 +214,13 @@ function generateVsOpenScenario(ranking: PercentileRanking, params: FacingRaiseP
   const threeBetWidth = Math.min(params.aggressorOpenWidth * params.threeBetWidthRatio, continueThreshold);
   const valueThreshold = threeBetWidth * RAISE_VALUE_SHARE;
   const bluffs = threeBetBluffs(ranking, valueThreshold, threeBetWidth - valueThreshold);
+  // The flats sit between the 3-bets and the continuing threshold; a caller in front narrows only that band.
+  const callThreshold =
+    params.callFactor === 1 ? continueThreshold : threeBetWidth + (continueThreshold - threeBetWidth) * params.callFactor;
   return ALL_HANDS.map((h) => {
     const percentile = ranking.get(h.hand) ?? 1;
     const raise = Math.max(softInclude(percentile, valueThreshold), bluffs.get(h.hand) ?? 0);
-    const call = Math.max(softInclude(percentile, continueThreshold) - raise, 0);
+    const call = Math.max(softInclude(percentile, callThreshold) - raise, 0);
     return { hand: h.hand, fold: 1 - raise - call, call, raise };
   });
 }

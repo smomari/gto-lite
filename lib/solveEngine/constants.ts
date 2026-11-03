@@ -37,11 +37,16 @@ export const REACTIVE_RAISE_IP_MULTIPLIER = 3; // raiser acts after the last agg
 export const REACTIVE_RAISE_OOP_MULTIPLIER = 4; // raiser acts before the last aggressor postflop
 
 /**
- * Cash re-raise sizes, set against GTO Wizard's 6max NL10 100bb solution:
- * the SB 3-bets a button open to 11bb and the BB to 13.5bb, and 4-bets run
- * 2.11x. The IP 3-bet and the OOP 4-bet weren't seen there and are estimates.
+ * Cash re-raise sizes, as GTO Wizard's 6max NL10 100bb solution uses them:
+ * the button 3-bets a cutoff or UTG open to 8bb, the SB a button open to 11bb
+ * and the BB to 13.5bb; the button 4-bets a BB 3-bet to 28.5bb, and UTG a
+ * button 3-bet to 21.5bb.
  */
-export const CASH_THREE_BET_IP_MULTIPLIER = 3;
+export const CASH_THREE_BET_IP_MULTIPLIER = 3.2;
 export const CASH_THREE_BET_SB_MULTIPLIER = 4.4;
 export const CASH_THREE_BET_BB_MULTIPLIER = 5.4;
-export const CASH_FOUR_BET_MULTIPLIER = 2.11;
+export const CASH_FOUR_BET_IP_MULTIPLIER = 2.11;
+export const CASH_FOUR_BET_OOP_MULTIPLIER = 2.69;
+/** Either blind squeezes a cutoff open and button call to 14bb there; further callers and in-position squeezes are estimates. */
+export const CASH_SQUEEZE_BLIND_MULTIPLIER = 5.6;
+export const CASH_SQUEEZE_PER_CALLER = 1;

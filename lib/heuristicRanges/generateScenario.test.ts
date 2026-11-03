@@ -140,6 +140,8 @@ describe("generateFacingRaiseScenario", () => {
     threeBetWidthRatio: THREE_BET_WIDTH_RATIO,
     coldCallBase: COLD_CALL_BASE,
     continueFactor: 1,
+    coldCallOopMultiplier: 0.6,
+    callFactor: 1,
   };
 
   it("has 169 entries with fold+call+raise summing to ~1", () => {
