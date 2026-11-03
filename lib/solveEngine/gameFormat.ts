@@ -10,12 +10,18 @@ import {
 } from "@/lib/heuristicRanges/config";
 import {
   BB_ANTE_BB,
+  CASH_FOUR_BET_MULTIPLIER,
   CASH_OPEN_RAISE_BB,
   CASH_SB_OPEN_RAISE_BB,
+  CASH_THREE_BET_BB_MULTIPLIER,
+  CASH_THREE_BET_IP_MULTIPLIER,
+  CASH_THREE_BET_SB_MULTIPLIER,
   OPEN_RAISE_IP_DEEP_BB,
   OPEN_RAISE_IP_SHALLOW_BB,
   OPEN_RAISE_OOP_DEEP_BB,
   OPEN_RAISE_OOP_SHALLOW_BB,
+  REACTIVE_RAISE_IP_MULTIPLIER,
+  REACTIVE_RAISE_OOP_MULTIPLIER,
 } from "./constants";
 import { DEFAULT_RAKE_SETTINGS, rakeShare, type RakeSettings } from "./rake";
 
@@ -25,6 +31,14 @@ export type GameFormatId = "tournament-8" | "cash-6" | "cash-8";
 export interface OpenSizeRange {
   shallowBb: number;
   deepBb: number;
+}
+
+/** Re-raise size as a multiple of the raise it faces, by position against the raiser. */
+export interface ReraiseSizes {
+  /** Over an open: in position, and from each blind out of position. */
+  threeBet: { ip: number; sbOop: number; bbOop: number };
+  /** Over a 3-bet or more. */
+  fourBetPlus: { ip: number; oop: number };
 }
 
 export interface FirstInAnchor {
@@ -44,6 +58,7 @@ export interface GameFormat {
   /** Whether the house takes a cut of each pot, as it does in cash games. */
   allowsRake: boolean;
   openSizes: { oop: OpenSizeRange; ip: OpenSizeRange; sb: OpenSizeRange };
+  reraiseSizes: ReraiseSizes;
   sbCanLimp: boolean;
   firstInWidths: readonly FirstInAnchor[];
   threeBetWidthRatio: number;
@@ -63,6 +78,10 @@ export const TOURNAMENT_8: GameFormat = {
     ip: TOURNAMENT_IP_OPEN,
     sb: TOURNAMENT_IP_OPEN,
   },
+  reraiseSizes: {
+    threeBet: { ip: REACTIVE_RAISE_IP_MULTIPLIER, sbOop: REACTIVE_RAISE_OOP_MULTIPLIER, bbOop: REACTIVE_RAISE_OOP_MULTIPLIER },
+    fourBetPlus: { ip: REACTIVE_RAISE_IP_MULTIPLIER, oop: REACTIVE_RAISE_OOP_MULTIPLIER },
+  },
   sbCanLimp: true,
   firstInWidths: FIRST_IN_WIDTHS_BY_STACK,
   threeBetWidthRatio: THREE_BET_WIDTH_RATIO,
@@ -81,6 +100,10 @@ const CASH_8: GameFormat = {
     oop: CASH_OPEN,
     ip: CASH_OPEN,
     sb: { shallowBb: CASH_SB_OPEN_RAISE_BB, deepBb: CASH_SB_OPEN_RAISE_BB },
+  },
+  reraiseSizes: {
+    threeBet: { ip: CASH_THREE_BET_IP_MULTIPLIER, sbOop: CASH_THREE_BET_SB_MULTIPLIER, bbOop: CASH_THREE_BET_BB_MULTIPLIER },
+    fourBetPlus: { ip: CASH_FOUR_BET_MULTIPLIER, oop: CASH_FOUR_BET_MULTIPLIER },
   },
   sbCanLimp: false,
   firstInWidths: CASH_FIRST_IN_WIDTHS,

@@ -27,7 +27,7 @@ export const OPEN_RAISE_OOP_DEEP_BB = 2.8; // UTG, UTG1, LJ, HJ at STACK_MAX_BB
 
 /** Cash opens one size from every seat, a little bigger from the SB, which plays the pot out of position. */
 export const CASH_OPEN_RAISE_BB = 2.5;
-export const CASH_SB_OPEN_RAISE_BB = 3;
+export const CASH_SB_OPEN_RAISE_BB = 3.5;
 
 /** BB's raise-to size over a limp. */
 export const LIMP_RAISE_TO_BB = 3.5;
@@ -35,3 +35,13 @@ export const LIMP_RAISE_TO_BB = 3.5;
 /** Reactive raise-to size, as a multiple of the previous aggressor's raise-to amount. */
 export const REACTIVE_RAISE_IP_MULTIPLIER = 3; // raiser acts after the last aggressor postflop
 export const REACTIVE_RAISE_OOP_MULTIPLIER = 4; // raiser acts before the last aggressor postflop
+
+/**
+ * Cash re-raise sizes, set against GTO Wizard's 6max NL10 100bb solution:
+ * the SB 3-bets a button open to 11bb and the BB to 13.5bb, and 4-bets run
+ * 2.11x. The IP 3-bet and the OOP 4-bet weren't seen there and are estimates.
+ */
+export const CASH_THREE_BET_IP_MULTIPLIER = 3;
+export const CASH_THREE_BET_SB_MULTIPLIER = 4.4;
+export const CASH_THREE_BET_BB_MULTIPLIER = 5.4;
+export const CASH_FOUR_BET_MULTIPLIER = 2.11;

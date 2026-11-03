@@ -69,12 +69,12 @@ describe("cash pots and sizes", () => {
     expect(initialPotState(TOURNAMENT_8).potBb).toBe(2.5);
   });
 
-  it("opens 2.5bb from every seat and 3bb from the SB, at every stack", () => {
+  it("opens 2.5bb from every seat and 3.5bb from the SB, at every stack", () => {
     const state = initialPotState(CASH_8);
     for (const seat of ["UTG", "UTG1", "LJ", "HJ", "CO", "BTN"] as const) {
       for (const stack of [40, 70, 100]) expect(computeRawRaiseTo(seat, state, stack)).toBe(2.5);
     }
-    for (const stack of [40, 70, 100]) expect(computeRawRaiseTo("SB", state, stack)).toBe(3);
+    for (const stack of [40, 70, 100]) expect(computeRawRaiseTo("SB", state, stack)).toBe(3.5);
   });
 
   it("puts a BTN open and BB call to the flop in a 5.5bb pot", () => {
@@ -89,6 +89,19 @@ describe("cash pots and sizes", () => {
     );
     expect(result).toMatchObject({ status: "resolved", reason: "action-closed" });
     expect(result.potState.potBb).toBe(5.5);
+  });
+
+  it("re-raises by position against the raiser", () => {
+    const btnOpen = path(CASH_6, ["LJ", "fold"], ["HJ", "fold"], ["CO", "fold"], ["BTN", "raise"]);
+    expect(btnOpen.status === "active" && computeRawRaiseTo("SB", btnOpen.potState, 100)).toBe(11);
+    const toBb = path(CASH_6, ["LJ", "fold"], ["HJ", "fold"], ["CO", "fold"], ["BTN", "raise"], ["SB", "fold"]);
+    expect(toBb.status === "active" && computeRawRaiseTo("BB", toBb.potState, 100)).toBe(13.5);
+    const coOpen = path(CASH_6, ["LJ", "fold"], ["HJ", "fold"], ["CO", "raise"]);
+    expect(coOpen.status === "active" && computeRawRaiseTo("BTN", coOpen.potState, 100)).toBe(7.5);
+    const sbOpen = path(CASH_6, ["LJ", "fold"], ["HJ", "fold"], ["CO", "fold"], ["BTN", "fold"], ["SB", "raise"]);
+    expect(sbOpen.status === "active" && computeRawRaiseTo("BB", sbOpen.potState, 100)).toBe(10.5);
+    const threeBet = path(CASH_6, ["LJ", "fold"], ["HJ", "fold"], ["CO", "fold"], ["BTN", "raise"], ["SB", "fold"], ["BB", "raise"]);
+    expect(threeBet.status === "active" && computeRawRaiseTo("BTN", threeBet.potState, 100)).toBe(28.5);
   });
 
   it("gives the SB no limp", () => {
