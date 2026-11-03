@@ -117,7 +117,7 @@ describe("cash ranges", () => {
     const widths = seats.map((seat) => playedShare(solveActiveSeat(matrix, seat, initialPotState(CASH_8), 100).hands));
     expect(widths).toEqual([...widths].sort((a, b) => a - b));
     expect(widths[0]).toBeCloseTo(0.12, 1);
-    expect(widths[5]).toBeCloseTo(0.46, 1);
+    expect(widths[5]).toBeCloseTo(0.4, 1);
 
     const sb = solveActiveSeat(matrix, "SB", initialPotState(CASH_8), 100).hands;
     expect(sb.every((h) => h.call === 0)).toBe(true);

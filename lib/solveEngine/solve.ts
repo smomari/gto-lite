@@ -9,7 +9,7 @@ import {
   generateSbFirstInScenario,
   openWidthFor,
 } from "@/lib/heuristicRanges/generateScenario";
-import { RAISE_VALUE_SHARE, RAKE_CONTINUE_SENSITIVITY } from "@/lib/heuristicRanges/config";
+import { RAISE_VALUE_SHARE, RAKE_CONTINUE_FALLOFF } from "@/lib/heuristicRanges/config";
 import { generateCallShoveScenario, generateVsReraiseScenario } from "@/lib/heuristicRanges/vsReraise";
 import type { FrequencyMap } from "@/lib/nashSolver/pushFoldSolver";
 import { firstInWidthsUnder } from "./gameFormat";
@@ -144,7 +144,7 @@ export function solveActiveSeat(
       seatsBehind: seatIndex(lastAggressor!) > seatIndex(activeSeat) ? 0 : SEAT_ORDER.length - 1 - seatIndex(activeSeat),
       threeBetWidthRatio: format.threeBetWidthRatio,
       coldCallBase: format.coldCallBase,
-      continueFactor: 1 - RAKE_CONTINUE_SENSITIVITY * rakeShare(rake.structure),
+      continueFactor: Math.exp(-RAKE_CONTINUE_FALLOFF * rakeShare(rake.structure)),
     }),
   };
 }
