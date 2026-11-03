@@ -9,8 +9,6 @@ import {
   LIMP_RAISE_TO_BB,
   NASH_FLAT_STACK_THRESHOLD_BB,
   OPEN_RAISE_SCALING_MIN_STACK_BB,
-  REACTIVE_RAISE_IP_MULTIPLIER,
-  REACTIVE_RAISE_OOP_MULTIPLIER,
 } from "./constants";
 
 /** UTG, UTG1, LJ, HJ open OOP-sized; CO and BTN open IP-sized; SB has its own size. BB never opens. */
@@ -53,7 +51,11 @@ export function computeRawRaiseTo(
     return interpolateOpenRaiseBb(openSizeFor(activeSeat, potState), effectiveStackBb);
   }
   const isIP = postflopSeatIndex(activeSeat) > postflopSeatIndex(potState.lastAggressor);
-  const multiplier = isIP ? REACTIVE_RAISE_IP_MULTIPLIER : REACTIVE_RAISE_OOP_MULTIPLIER;
+  const { threeBet, fourBetPlus } = potState.format.reraiseSizes;
+  const multiplier =
+    potState.raiseDepth >= 2
+      ? isIP ? fourBetPlus.ip : fourBetPlus.oop
+      : isIP ? threeBet.ip : activeSeat === "SB" ? threeBet.sbOop : threeBet.bbOop;
   // Round for the same reason interpolateOpenRaiseBb does — now that opening
   // sizes can be non-integer bb amounts, multiplying them by an integer
   // multiplier can still leak binary-float noise (e.g. 2.8 * 3 === 8.399999999999999).
