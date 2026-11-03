@@ -25,33 +25,54 @@ describe("computeRawRaiseTo — opening raises", () => {
   });
 });
 
+describe("computeRawRaiseTo — tournament re-raises by depth", () => {
+  const btnOpen = (stack: number) =>
+    ["UTG", "UTG1", "LJ", "HJ", "CO"].reduce(
+      (state, seat) => applyAction(state, seat as never, "fold", { effectiveStackBb: stack }),
+      initialPotState(),
+    );
+  const opened = (stack: number) => applyAction(btnOpen(stack), "BTN", "raise", { effectiveStackBb: stack, raiseToBb: computeRawRaiseTo("BTN", btnOpen(stack), stack) });
+
+  it("3-bets from the blinds bigger the deeper it is", () => {
+    expect(computeRawRaiseTo("SB", opened(100), 100)).toBe(11.3); // 2.5 * 4.5
+    expect(computeRawRaiseTo("BB", opened(100), 100)).toBe(13.1); // 2.5 * 5.25
+    expect(computeRawRaiseTo("SB", opened(40), 40)).toBe(7); // 2 * 3.5
+    expect(computeRawRaiseTo("BB", opened(20), 20)).toBe(6); // 2 * 3
+  });
+
+  it("4-bets the button 2.2x at 100bb", () => {
+    const threeBet = applyAction(applyAction(opened(100), "SB", "fold", { effectiveStackBb: 100 }), "BB", "raise", { effectiveStackBb: 100, raiseToBb: 13.1 });
+    expect(computeRawRaiseTo("BTN", threeBet, 100)).toBe(28.8);
+  });
+});
+
 describe("computeRawRaiseTo — reactive raises", () => {
   it("raises 3x (IP) when the raiser acts after the last aggressor postflop", () => {
     const state = applyAction(initialPotState(), "UTG", "raise", { effectiveStackBb: 100, raiseToBb: 4 });
     expect(computeRawRaiseTo("CO", state, 100)).toBe(12); // 4 * 3
   });
 
-  it("raises 4x (OOP) when the raiser acts before the last aggressor postflop", () => {
+  it("3-bets with the out-of-position size when the raiser acts before the last aggressor postflop", () => {
     const state = applyAction(initialPotState(), "CO", "raise", { effectiveStackBb: 100, raiseToBb: 3 });
     // A constructed fixture: CO opened after UTG's turn had already passed.
-    expect(computeRawRaiseTo("UTG", state, 100)).toBe(12); // 3 * 4
+    expect(computeRawRaiseTo("UTG", state, 100)).toBe(15.8); // 3 * 5.25
   });
 
-  it("treats the blinds as OOP even though they act last preflop: SB and BB reacting to BTN raise 4x", () => {
+  it("treats the blinds as OOP even though they act last preflop", () => {
     const state = applyAction(initialPotState(), "BTN", "raise", { effectiveStackBb: 100, raiseToBb: 2.5 });
-    expect(computeRawRaiseTo("SB", state, 100)).toBe(10); // 2.5 * 4
-    expect(computeRawRaiseTo("BB", state, 100)).toBe(10);
+    expect(computeRawRaiseTo("SB", state, 100)).toBe(11.3); // 2.5 * 4.5
+    expect(computeRawRaiseTo("BB", state, 100)).toBe(13.1); // 2.5 * 5.25
   });
 
-  it("gives BTN position over a blind's 3-bet: 3x, though BTN acts before the blinds preflop", () => {
+  it("gives BTN position over a blind's 3-bet, though BTN acts before the blinds preflop", () => {
     const open = applyAction(initialPotState(), "BTN", "raise", { effectiveStackBb: 100, raiseToBb: 2.5 });
     const threeBet = applyAction(open, "SB", "raise", { effectiveStackBb: 100, raiseToBb: 10 });
-    expect(computeRawRaiseTo("BTN", threeBet, 100)).toBe(30); // 10 * 3
+    expect(computeRawRaiseTo("BTN", threeBet, 100)).toBe(22); // 10 * 2.2, the in-position 4-bet
   });
 
   it("puts SB out of position against BB", () => {
     const state = applyAction(initialPotState(), "BB", "raise", { effectiveStackBb: 100, raiseToBb: 3 });
-    expect(computeRawRaiseTo("SB", state, 100)).toBe(12); // 3 * 4
+    expect(computeRawRaiseTo("SB", state, 100)).toBe(13.5); // 3 * 4.5
   });
 
   it("always compares against the CURRENT lastAggressor, not a stale one, when a seat reopens", () => {

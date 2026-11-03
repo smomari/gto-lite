@@ -1,7 +1,7 @@
 import type { Position } from "@/types/rangeData";
 import type { AvailableActions, CallOption } from "@/types/solveApi";
 import { postflopSeatIndex, seatIndex } from "@/lib/actionTree/seatOrder";
-import type { OpenSizeRange } from "./gameFormat";
+import { reraiseSizesAt, type OpenSizeRange } from "./gameFormat";
 import { callersOf, type PotState } from "./potState";
 import {
   BIG_BLIND_BB,
@@ -52,7 +52,8 @@ export function computeRawRaiseTo(
     return interpolateOpenRaiseBb(openSizeFor(activeSeat, potState), effectiveStackBb);
   }
   const isIP = postflopSeatIndex(activeSeat) > postflopSeatIndex(potState.lastAggressor);
-  const { threeBet, fourBetPlus, squeeze } = potState.format.reraiseSizes;
+  const { squeeze } = potState.format.reraiseSizes;
+  const { threeBet, fourBetPlus } = reraiseSizesAt(potState.format, effectiveStackBb);
   const isBlind = activeSeat === "SB" || activeSeat === "BB";
   const callers = potState.raiseDepth === 1 && squeeze ? callersOf(potState, activeSeat).length : 0;
   const multiplier =
