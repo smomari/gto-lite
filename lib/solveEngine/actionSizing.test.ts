@@ -3,47 +3,25 @@ import { initialPotState, applyAction } from "./potState";
 import { computeAvailableActions, computeRawRaiseTo } from "./actionSizing";
 
 describe("computeRawRaiseTo — opening raises", () => {
-  it("opens the IP shallow size (2bb) at/under the scaling threshold from CO, BTN, SB", () => {
-    const state = initialPotState();
-    for (const seat of ["CO", "BTN", "SB"] as const) {
-      expect(computeRawRaiseTo(seat, state, 40)).toBe(2);
-      expect(computeRawRaiseTo(seat, state, 1)).toBe(2);
-    }
+  const opens = (stack: number) =>
+    (["UTG", "UTG1", "LJ", "HJ", "CO", "BTN", "SB"] as const).map((seat) => computeRawRaiseTo(seat, initialPotState(), stack));
+
+  it("opens 2bb from every seat and 3bb from the SB at and below the scaling threshold", () => {
+    expect(opens(40)).toEqual([2, 2, 2, 2, 2, 2, 3]);
+    expect(opens(20)).toEqual([2, 2, 2, 2, 2, 2, 3]);
   });
 
-  it("opens the OOP shallow size (2.3bb) at/under the scaling threshold from UTG, UTG1, LJ, HJ", () => {
-    const state = initialPotState();
-    for (const seat of ["UTG", "UTG1", "LJ", "HJ"] as const) {
-      expect(computeRawRaiseTo(seat, state, 40)).toBe(2.3);
-    }
-  });
-
-  it("opens the IP deep size (2.5bb) at the max supported stack (100bb)", () => {
-    const state = initialPotState();
-    for (const seat of ["CO", "BTN", "SB"] as const) {
-      expect(computeRawRaiseTo(seat, state, 100)).toBe(2.5);
-    }
-  });
-
-  it("opens the OOP deep size (2.8bb) at the max supported stack (100bb)", () => {
-    const state = initialPotState();
-    for (const seat of ["UTG", "UTG1", "LJ", "HJ"] as const) {
-      expect(computeRawRaiseTo(seat, state, 100)).toBe(2.8);
-    }
+  it("opens by seat at the max supported stack (100bb)", () => {
+    expect(opens(100)).toEqual([2.1, 2.1, 2.1, 2.1, 2.2, 2.5, 3.5]);
   });
 
   it("interpolates linearly between the shallow and deep sizes", () => {
-    const state = initialPotState();
-    expect(computeRawRaiseTo("CO", state, 64)).toBe(2.2); // IP: 40% of the way from 40bb to 100bb
-    expect(computeRawRaiseTo("UTG", state, 64)).toBe(2.5); // OOP
-    expect(computeRawRaiseTo("CO", state, 70)).toBe(2.3); // IP: exact midpoint
-    expect(computeRawRaiseTo("UTG", state, 70)).toBe(2.5); // OOP
+    expect(computeRawRaiseTo("BTN", initialPotState(), 64)).toBe(2.2); // 40% of the way from 40bb to 100bb
+    expect(computeRawRaiseTo("SB", initialPotState(), 64)).toBe(3.2);
   });
 
   it("clamps to the deep-stack value beyond the max supported stack (defensive — unreachable via the validated API)", () => {
-    const state = initialPotState();
-    expect(computeRawRaiseTo("CO", state, 150)).toBe(2.5);
-    expect(computeRawRaiseTo("UTG", state, 150)).toBe(2.8);
+    expect(opens(150)).toEqual(opens(100));
   });
 });
 
@@ -106,7 +84,7 @@ describe("computeAvailableActions", () => {
     const actions = computeAvailableActions("UTG", initialPotState(), 100);
     expect(actions.fold).toBe(true);
     expect(actions.call).toBeNull();
-    expect(actions.raise).toEqual({ toBb: 2.8 });
+    expect(actions.raise).toEqual({ toBb: 2.1 });
     expect(actions.allin).toEqual({ toBb: 100 });
   });
 

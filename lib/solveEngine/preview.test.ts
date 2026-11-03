@@ -98,7 +98,7 @@ describe("previewQuickAction", () => {
     const actions = previewQuickAction([], "UTG", "CO", 100, TOURNAMENT_8);
     expect(actions).not.toBeNull();
     expect(actions!.call).toBeNull(); // opening decision, nothing to call
-    expect(actions!.raise).toEqual({ toBb: 2.5 }); // CO is IP-half, deep stack (100bb)
+    expect(actions!.raise).toEqual({ toBb: 2.2 }); // CO at 100bb
     expect(actions!.allin).toEqual({ toBb: 100 });
   });
 

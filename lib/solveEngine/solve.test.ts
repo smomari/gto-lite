@@ -185,7 +185,7 @@ describe("solveActiveSeat", () => {
       const shoved = play(["UTG", "raise"], ...foldsTo("UTG1", "LJ", "HJ", "CO"), ["BTN", "raise"], ...foldsTo("SB", "BB"), ["UTG", "raise"], ["BTN", "allin"]);
       const hands = solveActiveSeat(matrix, "UTG", shoved.potState, STACK).hands;
 
-      expect(shoved.potState.potBb).toBeGreaterThan(130);
+      expect(shoved.potState.potBb).toBeGreaterThan(120);
       expect(hands.find((h) => h.hand === "AA")!.call).toBe(1);
       hands.forEach((h, i) => {
         if (fourBetHands[i].raise === 0) expect(played(h)).toBe(0);

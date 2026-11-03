@@ -11,10 +11,11 @@ import {
   OPEN_RAISE_SCALING_MIN_STACK_BB,
 } from "./constants";
 
-/** UTG, UTG1, LJ, HJ open OOP-sized; CO and BTN open IP-sized; SB has its own size. BB never opens. */
+/** UTG, UTG1, LJ, HJ share a size; CO, BTN and SB each have their own. BB never opens. */
 function openSizeFor(activeSeat: Position, potState: PotState): OpenSizeRange {
   const { openSizes } = potState.format;
   if (activeSeat === "SB") return openSizes.sb;
+  if (activeSeat === "BTN") return openSizes.btn;
   return seatIndex(activeSeat) <= 3 ? openSizes.oop : openSizes.ip;
 }
 

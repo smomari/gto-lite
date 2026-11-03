@@ -102,9 +102,9 @@ describe("replayActionPath — legal sequences", () => {
     if (result.status !== "active") throw new Error("expected active");
     const utgNodes = result.canonicalActionPath.filter((n) => n.actor === "UTG");
     expect(utgNodes).toHaveLength(2);
-    expect(utgNodes[0].sizeBb).toBe(2.8); // UTG's own open: OOP deep size (100bb stack)
+    expect(utgNodes[0].sizeBb).toBe(2.1); // UTG's own open at 100bb
     expect(utgNodes[1].label).toBe("4bet");
-    expect(utgNodes[1].sizeBb).toBe(33.6); // BB's 3bet (2.8*4=11.2, BB OOP) re-raised 3x (UTG IP vs BB) = 33.6
+    expect(utgNodes[1].sizeBb).toBe(25.2); // BB's 3bet (2.1*4=8.4, BB OOP) re-raised 3x (UTG IP vs BB) = 25.2
   });
 
   it("normalizes an allin facing an all-in into a call", () => {
