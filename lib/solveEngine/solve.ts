@@ -9,7 +9,7 @@ import {
   generateSbFirstInScenario,
   openWidthFor,
 } from "@/lib/heuristicRanges/generateScenario";
-import { RAKE_CONTINUE_FALLOFF } from "@/lib/heuristicRanges/config";
+import { RAISE_VALUE_SHARE, RAKE_CONTINUE_FALLOFF, RERAISE_KEEP_BASE, RERAISE_MAX_SHARE_OF_KEPT } from "@/lib/heuristicRanges/config";
 import { generateCallShoveScenario, generateVsReraiseScenario } from "@/lib/heuristicRanges/vsReraise";
 import type { FrequencyMap } from "@/lib/nashSolver/pushFoldSolver";
 import { firstInWidthsUnder } from "./gameFormat";
@@ -109,7 +109,7 @@ export function solveActiveSeat(
   if (!hasOpener) {
     if (activeSeat === "BB") return { source: "heuristic-approx", hands: generateBbVsLimpScenario(ranking) };
     if (activeSeat === "SB" && format.sbCanLimp) {
-      return { source: "heuristic-approx", hands: generateSbFirstInScenario(ranking, effectiveStackBb) };
+      return { source: "heuristic-approx", hands: generateSbFirstInScenario(ranking, effectiveStackBb, firstInWidths) };
     }
     return {
       source: "heuristic-approx",
@@ -127,9 +127,19 @@ export function solveActiveSeat(
         isIP,
         potBb: potState.potBb,
         amountOwedBb,
-        raiseWidth: shareOfCombos(villainRange) * format.fourBet.widthRatio * format.fourBet.valueShare,
-        bluffWidth: shareOfCombos(villainRange) * format.fourBet.widthRatio * format.fourBet.bluffShare,
-        keepBase: format.reraiseKeepBase,
+        ...(potState.raiseDepth >= 2
+          ? {
+              raiseWidth: shareOfCombos(villainRange) * format.fourBet.widthRatio * format.fourBet.valueShare,
+              bluffWidth: shareOfCombos(villainRange) * format.fourBet.widthRatio * format.fourBet.bluffShare,
+              keepBase: format.reraiseKeepBase,
+            }
+          : // A limper raised over: the 4-bet tuning doesn't apply, and nothing was compared here.
+            {
+              raiseWidth: shareOfCombos(villainRange) * format.threeBetWidthRatio * RAISE_VALUE_SHARE,
+              bluffWidth: 0,
+              keepBase: RERAISE_KEEP_BASE,
+              maxRaiseShareOfKept: RERAISE_MAX_SHARE_OF_KEPT,
+            }),
         rake: rake.structure,
       }),
     };

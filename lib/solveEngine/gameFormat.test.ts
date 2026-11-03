@@ -104,15 +104,15 @@ describe("cash pots and sizes", () => {
     expect(threeBet.status === "active" && computeRawRaiseTo("BTN", threeBet.potState, 100)).toBe(28.5);
   });
 
-  it("gives the SB no limp", () => {
+  it("lets the SB limp above the push/fold stacks", () => {
     const state = path(CASH_8, ...(["UTG", "UTG1", "LJ", "HJ", "CO", "BTN"] as const).map((s) => [s, "fold"] as [Position, ActionType]));
     expect(state.status === "active" && state.activeSeat).toBe("SB");
-    expect(computeAvailableActions("SB", state.potState, 100).call).toBeNull();
+    expect(computeAvailableActions("SB", state.potState, 100).call).toEqual({ label: "Limp", amountBb: 0.5 });
   });
 });
 
 describe("cash ranges", () => {
-  it("opens each seat wider than the last, up to the button, with the SB raising or folding", () => {
+  it("opens each seat wider than the last, up to the button, with the SB mixing raises and limps", () => {
     const seats = ["UTG", "UTG1", "LJ", "HJ", "CO", "BTN"] as const;
     const widths = seats.map((seat) => playedShare(solveActiveSeat(matrix, seat, initialPotState(CASH_8), 100).hands));
     expect(widths).toEqual([...widths].sort((a, b) => a - b));
@@ -120,8 +120,9 @@ describe("cash ranges", () => {
     expect(widths[5]).toBeCloseTo(0.4, 1);
 
     const sb = solveActiveSeat(matrix, "SB", initialPotState(CASH_8), 100).hands;
-    expect(sb.every((h) => h.call === 0)).toBe(true);
-    expect(playedShare(sb)).toBeCloseTo(0.38, 1);
+    const share = (k: (h: HandFrequency) => number) => sb.reduce((sum, h) => sum + k(h) * HAND_BY_LABEL.get(h.hand)!.combos, 0) / 1326;
+    expect(share((h) => h.raise + (h.allin ?? 0))).toBeCloseTo(0.34, 1);
+    expect(share((h) => h.call)).toBeCloseTo(0.15, 1);
   });
 
   it("shares one LJ chart between 6-max and 8-max", () => {

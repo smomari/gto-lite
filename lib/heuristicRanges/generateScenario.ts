@@ -112,9 +112,13 @@ export function generateOpeningScenario(
 }
 
 /** SB folded to: raises its best hands, limps most of the rest, folds the bottom. */
-export function generateSbFirstInScenario(ranking: PercentileRanking, effectiveStackBb: number): HandFrequency[] {
-  const playThreshold = firstInWidth(FIRST_IN_WIDTHS_BY_STACK, (a) => a.sbPlay, effectiveStackBb);
-  const raiseThreshold = firstInWidth(FIRST_IN_WIDTHS_BY_STACK, (a) => a.sbRaise, effectiveStackBb);
+export function generateSbFirstInScenario(
+  ranking: PercentileRanking,
+  effectiveStackBb: number,
+  anchors: readonly FirstInAnchor[] = FIRST_IN_WIDTHS_BY_STACK,
+): HandFrequency[] {
+  const playThreshold = firstInWidth(anchors, (a) => a.sbPlay!, effectiveStackBb);
+  const raiseThreshold = firstInWidth(anchors, (a) => a.sbRaise!, effectiveStackBb);
   return handFrequencies(ranking, (p) => {
     const play = softInclude(p, playThreshold);
     const raise = softInclude(p, raiseThreshold);
