@@ -13,13 +13,14 @@ export const FIRST_IN_WIDTHS_BY_STACK = [
   { stackBb: 100, widths: [0.13, 0.15, 0.19, 0.25, 0.32, 0.46, 0.44], sbPlay: 0.85, sbRaise: 0.1 },
 ];
 /**
- * Cash opens at 100bb, UTG..SB, flat at every stack. There is no limping and
- * nothing dead but the blinds, so SB raises or folds. 6-max shares this table:
+ * Cash opens at 100bb, UTG..SB, flat at every stack. The SB limps some and
+ * raises some, as GTO Wizard's 6max NL10 does (raise 34%, limp 15%), so its
+ * raise-or-fold width is its raising part. 6-max shares this table:
  * its LJ has the same seats behind it as an 8-max LJ folded to. A starting
  * point between conflicting public charts, its button set to GTO Wizard's
  * 6max NL10 (40%), not a solved result.
  */
-export const CASH_FIRST_IN_WIDTHS = [{ stackBb: 100, widths: [0.12, 0.14, 0.17, 0.21, 0.28, 0.4, 0.38] }];
+export const CASH_FIRST_IN_WIDTHS = [{ stackBb: 100, widths: [0.12, 0.14, 0.17, 0.21, 0.28, 0.4, 0.34], sbPlay: 0.49, sbRaise: 0.34 }];
 /**
  * How much rake moves the charts. Rake is not in these tables' equity ranking,
  * so these are rules of thumb, not solved results: `rakeShare` is the cut of a
@@ -56,6 +57,8 @@ export const CASH_RERAISE_KEEP_BASE = 0.27;
 export const RERAISE_KEEP_PER_EQUITY = 1.5;
 export const RERAISE_KEEP_MIN = 0.15;
 export const RERAISE_KEEP_MAX = 0.75;
+/** A limper raised over re-raises at most this share of what it keeps, so its narrow range facing a wide raiser still calls. */
+export const RERAISE_MAX_SHARE_OF_KEPT = 1 / 3;
 /** Share of combos BB raises over a limp. Heavier on value than a 3-bet: there are only so many suited bluffs. */
 export const BB_VS_LIMP_VALUE_WIDTH = 0.34;
 export const BB_VS_LIMP_BLUFF_WIDTH = 0.12;

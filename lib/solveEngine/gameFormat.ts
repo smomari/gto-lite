@@ -50,6 +50,9 @@ export interface FirstInAnchor {
   stackBb: number;
   /** Raise-or-fold open width of each seat, UTG..SB. */
   widths: readonly number[];
+  /** With limping on offer: all the SB plays, and the part of it that raises. */
+  sbPlay?: number;
+  sbRaise?: number;
 }
 
 /** The rules and range tuning of one kind of game. */
@@ -116,7 +119,7 @@ const CASH_8: GameFormat = {
     threeBet: { ip: CASH_THREE_BET_IP_MULTIPLIER, sbOop: CASH_THREE_BET_SB_MULTIPLIER, bbOop: CASH_THREE_BET_BB_MULTIPLIER },
     fourBetPlus: { ip: CASH_FOUR_BET_MULTIPLIER, oop: CASH_FOUR_BET_MULTIPLIER },
   },
-  sbCanLimp: false,
+  sbCanLimp: true,
   firstInWidths: CASH_FIRST_IN_WIDTHS,
   threeBetWidthRatio: CASH_THREE_BET_WIDTH_RATIO,
   coldCallBase: CASH_COLD_CALL_BASE,
@@ -134,7 +137,13 @@ export function firstInWidthsUnder(format: GameFormat, rake: RakeSettings): read
   const drawnAt = rakeShare(DEFAULT_RAKE_SETTINGS.structure);
   const stealCost = rake.noFlopNoDrop ? 0 : rake.structure.rate;
   const factor = (1 - RAKE_OPEN_SENSITIVITY * (rakeShare(rake.structure) - drawnAt)) * (1 - stealCost);
-  return format.firstInWidths.map((anchor) => ({ ...anchor, widths: anchor.widths.map((width) => width * factor) }));
+  const scale = (width: number | undefined) => (width === undefined ? undefined : width * factor);
+  return format.firstInWidths.map((anchor) => ({
+    ...anchor,
+    widths: anchor.widths.map((width) => width * factor),
+    sbPlay: scale(anchor.sbPlay),
+    sbRaise: scale(anchor.sbRaise),
+  }));
 }
 
 export function gameFormatById(id: string): GameFormat | undefined {

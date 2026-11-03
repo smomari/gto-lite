@@ -28,6 +28,8 @@ export interface VsReraiseParams {
   bluffWidth: number;
   /** The share of the range kept before price and equity move it. */
   keepBase: number;
+  /** Cap on the value re-raises, as a share of what's kept. Default: none. */
+  maxRaiseShareOfKept?: number;
   rake: RakeTerms;
 }
 
@@ -78,7 +80,7 @@ export function generateVsReraiseScenario(
 
   const frequencies = new Map<string, { continueFreq: number; raise: number }>();
   let continueCombosLeft = Math.min(RERAISE_KEEP_MAX, Math.max(RERAISE_KEEP_MIN, keep)) * rangeCombos;
-  let raiseCombosLeft = raiseWidth * TOTAL_COMBOS;
+  let raiseCombosLeft = Math.min(raiseWidth * TOTAL_COMBOS, continueCombosLeft * (params.maxRaiseShareOfKept ?? 1));
   for (const { hand, combos } of reached) {
     const continueFreq = Math.min(1, continueCombosLeft / combos);
     const raise = Math.min(continueFreq, raiseCombosLeft / combos);
