@@ -23,6 +23,8 @@ const base: VsReraiseParams = {
   potBb: 13,
   amountOwedBb: 7.5,
   raiseWidth: 0.04,
+  bluffWidth: 0,
+  keepBase: 0.5,
   rake: NO_RAKE,
 };
 const continuing = (hands: HandFrequency[]) => hands.reduce((sum, h) => sum + (1 - h.fold) * HAND_BY_LABEL.get(h.hand)!.combos, 0);
@@ -63,6 +65,20 @@ describe("generateVsReraiseScenario", () => {
     const hands = new Map(solve({ heroRange: range("AA KK AKs 76s K4o") }).map((h) => [h.hand, h]));
     expect(ranking.get("76s")!).toBeLessThan(ranking.get("K4o")!);
     expect(hands.get("76s")!.fold).toBeLessThan(hands.get("K4o")!.fold);
+  });
+
+  it("bluffs only with suited candidates it would otherwise fold", () => {
+    const plain = new Map(solve().map((h) => [h.hand, h]));
+    const bluffed = solve({ heroRange: range(`${OPENER} A4s A3s A2s 65s 54s`), bluffWidth: 0.01 });
+    const raisedMore = bluffed.filter((h) => h.raise > (plain.get(h.hand)?.raise ?? 0) + 1e-9);
+    expect(raisedMore.length).toBeGreaterThan(0);
+    for (const h of raisedMore) expect(HAND_BY_LABEL.get(h.hand)!.type).toBe("suited");
+    const bluffCombos = bluffed.reduce((sum, h) => sum + (h.raise - (plain.get(h.hand)?.raise ?? 0)) * HAND_BY_LABEL.get(h.hand)!.combos, 0);
+    expect(bluffCombos).toBeGreaterThan(0);
+  });
+
+  it("is unchanged without bluffs", () => {
+    expect(solve({ bluffWidth: 0 })).toEqual(solve());
   });
 
   it("gives up more against a tighter raiser", () => {

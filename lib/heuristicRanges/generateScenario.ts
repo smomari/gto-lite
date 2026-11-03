@@ -173,7 +173,7 @@ function raiseFractionFor(params: FacingRaiseParams): number {
 }
 
 /** Suited hands with a draw to the nuts or a straight: what a 3-bet bluffs with instead of the next-best value hands. */
-function isThreeBetBluffCandidate(h: CanonicalHand): boolean {
+export function isThreeBetBluffCandidate(h: CanonicalHand): boolean {
   if (h.type !== "suited") return false;
   const low = RANKS.indexOf(h.rankLow);
   return h.rankHigh === "A" ? low >= RANKS.indexOf("5") : low - RANKS.indexOf(h.rankHigh) <= 3;

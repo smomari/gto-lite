@@ -51,8 +51,10 @@ export const RAISE_KEEP_SHARE = 0.3;
 export const EQUITY_REALIZATION_IP = 0.9;
 export const EQUITY_REALIZATION_OOP = 0.75;
 export const RERAISE_KEEP_BASE = 0.5;
+/** Cash keeps less: GTO Wizard's NL10 button continues 29% of its range against a 13.5bb BB 3-bet, bluffs included. */
+export const CASH_RERAISE_KEEP_BASE = 0.27;
 export const RERAISE_KEEP_PER_EQUITY = 1.5;
-export const RERAISE_KEEP_MIN = 0.25;
+export const RERAISE_KEEP_MIN = 0.15;
 export const RERAISE_KEEP_MAX = 0.75;
 /** Share of combos BB raises over a limp. Heavier on value than a 3-bet: there are only so many suited bluffs. */
 export const BB_VS_LIMP_VALUE_WIDTH = 0.34;
@@ -67,6 +69,9 @@ export const THREE_BET_WIDTH_RATIO = 0.3;
 export const CASH_COLD_CALL_BASE = 0.58;
 export const CASH_THREE_BET_WIDTH_RATIO = 0.325;
 export const RAISE_VALUE_SHARE = 0.6;
+/** Cash 4-bets: a share of the 3-bettor's range, 40% of it bluffs, from GTO Wizard's NL10 button facing a BB 3-bet (15% of its range). */
+export const CASH_FOUR_BET_WIDTH_RATIO = 0.48;
+export const CASH_FOUR_BET_BLUFF_SHARE = 0.4;
 
 // --- Facing-a-raise continuing threshold ----------------------------------
 export const BASE_CONTINUE_THRESHOLD = 0.3; // neutral continue %, before adjustment, facing a re-raise

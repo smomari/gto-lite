@@ -9,7 +9,7 @@ import {
   generateSbFirstInScenario,
   openWidthFor,
 } from "@/lib/heuristicRanges/generateScenario";
-import { RAISE_VALUE_SHARE, RAKE_CONTINUE_FALLOFF } from "@/lib/heuristicRanges/config";
+import { RAKE_CONTINUE_FALLOFF } from "@/lib/heuristicRanges/config";
 import { generateCallShoveScenario, generateVsReraiseScenario } from "@/lib/heuristicRanges/vsReraise";
 import type { FrequencyMap } from "@/lib/nashSolver/pushFoldSolver";
 import { firstInWidthsUnder } from "./gameFormat";
@@ -127,7 +127,9 @@ export function solveActiveSeat(
         isIP,
         potBb: potState.potBb,
         amountOwedBb,
-        raiseWidth: shareOfCombos(villainRange) * format.threeBetWidthRatio * RAISE_VALUE_SHARE,
+        raiseWidth: shareOfCombos(villainRange) * format.fourBet.widthRatio * format.fourBet.valueShare,
+        bluffWidth: shareOfCombos(villainRange) * format.fourBet.widthRatio * format.fourBet.bluffShare,
+        keepBase: format.reraiseKeepBase,
         rake: rake.structure,
       }),
     };
