@@ -16,9 +16,10 @@ export const FIRST_IN_WIDTHS_BY_STACK = [
  * Cash opens at 100bb, UTG..SB, flat at every stack. There is no limping and
  * nothing dead but the blinds, so SB raises or folds. 6-max shares this table:
  * its LJ has the same seats behind it as an 8-max LJ folded to. A starting
- * point between conflicting public charts, not a solved result.
+ * point between conflicting public charts, its button set to GTO Wizard's
+ * 6max NL10 (40%), not a solved result.
  */
-export const CASH_FIRST_IN_WIDTHS = [{ stackBb: 100, widths: [0.12, 0.14, 0.17, 0.21, 0.28, 0.46, 0.38] }];
+export const CASH_FIRST_IN_WIDTHS = [{ stackBb: 100, widths: [0.12, 0.14, 0.17, 0.21, 0.28, 0.4, 0.38] }];
 /**
  * How much rake moves the charts. Rake is not in these tables' equity ranking,
  * so these are rules of thumb, not solved results: `rakeShare` is the cut of a
@@ -27,7 +28,8 @@ export const CASH_FIRST_IN_WIDTHS = [{ stackBb: 100, widths: [0.12, 0.14, 0.17, 
  * flop to win. With no flop no drop off, stealing the blinds pays rake too.
  */
 export const RAKE_OPEN_SENSITIVITY = 1.5;
-export const RAKE_CONTINUE_SENSITIVITY = 3;
+/** Flats keep exp(−RAKE_CONTINUE_FALLOFF × rakeShare) of their width: set so the BB defends a button open as GTO Wizard's NL10 does. */
+export const RAKE_CONTINUE_FALLOFF = 10.1;
 /**
  * Between the push/fold stacks and JAM_MAX_STACK_BB, a share of each first-in
  * raising range jams instead, growing as the stack shrinks and reaching
@@ -62,8 +64,8 @@ export const COLD_CALL_OOP_MULTIPLIER = 0.6;
 /** 3-bet width as a share of the opener's width, and how much of a raise range is value. */
 export const THREE_BET_WIDTH_RATIO = 0.3;
 /** Without an ante, flats get worse and more of the continuing range 3-bets. */
-export const CASH_COLD_CALL_BASE = 0.5;
-export const CASH_THREE_BET_WIDTH_RATIO = 0.4;
+export const CASH_COLD_CALL_BASE = 0.58;
+export const CASH_THREE_BET_WIDTH_RATIO = 0.325;
 export const RAISE_VALUE_SHARE = 0.6;
 
 // --- Facing-a-raise continuing threshold ----------------------------------
