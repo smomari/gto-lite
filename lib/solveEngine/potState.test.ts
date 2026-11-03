@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { initialPotState, applyAction } from "./potState";
+import { initialPotState, applyAction, callersOf } from "./potState";
 
 describe("initialPotState", () => {
   it("seeds the pot with SB + BB + BB ante", () => {
@@ -74,5 +74,13 @@ describe("applyAction", () => {
 
     const called = applyAction(threeBet, "UTG", "call", { effectiveStackBb: 100 });
     expect(called.lastDecision.UTG).toEqual({ state: threeBet, action: "call" });
+  });
+
+  it("finds the seats that called the current raise", () => {
+    const open = applyAction(initialPotState(), "UTG", "raise", { effectiveStackBb: 100, raiseToBb: 2.8 });
+    const called = applyAction(applyAction(open, "UTG1", "call", { effectiveStackBb: 100 }), "LJ", "fold", { effectiveStackBb: 100 });
+    expect(callersOf(called, "BB")).toEqual(["UTG1"]);
+    expect(callersOf(called, "UTG1")).toEqual([]);
+    expect(callersOf(initialPotState(), "BB")).toEqual([]);
   });
 });

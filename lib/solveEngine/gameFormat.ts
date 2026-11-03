@@ -1,23 +1,35 @@
 import type { Position } from "@/types/rangeData";
 import {
+  CASH_CALLED_RERAISE_SHARE_CAP,
   CASH_COLD_CALL_BASE,
+  CASH_COLD_CALL_OOP_MULTIPLIER,
   CASH_FIRST_IN_WIDTHS,
   CASH_FOUR_BET_BLUFF_SHARE,
   CASH_FOUR_BET_WIDTH_RATIO,
+  CASH_NON_BLIND_THREE_BET_WIDTH_RATIO,
+  CASH_OVERCALL_FACTOR_IP_CALLER,
+  CASH_OVERCALL_FACTOR_OOP_CALLER,
   CASH_RERAISE_KEEP_BASE,
+  CASH_CALLER_SQUEEZE_KEEP_FACTOR,
+  CASH_SQUEEZE_KEEP_FACTOR,
   CASH_THREE_BET_WIDTH_RATIO,
   COLD_CALL_BASE,
+  COLD_CALL_OOP_MULTIPLIER,
   FIRST_IN_WIDTHS_BY_STACK,
   RAISE_VALUE_SHARE,
   RAKE_OPEN_SENSITIVITY,
   RERAISE_KEEP_BASE,
+  RERAISE_MAX_SHARE_OF_KEPT,
   THREE_BET_WIDTH_RATIO,
 } from "@/lib/heuristicRanges/config";
 import {
   BB_ANTE_BB,
-  CASH_FOUR_BET_MULTIPLIER,
+  CASH_FOUR_BET_IP_MULTIPLIER,
+  CASH_FOUR_BET_OOP_MULTIPLIER,
   CASH_OPEN_RAISE_BB,
   CASH_SB_OPEN_RAISE_BB,
+  CASH_SQUEEZE_BLIND_MULTIPLIER,
+  CASH_SQUEEZE_PER_CALLER,
   CASH_THREE_BET_BB_MULTIPLIER,
   CASH_THREE_BET_IP_MULTIPLIER,
   CASH_THREE_BET_SB_MULTIPLIER,
@@ -44,6 +56,12 @@ export interface ReraiseSizes {
   threeBet: { ip: number; sbOop: number; bbOop: number };
   /** Over a 3-bet or more. */
   fourBetPlus: { ip: number; oop: number };
+  /**
+   * Over an open that someone called: a blind's multiple of the open with one
+   * caller, an in-position seat's added to its plain 3-bet, plus `perCaller`
+   * for each further caller. Without it a squeeze is sized like a 3-bet.
+   */
+  squeeze?: { blind: number; perCaller: number };
 }
 
 export interface FirstInAnchor {
@@ -70,7 +88,16 @@ export interface GameFormat {
   sbCanLimp: boolean;
   firstInWidths: readonly FirstInAnchor[];
   threeBetWidthRatio: number;
+  /** 3-bet width of a seat that isn't a blind. */
+  nonBlindThreeBetWidthRatio: number;
   coldCallBase: number;
+  coldCallOopMultiplier: number;
+  /** Flats facing an open someone already called, per caller: in position on hero, and not. */
+  overcallFactor: { ipCaller: number; oopCaller: number };
+  /** Facing a squeeze, the share kept of what's kept against a plain 3-bet: by the opener, and by a seat that called it. */
+  squeezeKeepFactor: { opener: number; caller: number };
+  /** A seat whose last action was a call re-raises at most this share of what it keeps. */
+  calledReraiseShareCap: number;
   /** Facing a re-raise with a range of its own, the share of it kept before price and equity move it. */
   reraiseKeepBase: number;
   /** Re-raising a re-raise: a share of the raiser's range, part value and part bluff. */
@@ -97,7 +124,12 @@ export const TOURNAMENT_8: GameFormat = {
   sbCanLimp: true,
   firstInWidths: FIRST_IN_WIDTHS_BY_STACK,
   threeBetWidthRatio: THREE_BET_WIDTH_RATIO,
+  nonBlindThreeBetWidthRatio: THREE_BET_WIDTH_RATIO,
   coldCallBase: COLD_CALL_BASE,
+  coldCallOopMultiplier: COLD_CALL_OOP_MULTIPLIER,
+  overcallFactor: { ipCaller: 1, oopCaller: 1 },
+  squeezeKeepFactor: { opener: 1, caller: 1 },
+  calledReraiseShareCap: RERAISE_MAX_SHARE_OF_KEPT,
   reraiseKeepBase: RERAISE_KEEP_BASE,
   fourBet: { widthRatio: THREE_BET_WIDTH_RATIO, valueShare: RAISE_VALUE_SHARE, bluffShare: 0 },
 };
@@ -117,12 +149,18 @@ const CASH_8: GameFormat = {
   },
   reraiseSizes: {
     threeBet: { ip: CASH_THREE_BET_IP_MULTIPLIER, sbOop: CASH_THREE_BET_SB_MULTIPLIER, bbOop: CASH_THREE_BET_BB_MULTIPLIER },
-    fourBetPlus: { ip: CASH_FOUR_BET_MULTIPLIER, oop: CASH_FOUR_BET_MULTIPLIER },
+    fourBetPlus: { ip: CASH_FOUR_BET_IP_MULTIPLIER, oop: CASH_FOUR_BET_OOP_MULTIPLIER },
+    squeeze: { blind: CASH_SQUEEZE_BLIND_MULTIPLIER, perCaller: CASH_SQUEEZE_PER_CALLER },
   },
   sbCanLimp: true,
   firstInWidths: CASH_FIRST_IN_WIDTHS,
   threeBetWidthRatio: CASH_THREE_BET_WIDTH_RATIO,
+  nonBlindThreeBetWidthRatio: CASH_NON_BLIND_THREE_BET_WIDTH_RATIO,
   coldCallBase: CASH_COLD_CALL_BASE,
+  coldCallOopMultiplier: CASH_COLD_CALL_OOP_MULTIPLIER,
+  overcallFactor: { ipCaller: CASH_OVERCALL_FACTOR_IP_CALLER, oopCaller: CASH_OVERCALL_FACTOR_OOP_CALLER },
+  squeezeKeepFactor: { opener: CASH_SQUEEZE_KEEP_FACTOR, caller: CASH_CALLER_SQUEEZE_KEEP_FACTOR },
+  calledReraiseShareCap: CASH_CALLED_RERAISE_SHARE_CAP,
   reraiseKeepBase: CASH_RERAISE_KEEP_BASE,
   fourBet: { widthRatio: CASH_FOUR_BET_WIDTH_RATIO, valueShare: RAISE_VALUE_SHARE, bluffShare: CASH_FOUR_BET_BLUFF_SHARE },
 };

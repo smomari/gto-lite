@@ -9,12 +9,12 @@ import {
   generateSbFirstInScenario,
   openWidthFor,
 } from "@/lib/heuristicRanges/generateScenario";
-import { RAISE_VALUE_SHARE, RAKE_CONTINUE_FALLOFF, RERAISE_KEEP_BASE, RERAISE_MAX_SHARE_OF_KEPT } from "@/lib/heuristicRanges/config";
+import { RAISE_VALUE_SHARE, RAKE_CONTINUE_FALLOFF, RERAISE_KEEP_BASE } from "@/lib/heuristicRanges/config";
 import { generateCallShoveScenario, generateVsReraiseScenario } from "@/lib/heuristicRanges/vsReraise";
 import type { FrequencyMap } from "@/lib/nashSolver/pushFoldSolver";
 import { firstInWidthsUnder } from "./gameFormat";
 import { aggressiveFrequencies } from "./postflopHandoff";
-import type { PotState, SeatDecision } from "./potState";
+import { callersOf, type PotState, type SeatDecision } from "./potState";
 import { NO_RAKE_SETTINGS, rakeShare, type RakeSettings } from "./rake";
 import { shouldUseNash } from "./classify";
 import { getPlayabilityRanking, getPushFoldResult } from "./solveCache";
@@ -118,6 +118,10 @@ export function solveActiveSeat(
   }
 
   const isIP = postflopSeatIndex(activeSeat) > postflopSeatIndex(lastAggressor!);
+  const isBlind = activeSeat === "SB" || activeSeat === "BB";
+  const calledLast = ownDecision?.action === "call";
+  // A 3-bet made over an open someone called is a squeeze.
+  const facingSqueeze = potState.raiseDepth === 2 && !!raiserDecision && callersOf(raiserDecision.state, lastAggressor!).length > 0;
   if (handsFacingRaise) {
     return {
       source: "heuristic-approx",
@@ -130,15 +134,18 @@ export function solveActiveSeat(
         ...(potState.raiseDepth >= 2
           ? {
               raiseWidth: shareOfCombos(villainRange) * format.fourBet.widthRatio * format.fourBet.valueShare,
-              bluffWidth: shareOfCombos(villainRange) * format.fourBet.widthRatio * format.fourBet.bluffShare,
+              // A flatting range is capped: it has nothing to spare for bluffs.
+              bluffWidth: calledLast ? 0 : shareOfCombos(villainRange) * format.fourBet.widthRatio * format.fourBet.bluffShare,
               keepBase: format.reraiseKeepBase,
+              keepFactor: facingSqueeze ? (calledLast ? format.squeezeKeepFactor.caller : format.squeezeKeepFactor.opener) : 1,
+              ...(calledLast ? { maxRaiseShareOfKept: format.calledReraiseShareCap } : {}),
             }
           : // A limper raised over: the 4-bet tuning doesn't apply, and nothing was compared here.
             {
               raiseWidth: shareOfCombos(villainRange) * format.threeBetWidthRatio * RAISE_VALUE_SHARE,
               bluffWidth: 0,
               keepBase: RERAISE_KEEP_BASE,
-              maxRaiseShareOfKept: RERAISE_MAX_SHARE_OF_KEPT,
+              maxRaiseShareOfKept: format.calledReraiseShareCap,
             }),
         rake: rake.structure,
       }),
@@ -154,9 +161,15 @@ export function solveActiveSeat(
       aggressorOpenWidth: openWidthFor(Math.min(seatIndex(lastAggressor!), 6), effectiveStackBb, firstInWidths),
       // BB's raise over a limp leaves SB closing the action, though BB sits "behind" it.
       seatsBehind: seatIndex(lastAggressor!) > seatIndex(activeSeat) ? 0 : SEAT_ORDER.length - 1 - seatIndex(activeSeat),
-      threeBetWidthRatio: format.threeBetWidthRatio,
+      threeBetWidthRatio: isBlind ? format.threeBetWidthRatio : format.nonBlindThreeBetWidthRatio,
       coldCallBase: format.coldCallBase,
+      coldCallOopMultiplier: format.coldCallOopMultiplier,
       continueFactor: Math.exp(-RAKE_CONTINUE_FALLOFF * rakeShare(rake.structure)),
+      callFactor: callersOf(potState, activeSeat).reduce(
+        (factor, caller) =>
+          factor * (postflopSeatIndex(caller) > postflopSeatIndex(activeSeat) ? format.overcallFactor.ipCaller : format.overcallFactor.oopCaller),
+        1,
+      ),
     }),
   };
 }

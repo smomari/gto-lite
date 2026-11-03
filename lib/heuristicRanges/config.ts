@@ -69,8 +69,27 @@ export const COLD_CALL_OOP_MULTIPLIER = 0.6;
 /** 3-bet width as a share of the opener's width, and how much of a raise range is value. */
 export const THREE_BET_WIDTH_RATIO = 0.3;
 /** Without an ante, flats get worse and more of the continuing range 3-bets. */
-export const CASH_COLD_CALL_BASE = 0.58;
+export const CASH_COLD_CALL_BASE = 0.43;
+/** Set with CASH_COLD_CALL_BASE so the button flats a cutoff open 2.4% and the SB a button open 2.7%, as GTO Wizard's NL10 does. */
+export const CASH_COLD_CALL_OOP_MULTIPLIER = 0.85;
+/** Blinds 3-bet 0.325 of the opener's width in cash; a seat in position 3-bets 0.4 (the button vs a cutoff open: 11.3%). */
 export const CASH_THREE_BET_WIDTH_RATIO = 0.325;
+export const CASH_NON_BLIND_THREE_BET_WIDTH_RATIO = 0.4;
+/**
+ * Overcalling behind a caller: each one cuts the flats to this share, harder
+ * when the caller is in position on hero (GTO Wizard NL10: the BB overcalls a
+ * cutoff open and button call 8.4%, a button open and SB call 20.2%).
+ */
+export const CASH_OVERCALL_FACTOR_IP_CALLER = 0.27;
+export const CASH_OVERCALL_FACTOR_OOP_CALLER = 0.62;
+/**
+ * Facing a squeeze, cash keeps this share of what it would keep against a
+ * plain 3-bet: the opener (a caller still behind it), and the caller itself.
+ */
+export const CASH_SQUEEZE_KEEP_FACTOR = 0.55;
+export const CASH_CALLER_SQUEEZE_KEEP_FACTOR = 0.85;
+/** A cold caller facing a squeeze re-raises at most this share of what it keeps (GTO Wizard NL10 button: 3.5 shove, 23.7 call). */
+export const CASH_CALLED_RERAISE_SHARE_CAP = 0.15;
 export const RAISE_VALUE_SHARE = 0.6;
 /** Cash 4-bets: a share of the 3-bettor's range, 40% of it bluffs, from GTO Wizard's NL10 button facing a BB 3-bet (15% of its range). */
 export const CASH_FOUR_BET_WIDTH_RATIO = 0.48;
