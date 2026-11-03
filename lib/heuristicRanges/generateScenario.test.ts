@@ -142,6 +142,7 @@ describe("generateFacingRaiseScenario", () => {
     continueFactor: 1,
     coldCallOopMultiplier: 0.6,
     callFactor: 1,
+    closingContinueFactor: 1,
   };
 
   it("has 169 entries with fold+call+raise summing to ~1", () => {

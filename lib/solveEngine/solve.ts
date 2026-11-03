@@ -12,7 +12,8 @@ import {
 import { RAISE_VALUE_SHARE, RAKE_CONTINUE_FALLOFF, RERAISE_KEEP_BASE } from "@/lib/heuristicRanges/config";
 import { generateCallShoveScenario, generateVsReraiseScenario } from "@/lib/heuristicRanges/vsReraise";
 import type { FrequencyMap } from "@/lib/nashSolver/pushFoldSolver";
-import { firstInWidthsUnder } from "./gameFormat";
+import { firstInWidthsUnder, tunedAt } from "./gameFormat";
+import { computeRawRaiseTo } from "./actionSizing";
 import { aggressiveFrequencies } from "./postflopHandoff";
 import { callersOf, type PotState, type SeatDecision } from "./potState";
 import { NO_RAKE_SETTINGS, rakeShare, type RakeSettings } from "./rake";
@@ -68,7 +69,7 @@ export function solveActiveSeat(
   effectiveStackBb: number,
   rake: RakeSettings = NO_RAKE_SETTINGS,
 ): SolvedNode {
-  const { format } = potState;
+  const format = tunedAt(potState.format, effectiveStackBb);
   const firstInWidths = firstInWidthsUnder(format, rake);
   const hasOpener = potState.raiseDepth >= 1;
   const remainingStackBb = effectiveStackBb - (potState.committed[activeSeat] ?? 0);
@@ -118,6 +119,11 @@ export function solveActiveSeat(
   }
 
   const isIP = postflopSeatIndex(activeSeat) > postflopSeatIndex(lastAggressor!);
+  // A re-raise that would put in most of a stack is made all-in instead.
+  const jamShare = format.jamReraiseShare && (potState.raiseDepth >= 2 ? format.jamReraiseShare.fourBet : format.jamReraiseShare.threeBet);
+  const reraisesAllIn = jamShare !== undefined && Math.min(computeRawRaiseTo(activeSeat, potState, effectiveStackBb), effectiveStackBb) >= jamShare * effectiveStackBb;
+  const committed = (hands: HandFrequency[]) =>
+    reraisesAllIn ? hands.map((h) => ({ ...h, raise: 0, allin: (h.allin ?? 0) + h.raise })) : hands;
   const isBlind = activeSeat === "SB" || activeSeat === "BB";
   const calledLast = ownDecision?.action === "call";
   // A 3-bet made over an open someone called is a squeeze.
@@ -125,7 +131,7 @@ export function solveActiveSeat(
   if (handsFacingRaise) {
     return {
       source: "heuristic-approx",
-      hands: generateVsReraiseScenario(matrix, ranking, {
+      hands: committed(generateVsReraiseScenario(matrix, ranking, {
         heroRange,
         villainRange,
         isIP,
@@ -148,12 +154,12 @@ export function solveActiveSeat(
               maxRaiseShareOfKept: format.calledReraiseShareCap,
             }),
         rake: rake.structure,
-      }),
+      })),
     };
   }
   return {
     source: "heuristic-approx",
-    hands: generateFacingRaiseScenario(ranking, {
+    hands: committed(generateFacingRaiseScenario(ranking, {
       raiseDepth: potState.raiseDepth,
       isIP,
       potBb: potState.potBb,
@@ -161,15 +167,17 @@ export function solveActiveSeat(
       aggressorOpenWidth: openWidthFor(Math.min(seatIndex(lastAggressor!), 6), effectiveStackBb, firstInWidths),
       // BB's raise over a limp leaves SB closing the action, though BB sits "behind" it.
       seatsBehind: seatIndex(lastAggressor!) > seatIndex(activeSeat) ? 0 : SEAT_ORDER.length - 1 - seatIndex(activeSeat),
-      threeBetWidthRatio: isBlind ? format.threeBetWidthRatio : format.nonBlindThreeBetWidthRatio,
+      threeBetWidthRatio: activeSeat === "SB" && format.sbThreeBetWidthRatio !== undefined ? format.sbThreeBetWidthRatio : isBlind ? format.threeBetWidthRatio : format.nonBlindThreeBetWidthRatio,
       coldCallBase: format.coldCallBase,
       coldCallOopMultiplier: format.coldCallOopMultiplier,
+      closingContinueFactor: format.closingContinueFactor,
+      threeBetValueShare: format.threeBetValueShare,
       continueFactor: Math.exp(-RAKE_CONTINUE_FALLOFF * rakeShare(rake.structure)),
-      callFactor: callersOf(potState, activeSeat).reduce(
+      callFactor: (activeSeat === "SB" ? (format.sbFlatFactor ?? 1) : 1) * callersOf(potState, activeSeat).reduce(
         (factor, caller) =>
           factor * (postflopSeatIndex(caller) > postflopSeatIndex(activeSeat) ? format.overcallFactor.ipCaller : format.overcallFactor.oopCaller),
         1,
       ),
-    }),
+    })),
   };
 }
