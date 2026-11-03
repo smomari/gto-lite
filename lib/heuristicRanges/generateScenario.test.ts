@@ -55,8 +55,8 @@ describe("generateOpeningScenario", () => {
     expect(opened / TOTAL_COMBOS).toBeCloseTo(openWidthFor(5, 100), 1);
   });
 
-  it("widens late seats from 100bb to 40bb and tightens them again by 20bb", () => {
-    expect(openWidthFor(5, 40)).toBeGreaterThan(openWidthFor(5, 100));
+  it("narrows the button from 100bb to 40bb and again by 20bb", () => {
+    expect(openWidthFor(5, 40)).toBeLessThan(openWidthFor(5, 100));
     expect(openWidthFor(5, 20)).toBeLessThan(openWidthFor(5, 40));
     expect(openWidthFor(5, 30)).toBeCloseTo((openWidthFor(5, 20) + openWidthFor(5, 40)) / 2, 6);
   });
@@ -64,7 +64,7 @@ describe("generateOpeningScenario", () => {
   it("opens suited connectors and small pairs on the button ahead of weak offsuit kings", () => {
     const byHand = new Map(generateOpeningScenario(ranking, 5, 100).map((h) => [h.hand, h]));
     for (const hand of ["76s", "98s", "22"]) expect(byHand.get(hand)!.raise).toBeGreaterThan(0.9);
-    expect(byHand.get("K4o")!.raise).toBe(0);
+    expect(byHand.get("K2o")!.raise).toBe(0);
   });
 
   it("opens SB (index 6) tighter than BTN (index 5)", () => {

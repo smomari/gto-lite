@@ -8,9 +8,9 @@ export const MIX_BUFFER = 0.03;
  * limping on offer and `sbRaise` the part of it that raises.
  */
 export const FIRST_IN_WIDTHS_BY_STACK = [
-  { stackBb: 20, widths: [0.13, 0.15, 0.18, 0.24, 0.33, 0.42, 0.42], sbPlay: 0.85, sbRaise: 0.2 },
-  { stackBb: 40, widths: [0.16, 0.18, 0.22, 0.28, 0.36, 0.5, 0.42], sbPlay: 0.82, sbRaise: 0.24 },
-  { stackBb: 100, widths: [0.13, 0.15, 0.19, 0.25, 0.32, 0.46, 0.44], sbPlay: 0.85, sbRaise: 0.1 },
+  { stackBb: 20, widths: [0.172, 0.196, 0.22, 0.259, 0.318, 0.415, 0.42], sbPlay: 0.849, sbRaise: 0.306 },
+  { stackBb: 40, widths: [0.175, 0.209, 0.243, 0.288, 0.38, 0.52, 0.42], sbPlay: 0.852, sbRaise: 0.252 },
+  { stackBb: 100, widths: [0.169, 0.2, 0.232, 0.285, 0.371, 0.544, 0.44], sbPlay: 0.904, sbRaise: 0.09 },
 ];
 /**
  * Cash opens at 100bb, UTG..SB, flat at every stack. The SB limps some and
