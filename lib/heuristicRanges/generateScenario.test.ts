@@ -211,6 +211,14 @@ describe("generateFacingRaiseScenario", () => {
     same(generateFacingRaiseScenario(ranking, { ...vsButton, openerWidthExponent: 0.2 }), generateFacingRaiseScenario(ranking, vsButton));
   });
 
+  it("shrinks only an in-position cold caller's flats with coldCallIpFactor", () => {
+    const ip = (factor?: number) => generateFacingRaiseScenario(ranking, { ...base, coldCallIpFactor: factor });
+    expect(continuingCombos(ip(0.6))).toBeLessThan(continuingCombos(ip()));
+    expect(comboWeightedRaiseFrequency(ip(0.6))).toBeCloseTo(comboWeightedRaiseFrequency(ip()), 6);
+    const oop = (factor?: number) => generateFacingRaiseScenario(ranking, { ...base, isIP: false, coldCallIpFactor: factor });
+    expect(oop(0.6)).toEqual(oop());
+  });
+
   it("3-bets suited bluffs alongside value, not just the next-best hands", () => {
     const byHand = new Map(generateFacingRaiseScenario(ranking, { ...base, aggressorOpenWidth: 0.46 }).map((h) => [h.hand, h]));
     expect(byHand.get("A5s")!.raise).toBe(1);

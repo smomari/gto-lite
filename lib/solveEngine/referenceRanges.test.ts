@@ -56,6 +56,7 @@ const share = (hs: HandFrequency[], weight: (h: HandFrequency, i: number) => num
   (100 * hs.reduce((sum, h, i) => sum + weight(h, i) * HAND_BY_LABEL.get(h.hand)!.combos, 0)) / TOTAL_COMBOS;
 const raised = (h: HandFrequency) => h.raise + (h.allin ?? 0);
 
+const ofAll = (hs: HandFrequency[]) => [share(hs, raised), share(hs, (h) => h.call), share(hs, (h) => h.fold)];
 /** Raises and calls together, % of all hands. */
 const continued = (hs: HandFrequency[]) => share(hs, (h) => 1 - h.fold);
 
@@ -85,6 +86,24 @@ describe("against public solver ranges", () => {
     const errors = Object.entries(want).map(([opener, pct]) => Math.abs(continued(hands(game, [[opener as Position, "raise"]], "BB")) - pct));
     expect(errors.reduce((a, b) => a + b, 0) / errors.length).toBeLessThanOrEqual(meanTolerance);
     expect(Math.max(...errors)).toBeLessThanOrEqual(maxTolerance);
+  });
+
+  /**
+   * A tournament cold caller in position, 3-bets and flats, % of all hands.
+   * Flats get a looser cap: ours still grow a little with the opener's width
+   * where the reference's don't, which leaves the 100bb button flatting UTG 5pp short.
+   */
+  it.each([
+    [100, { "BTN/UTG": [6.0, 19.6], "BTN/HJ": [9.5, 17.4], "BTN/CO": [12.3, 17.1], "CO/LJ": [8.1, 11.6], "HJ/UTG": [6.0, 10.5] }],
+    [40, { "BTN/UTG": [5.7, 15.4], "BTN/HJ": [7.3, 17.1], "BTN/CO": [9.3, 17.9], "CO/LJ": [5.9, 12.8], "HJ/UTG": [4.8, 9.9] }],
+    [20, { "BTN/UTG": [6.5, 11.4], "BTN/HJ": [10.3, 8.3], "BTN/CO": [12.2, 8.2], "CO/LJ": [7.9, 7.0], "HJ/UTG": [5.9, 6.2] }],
+  ] as const)("a %ibb cold caller in position 3-bets and flats about as much", (stack, want) => {
+    for (const [spot, [raise, call]] of Object.entries(want)) {
+      const [hero, opener] = spot.split("/") as Position[];
+      const [r, c] = ofAll(hands(MTT(stack), [[opener, "raise"]], hero));
+      expect(Math.abs(r - raise), spot).toBeLessThanOrEqual(TOLERANCE);
+      expect(Math.abs(c - call), spot).toBeLessThanOrEqual(5.5);
+    }
   });
 
   /** An opener out of position on a button 3-bet 4-bets far more than against a blind's; the share of its range that got there. */
