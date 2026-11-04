@@ -198,6 +198,19 @@ describe("generateFacingRaiseScenario", () => {
     expect(comboWeightedRaiseFrequency(vsLoose)).toBeGreaterThan(comboWeightedRaiseFrequency(vsTight) * 2);
   });
 
+  it("measures the opener against the button: the default exponent is the old square root, and the button's own open never moves", () => {
+    const same = (a: ReturnType<typeof generateFacingRaiseScenario>, b: ReturnType<typeof generateFacingRaiseScenario>) =>
+      a.forEach((h, i) => (["fold", "call", "raise"] as const).forEach((k) => expect(h[k]).toBeCloseTo(b[i][k], 9)));
+    const closing = { ...base, isIP: false, seatsBehind: 0, aggressorOpenWidth: 0.17, referenceOpenWidth: 0.4 };
+    const plain = generateFacingRaiseScenario(ranking, { ...closing, referenceOpenWidth: undefined });
+    same(generateFacingRaiseScenario(ranking, { ...closing, openerWidthExponent: 0.5 }), plain);
+    same(generateFacingRaiseScenario(ranking, closing), plain);
+    // A flatter exponent defends an early open wider, and leaves the button's open as it was.
+    expect(continuingCombos(generateFacingRaiseScenario(ranking, { ...closing, openerWidthExponent: 0.2 }))).toBeGreaterThan(continuingCombos(plain));
+    const vsButton = { ...closing, aggressorOpenWidth: 0.4 };
+    same(generateFacingRaiseScenario(ranking, { ...vsButton, openerWidthExponent: 0.2 }), generateFacingRaiseScenario(ranking, vsButton));
+  });
+
   it("3-bets suited bluffs alongside value, not just the next-best hands", () => {
     const byHand = new Map(generateFacingRaiseScenario(ranking, { ...base, aggressorOpenWidth: 0.46 }).map((h) => [h.hand, h]));
     expect(byHand.get("A5s")!.raise).toBe(1);
