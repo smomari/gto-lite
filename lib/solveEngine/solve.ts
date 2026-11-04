@@ -130,6 +130,9 @@ export function solveActiveSeat(
   const facingSqueeze = potState.raiseDepth === 2 && !!raiserDecision && callersOf(raiserDecision.state, lastAggressor!).length > 0;
   // BB's raise over a limp leaves SB closing the action, though BB sits "behind" it.
   const seatsBehind = seatIndex(lastAggressor!) > seatIndex(activeSeat) ? 0 : SEAT_ORDER.length - 1 - seatIndex(activeSeat);
+  // A 3-bet made in position on an opener that isn't a blind.
+  const facingThreeBetInPosition = potState.raiseDepth === 2 && !isIP && !isBlind && !calledLast;
+  const fourBet = (facingThreeBetInPosition && format.fourBet.vsInPosition) || format.fourBet;
   if (handsFacingRaise) {
     return {
       source: "heuristic-approx",
@@ -141,9 +144,9 @@ export function solveActiveSeat(
         amountOwedBb,
         ...(potState.raiseDepth >= 2
           ? {
-              raiseWidth: shareOfCombos(villainRange) * format.fourBet.widthRatio * format.fourBet.valueShare,
+              raiseWidth: shareOfCombos(villainRange) * fourBet.widthRatio * format.fourBet.valueShare,
               // A flatting range is capped: it has nothing to spare for bluffs.
-              bluffWidth: calledLast ? 0 : shareOfCombos(villainRange) * format.fourBet.widthRatio * format.fourBet.bluffShare,
+              bluffWidth: calledLast ? 0 : shareOfCombos(villainRange) * fourBet.widthRatio * fourBet.bluffShare,
               keepBase: format.reraiseKeepBase,
               keepFactor:
                 (facingSqueeze ? (calledLast ? format.squeezeKeepFactor.caller : format.squeezeKeepFactor.opener) : 1) *

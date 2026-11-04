@@ -101,6 +101,8 @@ export const RAISE_VALUE_SHARE = 0.6;
 /** Cash 4-bets: a share of the 3-bettor's range, 40% of it bluffs, from GTO Wizard's NL10 button facing a BB 3-bet (15% of its range). */
 export const CASH_FOUR_BET_WIDTH_RATIO = 0.48;
 export const CASH_FOUR_BET_BLUFF_SHARE = 0.4;
+/** Against a 3-bet made in position, wider: the public solver ranges' early seats 4-bet a button 3-bet 22–25% of the time (referenceRanges.test.ts). */
+export const CASH_FOUR_BET_VS_IN_POSITION_WIDTH_RATIO = 0.64;
 
 // --- Facing-a-raise continuing threshold ----------------------------------
 export const BASE_CONTINUE_THRESHOLD = 0.3; // neutral continue %, before adjustment, facing a re-raise
