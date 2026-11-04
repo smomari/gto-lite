@@ -132,7 +132,11 @@ export function solveActiveSeat(
   const seatsBehind = seatIndex(lastAggressor!) > seatIndex(activeSeat) ? 0 : SEAT_ORDER.length - 1 - seatIndex(activeSeat);
   // A 3-bet made in position on an opener that isn't a blind.
   const facingThreeBetInPosition = potState.raiseDepth === 2 && !isIP && !isBlind && !calledLast;
-  const fourBet = (facingThreeBetInPosition && format.fourBet.vsInPosition) || format.fourBet;
+  const sbFacingBbThreeBet = potState.raiseDepth === 2 && activeSeat === "SB" && lastAggressor === "BB" && ownDecision?.action === "raise";
+  const fourBet =
+    (facingThreeBetInPosition && format.fourBet.vsInPosition) || (sbFacingBbThreeBet && format.fourBet.sbVsBb) || format.fourBet;
+  // The BB against the SB's first-in raise, heads-up and in position on it.
+  const blindVsBlind = potState.raiseDepth === 1 && activeSeat === "BB" && lastAggressor === "SB" ? format.blindVsBlind : undefined;
   if (handsFacingRaise) {
     return {
       source: "heuristic-approx",
@@ -150,7 +154,8 @@ export function solveActiveSeat(
               keepBase: format.reraiseKeepBase,
               keepFactor:
                 (facingSqueeze ? (calledLast ? format.squeezeKeepFactor.caller : format.squeezeKeepFactor.opener) : 1) *
-                (activeSeat === "SB" && potState.raiseDepth === 2 && ownDecision?.action === "raise" ? (format.sbOpenerKeepFactor ?? 1) : 1),
+                (activeSeat === "SB" && potState.raiseDepth === 2 && ownDecision?.action === "raise" ? (format.sbOpenerKeepFactor ?? 1) : 1) *
+                (lastAggressor === "SB" && potState.raiseDepth === 2 && ownDecision?.action === "raise" ? (format.sbThreeBetKeepFactor ?? 1) : 1),
               ...(calledLast ? { maxRaiseShareOfKept: format.calledReraiseShareCap } : { valueInDeckCombos: true }),
             }
           : // A limper raised over: the 4-bet tuning doesn't apply, and nothing was compared here.
@@ -176,10 +181,12 @@ export function solveActiveSeat(
       openerWidthExponent: seatsBehind === 0 ? format.closingWidthExponent : undefined,
       coldCallIpFactor: format.coldCallIpFactor,
       seatsBehind,
-      threeBetWidthRatio: activeSeat === "SB" && format.sbThreeBetWidthRatio !== undefined ? format.sbThreeBetWidthRatio : isBlind ? format.threeBetWidthRatio : format.nonBlindThreeBetWidthRatio,
+      threeBetWidthRatio:
+        blindVsBlind?.threeBetWidthRatio ??
+        (activeSeat === "SB" && format.sbThreeBetWidthRatio !== undefined ? format.sbThreeBetWidthRatio : isBlind ? format.threeBetWidthRatio : format.nonBlindThreeBetWidthRatio),
       coldCallBase: format.coldCallBase,
       coldCallOopMultiplier: format.coldCallOopMultiplier,
-      closingContinueFactor: format.closingContinueFactor,
+      closingContinueFactor: format.closingContinueFactor * (blindVsBlind?.continueFactor ?? 1),
       threeBetValueShare: format.threeBetValueShare,
       continueFactor: Math.exp(-RAKE_CONTINUE_FALLOFF * rakeShare(rake.structure)),
       callFactor: (activeSeat === "SB" ? (format.sbFlatFactor ?? 1) : 1) * callersOf(potState, activeSeat).reduce(

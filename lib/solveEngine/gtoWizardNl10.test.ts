@@ -11,7 +11,7 @@ import { solveActiveSeat } from "./solve";
 /**
  * The cash charts are tuned to a handful of aggregate frequencies from GTO
  * Wizard's 6max NL10 100bb solution (2.5bb opens, cold calls allowed), read off
- * its screen on 2026-11-03: raise (including all-in) / call / fold, % of all
+ * its screen on 2026-11-03 (the blind-against-blind spots on 2026-11-04): raise (including all-in) / call / fold, % of all
  * hands, or of the hands that reached the spot where noted. The default rake
  * preset (Online low, 5%/5bb) is NL10's. These tests keep the tuning in place.
  */
@@ -81,6 +81,7 @@ describe("cash 6-max against GTO Wizard NL10", () => {
     ["SB vs a cutoff open and button call", [...toCo, ...steps("CO:raise", "BTN:call")], [9.4, 2.1, 88.5], 14],
     ["BB vs a cutoff open and button call", [...toCo, ...steps("CO:raise", "BTN:call", "SB:fold")], [9.7, 8.4, 81.8], 14],
     ["BB vs a button open and SB call", [...toBtn, ...steps("BTN:raise", "SB:call")], [13.0, 20.2, 66.8], 14],
+    ["BB vs an SB open", [...toBtn, ...steps("BTN:fold", "SB:raise")], [17.3, 25.5, 57.3], 10.5],
   ])("%s", (_, path, want, raiseTo) => {
     const result = spot(path);
     expectNear(ofAll(result.hands), want);
@@ -103,6 +104,8 @@ describe("cash 6-max against GTO Wizard NL10", () => {
       (h: HandFrequency) => h.call,
       [3.5, 23.7, 72.8],
     ],
+    ["button vs an SB 3-bet", [...toBtn, ...steps("BTN:raise", "SB:raise", "BB:fold")], toBtn, (h: HandFrequency) => h.raise, [16.3, 12.9, 70.8]],
+    ["SB vs a BB 3-bet", [...toBtn, ...steps("BTN:fold", "SB:raise", "BB:raise")], [...toBtn, ...steps("BTN:fold")], (h: HandFrequency) => h.raise, [25.9, 9.4, 64.7]],
   ])("%s, of the range that got there", (_, path, before, reach, want) => {
     expectNear(ofRange(spot(path).hands, spot(before).hands, reach), want);
   });

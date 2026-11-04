@@ -63,7 +63,9 @@ export function computeRawRaiseTo(
         ? isBlind
           ? squeeze!.blind + (callers - 1) * squeeze!.perCaller
           : threeBet.ip + callers * squeeze!.perCaller
-        : isIP ? threeBet.ip : activeSeat === "SB" ? threeBet.sbOop : threeBet.bbOop;
+        : activeSeat === "BB" && potState.lastAggressor === "SB" && potState.format.reraiseSizes.bbOverSb !== undefined
+          ? potState.format.reraiseSizes.bbOverSb
+          : isIP ? threeBet.ip : activeSeat === "SB" ? threeBet.sbOop : threeBet.bbOop;
   // Round for the same reason interpolateOpenRaiseBb does — now that opening
   // sizes can be non-integer bb amounts, multiplying them by an integer
   // multiplier can still leak binary-float noise (e.g. 2.8 * 3 === 8.399999999999999).

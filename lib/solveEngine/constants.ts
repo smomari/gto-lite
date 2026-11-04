@@ -50,6 +50,7 @@ export const REACTIVE_RAISE_OOP_MULTIPLIER = 4; // raiser acts before the last a
 export const CASH_THREE_BET_IP_MULTIPLIER = 3.2;
 export const CASH_THREE_BET_SB_MULTIPLIER = 4.4;
 export const CASH_THREE_BET_BB_MULTIPLIER = 5.4;
+export const CASH_THREE_BET_BB_OVER_SB_MULTIPLIER = 3; // GTO Wizard NL10: 10.5 over the SB's 3.5
 export const CASH_FOUR_BET_IP_MULTIPLIER = 2.11;
 export const CASH_FOUR_BET_OOP_MULTIPLIER = 2.69;
 /** Either blind squeezes a cutoff open and button call to 14bb there; further callers and in-position squeezes are estimates. */
