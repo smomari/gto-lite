@@ -63,7 +63,8 @@ export function generateCallShoveScenario(matrix: EquityMatrix, params: VsShoveP
  * price — so the width follows the raiser's range, the price, position and
  * rake, not a fixed share of the deck. The range's most playable hands are the
  * ones kept, not its best all-in equities, which would drop suited connectors
- * for weak offsuit hands. The very best re-raise for value, and the most
+ * for weak offsuit hands. Of those, the ones with the most equity against the
+ * raiser re-raise for value — AK before JJ, as solvers have it — and the most
  * playable bluff candidates among the hands that would fold re-raise as bluffs.
  */
 export function generateVsReraiseScenario(
@@ -89,15 +90,22 @@ export function generateVsReraiseScenario(
   const frequencies = new Map<string, { continueFreq: number; raise: number }>();
   let continueCombosLeft = Math.min(RERAISE_KEEP_MAX, Math.max(RERAISE_KEEP_MIN, keep)) * (params.keepFactor ?? 1) * rangeCombos;
   let raiseCombosLeft = Math.min(raiseWidth * TOTAL_COMBOS, continueCombosLeft * (params.maxRaiseShareOfKept ?? 1));
-  // With `valueInDeckCombos`, a range that mixes a few of its best hands in
-  // doesn't re-raise its middle to make up the count.
+  // The most playable hands are the ones kept.
   for (const { hand, combos } of reached) {
-    const deckCombos = params.valueInDeckCombos ? HAND_BY_LABEL.get(hand)!.combos : combos;
     const continueFreq = Math.min(1, continueCombosLeft / combos);
-    const raise = Math.min(continueFreq, raiseCombosLeft / deckCombos);
     continueCombosLeft = Math.max(0, continueCombosLeft - continueFreq * combos);
+    frequencies.set(hand, { continueFreq, raise: 0 });
+  }
+  // Of those, the ones with the most equity against the raiser re-raise for value. With
+  // `valueInDeckCombos`, a range that mixes a few of its best hands in doesn't re-raise its middle to make up the count.
+  const byEquity = [...reached].sort((x, y) => y.equity - x.equity);
+  for (const { hand, combos } of byEquity) {
+    if (raiseCombosLeft <= 0) break;
+    const entry = frequencies.get(hand)!;
+    const deckCombos = params.valueInDeckCombos ? HAND_BY_LABEL.get(hand)!.combos : combos;
+    const raise = Math.min(entry.continueFreq, raiseCombosLeft / deckCombos);
     raiseCombosLeft = Math.max(0, raiseCombosLeft - raise * deckCombos);
-    frequencies.set(hand, { continueFreq, raise });
+    frequencies.set(hand, { ...entry, raise });
   }
 
   let bluffCombosLeft = bluffWidth * TOTAL_COMBOS;

@@ -65,6 +65,14 @@ describe("generateVsReraiseScenario", () => {
     expect(solve({ valueInDeckCombos: true })).toEqual(solve());
   });
 
+  it("re-raises for value the hands with the most equity against the raiser, not the most playable", () => {
+    // Room for AA, KK, QQ and one more hand: AKs by equity against these, where playability would pick JJ.
+    const hands = new Map(solve({ villainRange: range(TIGHT_THREE_BET), raiseWidth: 22 / TOTAL_COMBOS }).map((h) => [h.hand, h]));
+    expect(hands.get("AKs")!.raise).toBeCloseTo(1, 9);
+    expect(hands.get("JJ")!.raise).toBe(0);
+    expect(hands.get("JJ")!.fold).toBeLessThan(1);
+  });
+
   it("re-raises its best hands up to the requested width", () => {
     const hands = solve();
     const raised = hands.reduce((sum, h) => sum + h.raise * HAND_BY_LABEL.get(h.hand)!.combos, 0);

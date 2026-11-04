@@ -87,6 +87,20 @@ describe("against public solver ranges", () => {
     expect(Math.max(...errors)).toBeLessThanOrEqual(maxTolerance);
   });
 
+  /** An opener out of position on a button 3-bet 4-bets far more than against a blind's; the share of its range that got there. */
+  it.each([
+    ["tournament 100bb", MTT(100), { UTG: 16.8, LJ: 19.4, HJ: 19.2, CO: 17.8 }],
+    ["tournament 40bb", MTT(40), { UTG: 20.8, LJ: 17.6, HJ: 19.8, CO: 16.1 }],
+    ["cash", CASH, { LJ: 25.4, HJ: 24.7, CO: 22.3 }],
+  ] as const)("the %s opener 4-bets a button 3-bet as often", (_, game, want) => {
+    for (const [opener, pct] of Object.entries(want)) {
+      const seat = opener as Position;
+      const opened = hands(game, [], seat);
+      const answer = hands(game, [[seat, "raise"], ["BTN", "raise"]], seat);
+      expect(Math.abs(ofRange(answer, opened, (h) => h.raise)[0] - pct), opener).toBeLessThanOrEqual(TOLERANCE);
+    }
+  });
+
   it("the SB answers a BB 3-bet over its tournament 100bb raise, of the range that got there", () => {
     const game = MTT(100);
     const opened = hands(game, [], "SB");
