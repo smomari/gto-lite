@@ -90,7 +90,10 @@ describe("solveActiveSeat", () => {
       const limps = combosWith(result.hands, (h) => h.call);
       expect(limps).toBeGreaterThan(raises);
       expect((raises + limps) / 1326).toBeGreaterThan(0.75);
-      expect(result.hands.find((h) => h.hand === "AA")!.raise).toBeCloseTo(1, 6);
+      // The raises are partly spread over everything it plays, so even AA limps some, but it raises more than most.
+      const aa = result.hands.find((h) => h.hand === "AA")!;
+      expect(aa.fold).toBe(0);
+      expect(aa.raise + (aa.allin ?? 0)).toBeGreaterThan(raises / (raises + limps));
     }
   });
 
@@ -114,11 +117,14 @@ describe("solveActiveSeat", () => {
     const raised = applyAction(limped, "BB", "raise", { effectiveStackBb: 40, raiseToBb: 3.5 });
     const hands = solveActiveSeat(matrix, "SB", raised, 40).hands;
 
-    expect(limps.find((h) => h.hand === "AA")!.call).toBe(0);
-    expect(hands.find((h) => h.hand === "AA")!.fold).toBe(1);
+    // AA limps some of the time, and never folds when that limp is raised.
+    expect(limps.find((h) => h.hand === "AA")!.call).toBeGreaterThan(0);
+    expect(hands.find((h) => h.hand === "AA")!.fold).toBe(0);
+    expect(hands.find((h) => h.hand === "72o")!.fold).toBe(1);
     const kept = combosWith(hands, (h) => 1 - h.fold) / combosWith(limps, (h) => h.call);
+    // A 2.5bb raise into 6bb is cheap, and the limps now hold some strong hands too.
     expect(kept).toBeGreaterThan(0.3);
-    expect(kept).toBeLessThan(0.8);
+    expect(kept).toBeLessThan(0.9);
   });
 
   it("produces call+raise summing correctly with fold for a deep-stack facing-raise spot", () => {

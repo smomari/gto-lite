@@ -99,6 +99,20 @@ describe("first-in jams", () => {
 });
 
 describe("generateSbFirstInScenario", () => {
+  it("spreads its raises over everything it plays as asked, raising the same share overall", () => {
+    const raised = (hands: ReturnType<typeof generateSbFirstInScenario>) => comboWeightedRaiseFrequency(hands);
+    const top = generateSbFirstInScenario(ranking, 100);
+    const spread = generateSbFirstInScenario(ranking, 100, undefined, 1);
+    const half = new Map(generateSbFirstInScenario(ranking, 100, undefined, 0.5).map((h) => [h.hand, h]));
+    expect(raised(spread)).toBeCloseTo(raised(top), 0);
+    const bySpread = new Map(spread.map((h) => [h.hand, h]));
+    // Spread out, AA raises no more than the weakest hand it plays; half-spread sits between.
+    expect(bySpread.get("AA")!.raise).toBeCloseTo(bySpread.get("K7o")!.raise / (1 - bySpread.get("K7o")!.fold), 6);
+    expect(half.get("AA")!.raise).toBeGreaterThan(bySpread.get("AA")!.raise);
+    expect(half.get("AA")!.raise).toBeLessThan(1);
+    for (const h of spread) expect(h.fold + h.call + h.raise).toBeCloseTo(1, 6);
+  });
+
   it("raises the top, limps the middle, folds the bottom", () => {
     const hands = generateSbFirstInScenario(ranking, 40);
     const byHand = new Map(hands.map((h) => [h.hand, h]));

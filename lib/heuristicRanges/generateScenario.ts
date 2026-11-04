@@ -110,17 +110,23 @@ export function generateOpeningScenario(
   }).map((h) => withJams(h, ranking.get(h.hand) ?? 1, threshold, effectiveStackBb));
 }
 
-/** SB folded to: raises its best hands, limps most of the rest, folds the bottom. */
+/**
+ * SB folded to: raises some hands, limps most of the rest, folds the bottom.
+ * `raiseSpread` of the raises are spread evenly over everything it plays and
+ * the rest go to its best hands: deep, a solver's SB raises a slice of every
+ * hand it plays rather than a top tier, so a 3-bet folds most of them out.
+ */
 export function generateSbFirstInScenario(
   ranking: PercentileRanking,
   effectiveStackBb: number,
   anchors: readonly FirstInAnchor[] = FIRST_IN_WIDTHS_BY_STACK,
+  raiseSpread = 0,
 ): HandFrequency[] {
   const playThreshold = firstInWidth(anchors, (a) => a.sbPlay!, effectiveStackBb);
   const raiseThreshold = firstInWidth(anchors, (a) => a.sbRaise!, effectiveStackBb);
   return handFrequencies(ranking, (p) => {
     const play = softInclude(p, playThreshold);
-    const raise = softInclude(p, raiseThreshold);
+    const raise = (1 - raiseSpread) * softInclude(p, raiseThreshold) + raiseSpread * play * (raiseThreshold / playThreshold);
     return { fold: 1 - play, call: play - raise, raise };
   }).map((h) => withJams(h, ranking.get(h.hand) ?? 1, raiseThreshold, effectiveStackBb));
 }
