@@ -174,6 +174,7 @@ export function solveActiveSeat(
       aggressorOpenWidth: openWidthFor(Math.min(seatIndex(lastAggressor!), 6), effectiveStackBb, firstInWidths),
       referenceOpenWidth: openWidthFor(seatIndex("BTN"), effectiveStackBb, firstInWidths),
       openerWidthExponent: seatsBehind === 0 ? format.closingWidthExponent : undefined,
+      coldCallIpFactor: format.coldCallIpFactor,
       seatsBehind,
       threeBetWidthRatio: activeSeat === "SB" && format.sbThreeBetWidthRatio !== undefined ? format.sbThreeBetWidthRatio : isBlind ? format.threeBetWidthRatio : format.nonBlindThreeBetWidthRatio,
       coldCallBase: format.coldCallBase,

@@ -158,6 +158,8 @@ export interface FacingRaiseParams {
   /** Multiplies the width that continues against an open. */
   continueFactor: number;
   coldCallOopMultiplier: number;
+  /** Multiplies an in-position cold caller's share. Default 1. */
+  coldCallIpFactor?: number;
   /** Shrinks the flats, but not the 3-bets, against an open someone already called. 1 when no one has. */
   callFactor: number;
   /** Multiplies what a seat closing the action continues with. */
@@ -178,7 +180,7 @@ function vsOpenContinueThreshold(params: FacingRaiseParams): number {
       ? params.closingContinueFactor
       : params.coldCallBase *
         Math.pow(COLD_CALL_PER_SEAT_BEHIND, params.seatsBehind - 2) *
-        (params.isIP ? 1 : params.coldCallOopMultiplier);
+        (params.isIP ? (params.coldCallIpFactor ?? 1) : params.coldCallOopMultiplier);
   // The square root keeps a cheap call from pulling in nearly every hand: price matters less than the opener's range here.
   // Measured from the button's width, so an exponent of 0.5 is the plain square root of the opener's.
   const reference = params.referenceOpenWidth ?? params.aggressorOpenWidth;
