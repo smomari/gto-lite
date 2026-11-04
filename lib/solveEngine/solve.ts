@@ -128,6 +128,8 @@ export function solveActiveSeat(
   const calledLast = ownDecision?.action === "call";
   // A 3-bet made over an open someone called is a squeeze.
   const facingSqueeze = potState.raiseDepth === 2 && !!raiserDecision && callersOf(raiserDecision.state, lastAggressor!).length > 0;
+  // BB's raise over a limp leaves SB closing the action, though BB sits "behind" it.
+  const seatsBehind = seatIndex(lastAggressor!) > seatIndex(activeSeat) ? 0 : SEAT_ORDER.length - 1 - seatIndex(activeSeat);
   if (handsFacingRaise) {
     return {
       source: "heuristic-approx",
@@ -167,8 +169,9 @@ export function solveActiveSeat(
       potBb: potState.potBb,
       amountOwedBb,
       aggressorOpenWidth: openWidthFor(Math.min(seatIndex(lastAggressor!), 6), effectiveStackBb, firstInWidths),
-      // BB's raise over a limp leaves SB closing the action, though BB sits "behind" it.
-      seatsBehind: seatIndex(lastAggressor!) > seatIndex(activeSeat) ? 0 : SEAT_ORDER.length - 1 - seatIndex(activeSeat),
+      referenceOpenWidth: openWidthFor(seatIndex("BTN"), effectiveStackBb, firstInWidths),
+      openerWidthExponent: seatsBehind === 0 ? format.closingWidthExponent : undefined,
+      seatsBehind,
       threeBetWidthRatio: activeSeat === "SB" && format.sbThreeBetWidthRatio !== undefined ? format.sbThreeBetWidthRatio : isBlind ? format.threeBetWidthRatio : format.nonBlindThreeBetWidthRatio,
       coldCallBase: format.coldCallBase,
       coldCallOopMultiplier: format.coldCallOopMultiplier,

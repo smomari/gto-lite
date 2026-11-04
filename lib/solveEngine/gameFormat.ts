@@ -1,6 +1,7 @@
 import type { Position } from "@/types/rangeData";
 import {
   CASH_CALLED_RERAISE_SHARE_CAP,
+  CASH_CLOSING_WIDTH_EXPONENT,
   CASH_COLD_CALL_BASE,
   CASH_COLD_CALL_OOP_MULTIPLIER,
   CASH_FIRST_IN_WIDTHS,
@@ -84,6 +85,8 @@ export interface DepthTuning {
   sbRaiseSpread: number;
   /** Facing a 3-bet over its own first-in raise, the SB keeps this share of what another opener would. */
   sbOpenerKeepFactor: number;
+  /** How much a narrower opener narrows what the BB defends: see FacingRaiseParams.openerWidthExponent. */
+  closingWidthExponent: number;
   reraiseKeepBase: number;
   fourBetWidthRatio: number;
 }
@@ -108,6 +111,7 @@ export function tunedAt(format: GameFormat, effectiveStackBb: number): GameForma
     sbFlatFactor: mix("sbFlatFactor"),
     sbRaiseSpread: mix("sbRaiseSpread"),
     sbOpenerKeepFactor: mix("sbOpenerKeepFactor"),
+    closingWidthExponent: mix("closingWidthExponent"),
     reraiseKeepBase: mix("reraiseKeepBase"),
     fourBet: { ...format.fourBet, widthRatio: mix("fourBetWidthRatio") },
   };
@@ -175,6 +179,8 @@ export interface GameFormat {
   sbRaiseSpread?: number;
   /** Facing a 3-bet over its own first-in raise, the SB keeps this share of what another opener would; default 1. */
   sbOpenerKeepFactor?: number;
+  /** How much a narrower opener narrows what the BB defends; default 0.5, the square root of its width. */
+  closingWidthExponent?: number;
   /** Re-raises that would put in at least this share of the stack go all-in instead: over an open, and over a 3-bet or more. */
   jamReraiseShare?: { threeBet: number; fourBet: number };
   /** Tuning that changes with depth, interpolated between these stacks and flat outside them; see tunedAt. */
@@ -199,15 +205,20 @@ export interface GameFormat {
  * as stacks shorten, the BB defends wider, and facing a 3-bet a seat keeps a
  * different share of its range. 100bb is the old tuning, which already fit.
  *
+ * The BB defends an early open less than a button open, but not by the square
+ * root of the opener's width (closingWidthExponent), set from the public solver
+ * ranges at 20 and 100bb and from their ratios to the button at 40bb, where
+ * their bigger opens make the BB defend less across the board.
+ *
  * The SB's first-in raises are a slice of everything it plays rather than its
  * best hands, and deep it folds most of them to a 3-bet, as the public solver
  * ranges in referenceRanges.test.ts do (raise spread best matching them hand by
  * hand at 20 and 100bb; 40bb, which they don't cover, sits between).
  */
 const TOURNAMENT_TUNING_BY_STACK: DepthTuning[] = [
-  { stackBb: 20, sbThreeBetWidthRatio: 0.62, threeBetWidthRatio: 0.48, coldCallOopMultiplier: 0.55, closingContinueFactor: 1.16, threeBetValueShare: 0.85, sbFlatFactor: 0.1, sbRaiseSpread: 0.5, sbOpenerKeepFactor: 1, reraiseKeepBase: 0.39, fourBetWidthRatio: 0.65 },
-  { stackBb: 40, sbThreeBetWidthRatio: 0.345, threeBetWidthRatio: 0.325, coldCallOopMultiplier: 0.5, closingContinueFactor: 1.04, threeBetValueShare: RAISE_VALUE_SHARE, sbFlatFactor: 1, sbRaiseSpread: 0.6, sbOpenerKeepFactor: 1, reraiseKeepBase: 0.4, fourBetWidthRatio: 0.55 },
-  { stackBb: 100, sbThreeBetWidthRatio: THREE_BET_WIDTH_RATIO, threeBetWidthRatio: THREE_BET_WIDTH_RATIO, coldCallOopMultiplier: COLD_CALL_OOP_MULTIPLIER, closingContinueFactor: 1, threeBetValueShare: RAISE_VALUE_SHARE, sbFlatFactor: 1, sbRaiseSpread: 0.75, sbOpenerKeepFactor: 0.4, reraiseKeepBase: 0.41, fourBetWidthRatio: 0.38 },
+  { stackBb: 20, sbThreeBetWidthRatio: 0.62, threeBetWidthRatio: 0.48, coldCallOopMultiplier: 0.55, closingContinueFactor: 1.16, threeBetValueShare: 0.85, sbFlatFactor: 0.1, sbRaiseSpread: 0.5, sbOpenerKeepFactor: 1, closingWidthExponent: 0.1, reraiseKeepBase: 0.39, fourBetWidthRatio: 0.65 },
+  { stackBb: 40, sbThreeBetWidthRatio: 0.345, threeBetWidthRatio: 0.325, coldCallOopMultiplier: 0.5, closingContinueFactor: 1.04, threeBetValueShare: RAISE_VALUE_SHARE, sbFlatFactor: 1, sbRaiseSpread: 0.6, sbOpenerKeepFactor: 1, closingWidthExponent: 0.45, reraiseKeepBase: 0.4, fourBetWidthRatio: 0.55 },
+  { stackBb: 100, sbThreeBetWidthRatio: THREE_BET_WIDTH_RATIO, threeBetWidthRatio: THREE_BET_WIDTH_RATIO, coldCallOopMultiplier: COLD_CALL_OOP_MULTIPLIER, closingContinueFactor: 1, threeBetValueShare: RAISE_VALUE_SHARE, sbFlatFactor: 1, sbRaiseSpread: 0.75, sbOpenerKeepFactor: 0.4, closingWidthExponent: 0.25, reraiseKeepBase: 0.41, fourBetWidthRatio: 0.38 },
 ];
 /** In tournaments a 3-bet of a quarter of the stack, or a 4-bet of 40% of it, goes all-in, as GTO Wizard's 20bb and 40bb solutions do. */
 const TOURNAMENT_JAM_THREE_BET_SHARE = 0.25;
@@ -281,6 +292,7 @@ const CASH_8: GameFormat = {
   squeezeKeepFactor: { opener: CASH_SQUEEZE_KEEP_FACTOR, caller: CASH_CALLER_SQUEEZE_KEEP_FACTOR },
   calledReraiseShareCap: CASH_CALLED_RERAISE_SHARE_CAP,
   closingContinueFactor: 1,
+  closingWidthExponent: CASH_CLOSING_WIDTH_EXPONENT,
   reraiseKeepBase: CASH_RERAISE_KEEP_BASE,
   fourBet: { widthRatio: CASH_FOUR_BET_WIDTH_RATIO, valueShare: RAISE_VALUE_SHARE, bluffShare: CASH_FOUR_BET_BLUFF_SHARE },
 };

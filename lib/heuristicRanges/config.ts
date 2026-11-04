@@ -72,6 +72,13 @@ export const THREE_BET_WIDTH_RATIO = 0.3;
 export const CASH_COLD_CALL_BASE = 0.43;
 /** Set with CASH_COLD_CALL_BASE so the button flats a cutoff open 2.4% and the SB a button open 2.7%, as GTO Wizard's NL10 does. */
 export const CASH_COLD_CALL_OOP_MULTIPLIER = 0.85;
+/**
+ * How much a narrower opener narrows what the BB defends in cash: it defends
+ * as (opener's width / the button's)^this, the button's open defended as GTO
+ * Wizard's NL10 does. Set from the public solver ranges in
+ * referenceRanges.test.ts, whose BB defends an early open about that much less.
+ */
+export const CASH_CLOSING_WIDTH_EXPONENT = 0.7;
 /** Blinds 3-bet 0.325 of the opener's width in cash; a seat in position 3-bets 0.4 (the button vs a cutoff open: 11.3%). */
 export const CASH_THREE_BET_WIDTH_RATIO = 0.325;
 export const CASH_NON_BLIND_THREE_BET_WIDTH_RATIO = 0.4;

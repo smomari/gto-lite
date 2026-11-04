@@ -142,6 +142,13 @@ export interface FacingRaiseParams {
   amountOwedBb: number;
   /** Share of combos the last aggressor's opening seat opens. */
   aggressorOpenWidth: number;
+  /** The button's open width at this stack: against it the opener's width sets the continuing range in full. */
+  referenceOpenWidth?: number;
+  /**
+   * How strongly a narrower opener narrows what continues: the continuing
+   * range goes as (opener's width / the button's)^this. Default 0.5.
+   */
+  openerWidthExponent?: number;
   /** Seats left to act after hero; 0 means hero closes the action. */
   seatsBehind: number;
   /** 3-bet width as a share of the opener's width. */
@@ -173,7 +180,13 @@ function vsOpenContinueThreshold(params: FacingRaiseParams): number {
         Math.pow(COLD_CALL_PER_SEAT_BEHIND, params.seatsBehind - 2) *
         (params.isIP ? 1 : params.coldCallOopMultiplier);
   // The square root keeps a cheap call from pulling in nearly every hand: price matters less than the opener's range here.
-  return clamp(Math.sqrt(params.aggressorOpenWidth * potOddsAdjustFor(params)) * seatShare * params.continueFactor, 0.01, 0.95);
+  // Measured from the button's width, so an exponent of 0.5 is the plain square root of the opener's.
+  const reference = params.referenceOpenWidth ?? params.aggressorOpenWidth;
+  const opener =
+    params.openerWidthExponent === undefined
+      ? Math.sqrt(params.aggressorOpenWidth * potOddsAdjustFor(params))
+      : Math.sqrt(reference * potOddsAdjustFor(params)) * Math.pow(params.aggressorOpenWidth / reference, params.openerWidthExponent);
+  return clamp(opener * seatShare * params.continueFactor, 0.01, 0.95);
 }
 
 function vsReraiseContinueThreshold(params: FacingRaiseParams): number {
