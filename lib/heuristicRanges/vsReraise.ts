@@ -32,6 +32,12 @@ export interface VsReraiseParams {
   maxRaiseShareOfKept?: number;
   /** Scales what's kept, e.g. facing a squeeze. Default 1. */
   keepFactor?: number;
+  /**
+   * Count each value re-raise as all of that hand's combos, however often hero
+   * got here with it: right for a raising range that mixes its best hands in,
+   * wrong for a flatting one, whose few strong hands are the ones that raise.
+   */
+  valueInDeckCombos?: boolean;
   rake: RakeTerms;
 }
 
@@ -83,11 +89,14 @@ export function generateVsReraiseScenario(
   const frequencies = new Map<string, { continueFreq: number; raise: number }>();
   let continueCombosLeft = Math.min(RERAISE_KEEP_MAX, Math.max(RERAISE_KEEP_MIN, keep)) * (params.keepFactor ?? 1) * rangeCombos;
   let raiseCombosLeft = Math.min(raiseWidth * TOTAL_COMBOS, continueCombosLeft * (params.maxRaiseShareOfKept ?? 1));
+  // With `valueInDeckCombos`, a range that mixes a few of its best hands in
+  // doesn't re-raise its middle to make up the count.
   for (const { hand, combos } of reached) {
+    const deckCombos = params.valueInDeckCombos ? HAND_BY_LABEL.get(hand)!.combos : combos;
     const continueFreq = Math.min(1, continueCombosLeft / combos);
-    const raise = Math.min(continueFreq, raiseCombosLeft / combos);
+    const raise = Math.min(continueFreq, raiseCombosLeft / deckCombos);
     continueCombosLeft = Math.max(0, continueCombosLeft - continueFreq * combos);
-    raiseCombosLeft = Math.max(0, raiseCombosLeft - raise * combos);
+    raiseCombosLeft = Math.max(0, raiseCombosLeft - raise * deckCombos);
     frequencies.set(hand, { continueFreq, raise });
   }
 

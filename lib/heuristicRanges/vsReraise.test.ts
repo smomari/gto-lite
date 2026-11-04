@@ -54,6 +54,17 @@ describe("generateVsReraiseScenario", () => {
     expect(hands.get("QJo")!.fold).toBeGreaterThan(hands.get("AKs")!.fold);
   });
 
+  it("counts a value re-raise as all of a hand's combos when asked, so a mixed range re-raises only its best hands", () => {
+    const mixed: FrequencyMap = new Map([...range(OPENER)].map(([hand]) => [hand, 0.3]));
+    const raisedHands = (hands: HandFrequency[]) => hands.filter((h) => h.raise > 0).map((h) => h.hand);
+    const byReach = raisedHands(solve({ heroRange: mixed }));
+    const byDeck = raisedHands(solve({ heroRange: mixed, valueInDeckCombos: true }));
+    expect(byDeck.length).toBeLessThan(byReach.length);
+    expect(byDeck).toContain("AA");
+    // A range that has all of its best hands is unaffected.
+    expect(solve({ valueInDeckCombos: true })).toEqual(solve());
+  });
+
   it("re-raises its best hands up to the requested width", () => {
     const hands = solve();
     const raised = hands.reduce((sum, h) => sum + h.raise * HAND_BY_LABEL.get(h.hand)!.combos, 0);

@@ -110,7 +110,7 @@ export function solveActiveSeat(
   if (!hasOpener) {
     if (activeSeat === "BB") return { source: "heuristic-approx", hands: generateBbVsLimpScenario(ranking) };
     if (activeSeat === "SB" && format.sbCanLimp) {
-      return { source: "heuristic-approx", hands: generateSbFirstInScenario(ranking, effectiveStackBb, firstInWidths) };
+      return { source: "heuristic-approx", hands: generateSbFirstInScenario(ranking, effectiveStackBb, firstInWidths, format.sbRaiseSpread) };
     }
     return {
       source: "heuristic-approx",
@@ -143,8 +143,10 @@ export function solveActiveSeat(
               // A flatting range is capped: it has nothing to spare for bluffs.
               bluffWidth: calledLast ? 0 : shareOfCombos(villainRange) * format.fourBet.widthRatio * format.fourBet.bluffShare,
               keepBase: format.reraiseKeepBase,
-              keepFactor: facingSqueeze ? (calledLast ? format.squeezeKeepFactor.caller : format.squeezeKeepFactor.opener) : 1,
-              ...(calledLast ? { maxRaiseShareOfKept: format.calledReraiseShareCap } : {}),
+              keepFactor:
+                (facingSqueeze ? (calledLast ? format.squeezeKeepFactor.caller : format.squeezeKeepFactor.opener) : 1) *
+                (activeSeat === "SB" && potState.raiseDepth === 2 && ownDecision?.action === "raise" ? (format.sbOpenerKeepFactor ?? 1) : 1),
+              ...(calledLast ? { maxRaiseShareOfKept: format.calledReraiseShareCap } : { valueInDeckCombos: true }),
             }
           : // A limper raised over: the 4-bet tuning doesn't apply, and nothing was compared here.
             {
