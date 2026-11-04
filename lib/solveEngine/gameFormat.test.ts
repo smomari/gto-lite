@@ -99,7 +99,8 @@ describe("cash pots and sizes", () => {
     const coOpen = path(CASH_6, ["LJ", "fold"], ["HJ", "fold"], ["CO", "raise"]);
     expect(coOpen.status === "active" && computeRawRaiseTo("BTN", coOpen.potState, 100)).toBe(8);
     const sbOpen = path(CASH_6, ["LJ", "fold"], ["HJ", "fold"], ["CO", "fold"], ["BTN", "fold"], ["SB", "raise"]);
-    expect(sbOpen.status === "active" && computeRawRaiseTo("BB", sbOpen.potState, 100)).toBe(11.2);
+    // The BB 3-bets the SB 3x, as GTO Wizard's NL10 does, not the 3.2x of an in-position 3-bet.
+    expect(sbOpen.status === "active" && computeRawRaiseTo("BB", sbOpen.potState, 100)).toBe(10.5);
     const threeBet = path(CASH_6, ["LJ", "fold"], ["HJ", "fold"], ["CO", "fold"], ["BTN", "raise"], ["SB", "fold"], ["BB", "raise"]);
     expect(threeBet.status === "active" && computeRawRaiseTo("BTN", threeBet.potState, 100)).toBe(28.5);
   });

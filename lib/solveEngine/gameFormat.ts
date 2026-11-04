@@ -1,5 +1,7 @@
 import type { Position } from "@/types/rangeData";
 import {
+  CASH_BB_VS_SB_CONTINUE_FACTOR,
+  CASH_BB_VS_SB_THREE_BET_WIDTH_RATIO,
   CASH_CALLED_RERAISE_SHARE_CAP,
   CASH_CLOSING_WIDTH_EXPONENT,
   CASH_COLD_CALL_BASE,
@@ -7,6 +9,9 @@ import {
   CASH_FIRST_IN_WIDTHS,
   CASH_FOUR_BET_BLUFF_SHARE,
   CASH_FOUR_BET_VS_IN_POSITION_WIDTH_RATIO,
+  CASH_SB_FOUR_BET_BLUFF_SHARE,
+  CASH_SB_FOUR_BET_WIDTH_RATIO,
+  CASH_SB_THREE_BET_KEEP_FACTOR,
   CASH_FOUR_BET_WIDTH_RATIO,
   CASH_NON_BLIND_THREE_BET_WIDTH_RATIO,
   CASH_OVERCALL_FACTOR_IP_CALLER,
@@ -33,6 +38,7 @@ import {
   CASH_SQUEEZE_BLIND_MULTIPLIER,
   CASH_SQUEEZE_PER_CALLER,
   CASH_THREE_BET_BB_MULTIPLIER,
+  CASH_THREE_BET_BB_OVER_SB_MULTIPLIER,
   CASH_THREE_BET_IP_MULTIPLIER,
   CASH_THREE_BET_SB_MULTIPLIER,
   OPEN_RAISE_BTN_DEEP_BB,
@@ -60,6 +66,8 @@ export interface OpenSizeRange {
 export interface ReraiseSizes {
   /** Over an open: in position, and from each blind out of position. */
   threeBet: { ip: number; sbOop: number; bbOop: number };
+  /** The BB's 3-bet over the SB's raise, in position on it. Default `threeBet.ip`. */
+  bbOverSb?: number;
   /** Over a 3-bet or more. */
   fourBetPlus: { ip: number; oop: number };
   /**
@@ -212,7 +220,13 @@ export interface GameFormat {
      * 4-bets. Default: as against any other 3-bet.
      */
     vsInPosition?: { widthRatio: number; bluffShare: number };
+    /** The SB 4-betting the BB's 3-bet over its own raise. Default: as against any other 3-bet. */
+    sbVsBb?: { widthRatio: number; bluffShare: number };
   };
+  /** The BB against the SB's first-in raise: its continuing range scaled, and its 3-bet width. Default: as against any opener. */
+  blindVsBlind?: { continueFactor: number; threeBetWidthRatio: number };
+  /** An opener facing the SB's 3-bet keeps this share of what it keeps against another; default 1. */
+  sbThreeBetKeepFactor?: number;
 }
 
 
@@ -315,6 +329,7 @@ const CASH_8: GameFormat = {
     threeBet: { ip: CASH_THREE_BET_IP_MULTIPLIER, sbOop: CASH_THREE_BET_SB_MULTIPLIER, bbOop: CASH_THREE_BET_BB_MULTIPLIER },
     fourBetPlus: { ip: CASH_FOUR_BET_IP_MULTIPLIER, oop: CASH_FOUR_BET_OOP_MULTIPLIER },
     squeeze: { blind: CASH_SQUEEZE_BLIND_MULTIPLIER, perCaller: CASH_SQUEEZE_PER_CALLER },
+    bbOverSb: CASH_THREE_BET_BB_OVER_SB_MULTIPLIER,
   },
   sbCanLimp: true,
   firstInWidths: CASH_FIRST_IN_WIDTHS,
@@ -333,7 +348,10 @@ const CASH_8: GameFormat = {
     valueShare: RAISE_VALUE_SHARE,
     bluffShare: CASH_FOUR_BET_BLUFF_SHARE,
     vsInPosition: { widthRatio: CASH_FOUR_BET_VS_IN_POSITION_WIDTH_RATIO, bluffShare: CASH_FOUR_BET_BLUFF_SHARE },
+    sbVsBb: { widthRatio: CASH_SB_FOUR_BET_WIDTH_RATIO, bluffShare: CASH_SB_FOUR_BET_BLUFF_SHARE },
   },
+  blindVsBlind: { continueFactor: CASH_BB_VS_SB_CONTINUE_FACTOR, threeBetWidthRatio: CASH_BB_VS_SB_THREE_BET_WIDTH_RATIO },
+  sbThreeBetKeepFactor: CASH_SB_THREE_BET_KEEP_FACTOR,
 };
 
 const CASH_6: GameFormat = { ...CASH_8, id: "cash-6", label: "Cash 6-max", absentSeats: ["UTG", "UTG1"] };

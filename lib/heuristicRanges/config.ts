@@ -101,6 +101,19 @@ export const RAISE_VALUE_SHARE = 0.6;
 /** Cash 4-bets: a share of the 3-bettor's range, 40% of it bluffs, from GTO Wizard's NL10 button facing a BB 3-bet (15% of its range). */
 export const CASH_FOUR_BET_WIDTH_RATIO = 0.48;
 export const CASH_FOUR_BET_BLUFF_SHARE = 0.4;
+/**
+ * Blind against blind in cash, from GTO Wizard's NL10 (2026-11-04): the BB
+ * defends the SB's 3.5bb raise 42.7% (17.3 of it a 3-bet) — wider than the
+ * opener-width rule gives, being in position on it; the SB 4-bets 25.9% of what
+ * reached the BB's 3-bet, calls 9.4; the button facing the SB's 11bb 3-bet keeps
+ * less than against the BB's bigger one (29% either way, where the price rule
+ * alone keeps more against the cheaper).
+ */
+export const CASH_BB_VS_SB_CONTINUE_FACTOR = 1.33;
+export const CASH_BB_VS_SB_THREE_BET_WIDTH_RATIO = 0.54;
+export const CASH_SB_FOUR_BET_WIDTH_RATIO = 0.55;
+export const CASH_SB_FOUR_BET_BLUFF_SHARE = 0.3;
+export const CASH_SB_THREE_BET_KEEP_FACTOR = 0.83;
 /** Against a 3-bet made in position, wider: the public solver ranges' early seats 4-bet a button 3-bet 22–25% of the time (referenceRanges.test.ts). */
 export const CASH_FOUR_BET_VS_IN_POSITION_WIDTH_RATIO = 0.64;
 
