@@ -11,33 +11,31 @@ export type PostflopSolvePhase = "equity" | "cfr";
 /** Which of a hand's fold/call/raise/allin frequencies defines a player's range entering the street. */
 export type ActionWeightKey = "fold" | "call" | "raise" | "allin";
 
+/** What every street's solve request carries — see PostflopSolveInput. */
+interface PostflopSolveRequestCommon {
+  board: string[];
+  startPot: number;
+  effectiveStackBb: number;
+  maxIterations: number;
+  targetExploitabilityPercent?: number;
+  rake?: RakeTerms;
+}
+
 export type PostflopSolveRequest =
-  | {
+  | (PostflopSolveRequestCommon & {
       kind: "canonical";
-      board: string[];
       heroHandFrequencies: HandFrequency[];
       heroActionKey: ActionWeightKey;
       villainHandFrequencies: HandFrequency[];
       villainActionKey: ActionWeightKey;
-      startPot: number;
-      effectiveStackBb: number;
-      maxIterations: number;
-      targetExploitabilityPercent?: number;
       /** See PostflopSolveInput's `fast` — a flop-only option, and only flops are canonical requests. */
       fast?: boolean;
-      rake?: RakeTerms;
-    }
-  | {
+    })
+  | (PostflopSolveRequestCommon & {
       kind: "combos";
-      board: string[];
       heroRange: SerializedCombo[];
       villainRange: SerializedCombo[];
-      startPot: number;
-      effectiveStackBb: number;
-      maxIterations: number;
-      targetExploitabilityPercent?: number;
-      rake?: RakeTerms;
-    };
+    });
 
 export interface SerializedCombo {
   cards: [string, string];
@@ -92,7 +90,6 @@ export interface PostflopSolveInMessage {
   type: "solve";
   request: PostflopSolveRequest;
 }
-
 
 export interface PostflopResultMessage {
   type: "result";
