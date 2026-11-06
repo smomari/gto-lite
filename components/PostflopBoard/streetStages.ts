@@ -1,6 +1,7 @@
 import { narrowRangeAlongPath, type TreePathStep } from "@/lib/postflopSolver/rangeNarrowing";
 import { DEFAULT_MAX_CFR_ITERATIONS, DEFAULT_TARGET_EXPLOITABILITY_PERCENT } from "@/lib/postflopSolver/cfr";
 import type { RakeStructure } from "@/lib/solveEngine/rake";
+import type { PostflopIcm } from "@/lib/postflopSolver/icmPayoffs";
 import type {
   ActionWeightKey,
   PostflopResultMessage,
@@ -42,6 +43,8 @@ export interface StreetSolveInputs {
   startPot: number;
   effectiveStackBb: number;
   rake: RakeStructure;
+  /** A tournament hand priced in prize money; omitted in chip EV. */
+  icm?: PostflopIcm;
 }
 
 export function idleStage(boardLength: number, effectiveStackAtStart: number): StreetStage {
@@ -71,6 +74,7 @@ export function buildStreetSolveRequest(
     maxIterations: DEFAULT_MAX_CFR_ITERATIONS,
     targetExploitabilityPercent: DEFAULT_TARGET_EXPLOITABILITY_PERCENT,
     rake: inputs.rake,
+    ...(inputs.icm && { icm: inputs.icm }),
   };
   if (stageIndex === 0) {
     return {

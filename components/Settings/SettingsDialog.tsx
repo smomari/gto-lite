@@ -2,12 +2,14 @@ import { useEffect, useRef, useState } from "react";
 import { StackSizeControl } from "@/components/TableBar/StackSizeControl";
 import { GAME_FORMATS, type GameFormat } from "@/lib/solveEngine/gameFormat";
 import { RAKE_PRESETS, rakeSummary, type RakeSettings } from "@/lib/solveEngine/rake";
+import { ICM_PRESETS, type IcmStructure } from "@/lib/solveEngine/icm";
 
 interface SettingsDialogProps {
   format: GameFormat;
   rake: RakeSettings;
+  icm: IcmStructure;
   stackBb: number;
-  onApply: (stackBb: number, format: GameFormat, rake: RakeSettings) => void;
+  onApply: (stackBb: number, format: GameFormat, rake: RakeSettings, icm: IcmStructure) => void;
   onClose: () => void;
 }
 
@@ -16,7 +18,7 @@ interface SettingsDialogProps {
  * They are drafts until Apply because changing any of them restarts the hand and
  * refetches — a slider would otherwise do both on every tick of a drag.
  */
-export function SettingsDialog({ format, rake, stackBb, onApply, onClose }: SettingsDialogProps) {
+export function SettingsDialog({ format, rake, icm, stackBb, onApply, onClose }: SettingsDialogProps) {
   /** Through the dialog's own close, which hands focus back; its close event then reaches onClose. */
   const close = () => dialogRef.current?.close();
   const dialogRef = useRef<HTMLDialogElement>(null);
@@ -24,6 +26,7 @@ export function SettingsDialog({ format, rake, stackBb, onApply, onClose }: Sett
   const [draftStackBb, setDraftStackBb] = useState(stackBb);
   const [draftFormat, setDraftFormat] = useState(format);
   const [draftRake, setDraftRake] = useState(rake);
+  const [draftIcm, setDraftIcm] = useState(icm);
 
   useEffect(() => {
     dialogRef.current?.showModal();
@@ -42,7 +45,7 @@ export function SettingsDialog({ format, rake, stackBb, onApply, onClose }: Sett
         if (pressedBackdropRef.current && e.target === e.currentTarget) close();
       }}
       className={`m-auto max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-sm overflow-y-auto rounded-lg border border-line-strong bg-surface p-0 text-ink backdrop:bg-black/60 ${
-        draftFormat.allowsRake ? "sm:max-w-xl" : ""
+        draftFormat.allowsRake || draftFormat.allowsIcm ? "sm:max-w-xl" : ""
       }`}
     >
       <form
@@ -50,7 +53,7 @@ export function SettingsDialog({ format, rake, stackBb, onApply, onClose }: Sett
         onSubmit={(e) => {
           e.preventDefault();
           close();
-          onApply(draftStackBb, draftFormat, draftRake);
+          onApply(draftStackBb, draftFormat, draftRake, draftIcm);
         }}
       >
         <div className="flex items-center justify-between">
@@ -114,6 +117,29 @@ export function SettingsDialog({ format, rake, stackBb, onApply, onClose }: Sett
               />
               No flop, no drop
             </label>
+          </fieldset>
+        )}
+
+        {draftFormat.allowsIcm && (
+          <fieldset className="flex flex-col gap-1">
+            <legend className="mb-1 text-sm font-medium text-ink-muted">ICM</legend>
+            <div className="grid gap-x-4 sm:grid-cols-2">
+              {ICM_PRESETS.map((option) => (
+                <label key={option.id} className="flex items-center gap-2 py-1 text-sm text-ink">
+                  <input
+                    type="radio"
+                    name="icm"
+                    value={option.id}
+                    checked={option === draftIcm}
+                    onChange={() => setDraftIcm(option)}
+                    className="accent-accent"
+                  />
+                  {option.label}
+                  <span className="ml-auto text-xs text-ink-faint">{option.stage}</span>
+                </label>
+              ))}
+            </div>
+            <p className="text-xs text-ink-faint">A 1,000-player field paying 150. Every seat and every player left holds the same stack. Postflop is solved in prize money too.</p>
           </fieldset>
         )}
 

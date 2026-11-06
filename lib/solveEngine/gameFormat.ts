@@ -164,6 +164,8 @@ export interface GameFormat {
   bbAnteBb: number;
   /** Whether the house takes a cut of each pot, as it does in cash games. */
   allowsRake: boolean;
+  /** Whether chips can be priced by what they're worth in prize money, as in a tournament. */
+  allowsIcm: boolean;
   /** By seat: UTG to HJ, CO, BTN, SB. */
   openSizes: { oop: OpenSizeRange; ip: OpenSizeRange; btn: OpenSizeRange; sb: OpenSizeRange };
   reraiseSizes: ReraiseSizes;
@@ -274,6 +276,7 @@ export const TOURNAMENT_8: GameFormat = {
   absentSeats: [],
   bbAnteBb: BB_ANTE_BB,
   allowsRake: false,
+  allowsIcm: true,
   openSizes: {
     oop: { shallowBb: OPEN_RAISE_EARLY_SHALLOW_BB, deepBb: OPEN_RAISE_EARLY_DEEP_BB },
     ip: { shallowBb: OPEN_RAISE_CO_SHALLOW_BB, deepBb: OPEN_RAISE_CO_DEEP_BB },
@@ -309,6 +312,7 @@ const CASH_8: GameFormat = {
   absentSeats: [],
   bbAnteBb: 0,
   allowsRake: true,
+  allowsIcm: false,
   openSizes: {
     oop: CASH_OPEN,
     ip: CASH_OPEN,

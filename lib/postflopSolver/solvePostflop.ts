@@ -8,6 +8,7 @@ import { clusteredNextCards, stratifiedNextCards } from "./nextCardSampling";
 import { buildHandTree, buildStreetTree, type HandTreeOptions, type PostflopTreeNode } from "./treeBuilder";
 import type { CfrSolution } from "./cfr";
 import type { RakeTerms } from "@/lib/solveEngine/rake";
+import type { PostflopIcm } from "./icmPayoffs";
 import type { ExploitabilityResult } from "./exploitability";
 import { runNativeCfr, solveNativeSession, solveThreadedSession, type NativeSolveSession } from "./wasm/engine";
 import { RunoutEquity } from "./wasm/runoutEquity";
@@ -27,6 +28,8 @@ interface PostflopSolveInputCommon {
   fast?: boolean;
   /** Taken from every pot. Postflop pots have seen a flop, so no-flop-no-drop makes no difference here. */
   rake?: RakeTerms;
+  /** A tournament hand: pay terminals in prize money (icmPayoffs.ts). Omit for chip EV. */
+  icm?: PostflopIcm;
 }
 
 export type PostflopSolveInput =
@@ -186,6 +189,7 @@ function solveWithTables(
     villainRange,
     rootEquityTable: equityTable,
     rake: input.rake,
+    icm: input.icm && { ...input.icm, remainingBb: input.effectiveStackBb },
     equityTableFor: runout ? (board: string[]) => (board.length === 4 ? runout.turnTable(board[3]) : undefined) : undefined,
   };
   let session: NativeSolveSession | undefined;

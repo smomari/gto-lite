@@ -1,4 +1,5 @@
 import type { RakeTerms } from "@/lib/solveEngine/rake";
+import type { PostflopIcm } from "@/lib/postflopSolver/icmPayoffs";
 import type { HandFrequency } from "./rangeData";
 import type { PostflopActionType, PostflopPlayer } from "@/lib/postflopSolver/potState";
 import type { ExploitabilityResult } from "@/lib/postflopSolver/exploitability";
@@ -19,6 +20,7 @@ interface PostflopSolveRequestCommon {
   maxIterations: number;
   targetExploitabilityPercent?: number;
   rake?: RakeTerms;
+  icm?: PostflopIcm;
 }
 
 export type PostflopSolveRequest =

@@ -5,6 +5,7 @@ import { buildNodeId } from "@/lib/actionTree/nodeId";
 import { STACK_MIN_BB, STACK_MAX_BB } from "@/lib/solveEngine/constants";
 import { TOURNAMENT_8, gameFormatById, type GameFormat } from "@/lib/solveEngine/gameFormat";
 import { NO_RAKE, rakeById, type RakeSettings } from "@/lib/solveEngine/rake";
+import { CHIP_EV, icmById, isChipEv, type IcmStructure } from "@/lib/solveEngine/icm";
 import { replayActionPath } from "@/lib/solveEngine/replay";
 import { computeAvailableActions } from "@/lib/solveEngine/actionSizing";
 import { solveActiveSeat } from "@/lib/solveEngine/solve";
@@ -21,7 +22,7 @@ function errorResponse(status: number, body: SolveErrorBody): Response {
 }
 
 type ValidationResult =
-  | { ok: true; value: Pick<SolveRequest, "effectiveStackBb" | "actionPath"> & { format: GameFormat; rake: RakeSettings } }
+  | { ok: true; value: Pick<SolveRequest, "effectiveStackBb" | "actionPath"> & { format: GameFormat; rake: RakeSettings; icm: IcmStructure } }
   | { ok: false; error: SolveErrorBody };
 
 function validateRequest(body: unknown): ValidationResult {
@@ -82,7 +83,12 @@ function validateRequest(body: unknown): ValidationResult {
   }
   const rake = { structure: format.allowsRake ? structure : NO_RAKE, noFlopNoDrop };
 
-  return { ok: true, value: { effectiveStackBb: stack, actionPath: cleaned, format, rake } };
+  const icm = b.icm === undefined ? CHIP_EV : icmById(String(b.icm));
+  if (!icm) {
+    return { ok: false, error: { error: `Unknown icm: ${String(b.icm)}`, code: "INVALID_ICM" } };
+  }
+
+  return { ok: true, value: { effectiveStackBb: stack, actionPath: cleaned, format, rake, icm: format.allowsIcm ? icm : CHIP_EV } };
 }
 
 export async function POST(request: Request): Promise<Response> {
@@ -96,7 +102,7 @@ export async function POST(request: Request): Promise<Response> {
   const validated = validateRequest(body);
   if (!validated.ok) return errorResponse(400, validated.error);
 
-  const { effectiveStackBb, actionPath, format, rake } = validated.value;
+  const { effectiveStackBb, actionPath, format, rake, icm } = validated.value;
   const replayResult = replayActionPath(actionPath, effectiveStackBb, format);
 
   if (replayResult.status === "invalid") {
@@ -117,7 +123,7 @@ export async function POST(request: Request): Promise<Response> {
     const matrix = loadEquityMatrix();
     const { activeSeat, potState, canonicalActionPath } = replayResult;
     const availableActions = computeAvailableActions(activeSeat, potState, effectiveStackBb);
-    const { hands, source } = solveActiveSeat(matrix, activeSeat, potState, effectiveStackBb, rake);
+    const { hands, source } = solveActiveSeat(matrix, activeSeat, potState, effectiveStackBb, rake, icm);
 
     const response: SolveResponse = {
       heroPosition: activeSeat,
@@ -125,6 +131,7 @@ export async function POST(request: Request): Promise<Response> {
       nodeId: buildNodeId(canonicalActionPath),
       actionPath: canonicalActionPath,
       source,
+      ...(isChipEv(icm) ? {} : { icm: icm.id }),
       generatedAt: new Date().toISOString(),
       version: VERSION,
       hands,

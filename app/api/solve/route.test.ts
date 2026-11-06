@@ -46,6 +46,27 @@ describe("POST /api/solve", () => {
     }
   });
 
+  it("rejects an unknown ICM stage", async () => {
+    const res = await POST(makeRequest({ effectiveStackBb: 100, actionPath: [], icm: "satellite" }));
+    expect(res.status).toBe(400);
+    expect((await res.json()).code).toBe("INVALID_ICM");
+  });
+
+  it("prices a tournament shove at the ICM stage asked for, and says so", async () => {
+    const solve = async (icm?: string) => (await POST(makeRequest({ effectiveStackBb: 10, actionPath: [], icm }))).json();
+    const [chipEv, bubble] = await Promise.all([solve(), solve("bubble")]);
+    expect(chipEv.icm).toBeUndefined();
+    expect(bubble.icm).toBe("bubble");
+    expect(bubble.source).toBe("nash-shove-fold");
+    expect(bubble.hands).not.toEqual(chipEv.hands);
+  });
+
+  it("ignores ICM at a cash table", async () => {
+    const res = await POST(makeRequest({ effectiveStackBb: 100, actionPath: [], format: "cash-6", icm: "bubble" }));
+    expect(res.status).toBe(200);
+    expect((await res.json()).icm).toBeUndefined();
+  });
+
   it("offers SB a limp when folded to it", async () => {
     const actionPath = ["UTG", "UTG1", "LJ", "HJ", "CO", "BTN"].map((actor) => ({ actor, action: "fold" }));
     const res = await POST(makeRequest({ effectiveStackBb: 100, actionPath }));

@@ -153,10 +153,13 @@ export interface FacingRaiseParams {
   closingContinueFactor: number;
   /** Share of the 3-bets that are value. Default RAISE_VALUE_SHARE. */
   threeBetValueShare?: number;
+  /** ICM's price on the chips a call risks: they count this many times. Default 1, chip EV. */
+  bubbleFactor?: number;
 }
 
 function potOddsAdjustFor(params: FacingRaiseParams): number {
-  const potOddsRatio = params.amountOwedBb / (params.potBb + params.amountOwedBb);
+  const owed = params.amountOwedBb * (params.bubbleFactor ?? 1);
+  const potOddsRatio = owed / (params.potBb + owed);
   return clamp(POT_ODDS_REFERENCE_RATIO / potOddsRatio, POT_ODDS_MIN_ADJUST, POT_ODDS_MAX_ADJUST);
 }
 

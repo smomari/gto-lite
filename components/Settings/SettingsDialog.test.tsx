@@ -2,12 +2,13 @@ import { describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { TOURNAMENT_8, gameFormatById } from "@/lib/solveEngine/gameFormat";
 import { DEFAULT_RAKE_SETTINGS, rakeById } from "@/lib/solveEngine/rake";
+import { CHIP_EV, icmById } from "@/lib/solveEngine/icm";
 import { SettingsDialog } from "./SettingsDialog";
 
 function renderDialog(stackBb = 100) {
   const onApply = vi.fn();
   const onClose = vi.fn();
-  render(<SettingsDialog format={TOURNAMENT_8} rake={DEFAULT_RAKE_SETTINGS} stackBb={stackBb} onApply={onApply} onClose={onClose} />);
+  render(<SettingsDialog format={TOURNAMENT_8} rake={DEFAULT_RAKE_SETTINGS} icm={CHIP_EV} stackBb={stackBb} onApply={onApply} onClose={onClose} />);
   return { onApply, onClose };
 }
 
@@ -26,7 +27,7 @@ describe("SettingsDialog", () => {
     fireEvent.click(screen.getByRole("radio", { name: "Cash 6-max" }));
     expect(onApply).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: "Apply" }));
-    expect(onApply).toHaveBeenCalledWith(60, gameFormatById("cash-6"), DEFAULT_RAKE_SETTINGS);
+    expect(onApply).toHaveBeenCalledWith(60, gameFormatById("cash-6"), DEFAULT_RAKE_SETTINGS, CHIP_EV);
   });
 
   it("asks for rake only at a cash table", () => {
@@ -47,7 +48,23 @@ describe("SettingsDialog", () => {
     fireEvent.click(screen.getByRole("checkbox", { name: "No flop, no drop" }));
     expect(onApply).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: "Apply" }));
-    expect(onApply).toHaveBeenCalledWith(100, gameFormatById("cash-8"), { structure: rakeById("live"), noFlopNoDrop: false });
+    expect(onApply).toHaveBeenCalledWith(100, gameFormatById("cash-8"), { structure: rakeById("live"), noFlopNoDrop: false }, CHIP_EV);
+  });
+
+  it("asks for an ICM stage only at a tournament table", () => {
+    renderDialog();
+    expect(screen.getByRole("group", { name: "ICM" })).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: /Chip EV/ })).toBeChecked();
+    fireEvent.click(screen.getByRole("radio", { name: "Cash 8-max" }));
+    expect(screen.queryByRole("group", { name: "ICM" })).not.toBeInTheDocument();
+  });
+
+  it("hands the chosen ICM stage over on Apply", () => {
+    const { onApply } = renderDialog();
+    fireEvent.click(screen.getByRole("radio", { name: /^Bubble/ }));
+    expect(onApply).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+    expect(onApply).toHaveBeenCalledWith(100, TOURNAMENT_8, DEFAULT_RAKE_SETTINGS, icmById("bubble"));
   });
 
   it.each(["Cancel", "Close"])("%s drops the draft", (name) => {

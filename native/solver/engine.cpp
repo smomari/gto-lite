@@ -145,6 +145,9 @@ struct Engine {
   std::vector<int32_t> childStart;
   std::vector<uint8_t> childCount;
   std::vector<float> pot, committed1, committed2;
+  // Per player, what a terminal pays: `won` on winning it, −`risked` on losing it, the midpoint on a tie.
+  // In chips both players' are the pot and their own committed chips (see eng_set_payoffs).
+  std::vector<float> won[2], risked[2];
   std::vector<int32_t> aux;
   std::vector<int32_t> children;
   std::vector<uint8_t> childCard;
@@ -196,8 +199,8 @@ inline double live(const Player& self, int i, const CardSums& s, const float* op
 
 void foldValues(const Engine& e, int node, int p, const float* oppReach, float* out) {
   const Player& self = e.players[p];
-  const float committed = p == 0 ? e.committed1[node] : e.committed2[node];
-  const float payoff = e.aux[node] == p ? e.pot[node] - committed : -committed;
+  const float committed = e.risked[p][node];
+  const float payoff = e.aux[node] == p ? e.won[p][node] - committed : -committed;
   const CardSums s = cardSums(e.players[1 - p], oppReach);
   for (int i = 0; i < self.n; i++) out[i] = static_cast<float>(payoff * live(self, i, s, oppReach));
 }
@@ -235,8 +238,8 @@ void tableShowdownValues(const Engine& e, int node, int p, const float* oppReach
   const Player& self = e.players[p];
   const int oppCount = e.players[1 - p].n;
   const float* eq = e.tables[e.aux[node]].rows[p].data();
-  const double pot = e.pot[node];
-  const double committed = p == 0 ? e.committed1[node] : e.committed2[node];
+  const double pot = e.won[p][node];
+  const double committed = e.risked[p][node];
   const CardSums s = cardSums(e.players[1 - p], oppReach);
   int blocks[kMaxCombos / 8];
   const int blockCount = liveBlocks(oppReach, oppCount, blocks);
@@ -265,8 +268,8 @@ void riverShowdownValues(const Engine& e, int node, int p, const float* oppReach
   const uint32_t* myStrength = board.strength[p].data();
   const uint32_t* oppStrength = board.strength[1 - p].data();
   const int32_t* oppOrder = board.ascending[1 - p].data();
-  const double half = e.pot[node] * 0.5;
-  const double committed = p == 0 ? e.committed1[node] : e.committed2[node];
+  const double half = e.won[p][node] * 0.5;
+  const double committed = e.risked[p][node];
 
   CardSums run = cardSums(opp, oppReach);
   run.total *= -committed;
@@ -859,6 +862,9 @@ Engine* eng_create(int nodeCount, const uint8_t* type, const int32_t* childStart
   e->pot.assign(pot, pot + nodeCount);
   e->committed1.assign(committed1, committed1 + nodeCount);
   e->committed2.assign(committed2, committed2 + nodeCount);
+  e->won[0] = e->won[1] = e->pot;
+  e->risked[0] = e->committed1;
+  e->risked[1] = e->committed2;
   e->aux.assign(aux, aux + nodeCount);
   e->children.assign(children, children + childSlots);
   e->childCard.assign(childCard, childCard + childSlots);
@@ -884,6 +890,20 @@ Engine* eng_create(int nodeCount, const uint8_t* type, const int32_t* childStart
 }
 
 void eng_destroy(Engine* e) { delete e; }
+
+/**
+ * Replaces each player's terminal payoffs, per node: `wonP` is the swing from
+ * losing a terminal to winning it, `riskedP` what losing it costs. For prize
+ * money under ICM, where one player's gain is not the other's loss. Values
+ * stay relative to the root, so exploitability's percent of the starting pot
+ * still reads in the chips eng_create was given.
+ */
+void eng_set_payoffs(Engine* e, const float* won1, const float* risked1, const float* won2, const float* risked2) {
+  e->won[0].assign(won1, won1 + e->nodeCount);
+  e->risked[0].assign(risked1, risked1 + e->nodeCount);
+  e->won[1].assign(won2, won2 + e->nodeCount);
+  e->risked[1].assign(risked2, risked2 + e->nodeCount);
+}
 
 /** Registers an equity table (hero rows × villain cols, hero equity, blocked pairs 0); returns its id. */
 int eng_add_equity_table(Engine* e, const float* heroEquity) {
