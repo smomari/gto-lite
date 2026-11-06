@@ -52,6 +52,7 @@ import {
   REACTIVE_RAISE_IP_MULTIPLIER,
   REACTIVE_RAISE_OOP_MULTIPLIER,
 } from "./constants";
+import { anchorsAround, lerp } from "./interpolate";
 import { DEFAULT_RAKE_SETTINGS, rakeShare, type RakeSettings } from "./rake";
 
 export type GameFormatId = "tournament-8" | "cash-6" | "cash-8";
@@ -108,13 +109,9 @@ export interface DepthTuning {
 
 /** The format with its depth tuning applied at this effective stack. Formats without any come back as they are. */
 export function tunedAt(format: GameFormat, effectiveStackBb: number): GameFormat {
-  const anchors = format.tuningByStack;
-  if (!anchors) return format;
-  const upper = anchors.findIndex((a) => a.stackBb >= effectiveStackBb);
-  const lo = anchors[upper <= 0 ? 0 : upper === -1 ? anchors.length - 1 : upper - 1];
-  const hi = anchors[upper === -1 ? anchors.length - 1 : Math.max(upper, 0)];
-  const t = hi.stackBb === lo.stackBb ? 0 : (effectiveStackBb - lo.stackBb) / (hi.stackBb - lo.stackBb);
-  const mix = (key: Exclude<keyof DepthTuning, "stackBb">) => lo[key] + (hi[key] - lo[key]) * t;
+  if (!format.tuningByStack) return format;
+  const { lo, hi, t } = anchorsAround(format.tuningByStack, effectiveStackBb);
+  const mix = (key: Exclude<keyof DepthTuning, "stackBb">) => lerp(lo[key], hi[key], t);
   return {
     ...format,
     sbThreeBetWidthRatio: mix("sbThreeBetWidthRatio"),
@@ -139,15 +136,9 @@ export function tunedAt(format: GameFormat, effectiveStackBb: number): GameForma
 
 /** A format's 3-bet and 4-bet multiples at this effective stack. */
 export function reraiseSizesAt(format: GameFormat, effectiveStackBb: number): Pick<ReraiseSizes, "threeBet" | "fourBetPlus"> {
-  const anchors = format.reraiseSizes.byStack;
-  if (!anchors) return format.reraiseSizes;
-  const upper = anchors.findIndex((a) => a.stackBb >= effectiveStackBb);
-  if (upper === 0) return anchors[0];
-  if (upper === -1) return anchors[anchors.length - 1];
-  const lo = anchors[upper - 1];
-  const hi = anchors[upper];
-  const t = (effectiveStackBb - lo.stackBb) / (hi.stackBb - lo.stackBb);
-  const mix = (a: number, b: number) => a + (b - a) * t;
+  if (!format.reraiseSizes.byStack) return format.reraiseSizes;
+  const { lo, hi, t } = anchorsAround(format.reraiseSizes.byStack, effectiveStackBb);
+  const mix = (a: number, b: number) => lerp(a, b, t);
   return {
     threeBet: { ip: mix(lo.threeBet.ip, hi.threeBet.ip), sbOop: mix(lo.threeBet.sbOop, hi.threeBet.sbOop), bbOop: mix(lo.threeBet.bbOop, hi.threeBet.bbOop) },
     fourBetPlus: { ip: mix(lo.fourBetPlus.ip, hi.fourBetPlus.ip), oop: mix(lo.fourBetPlus.oop, hi.fourBetPlus.oop) },
@@ -229,14 +220,6 @@ export interface GameFormat {
   sbThreeBetKeepFactor?: number;
 }
 
-
-/**
- * Tournament blinds 3-bet a button open bigger the deeper it gets, as GTO
- * Wizard's MTT 8max ChipEV solutions do: the SB to 2.5x at 20bb, 3.5x at 40bb
- * and 4.5x at 100bb, the BB to 3x, 4.25x and 5.25x; the button 4-bets 2.2x at
- * 100bb. In-position 3-bets and out-of-position 4-bets weren't seen there and
- * keep the old 3x and 4x.
- */
 /**
  * Tournament tuning by depth, set against GTO Wizard's MTT 8max ChipEV
  * solutions at 20bb, 40bb and 100bb: 3-bets widen and the SB stops flatting
@@ -272,6 +255,13 @@ const TOURNAMENT_TUNING_BY_STACK: DepthTuning[] = [
 const TOURNAMENT_JAM_THREE_BET_SHARE = 0.25;
 const TOURNAMENT_JAM_FOUR_BET_SHARE = 0.4;
 
+/**
+ * Tournament blinds 3-bet a button open bigger the deeper it gets, as GTO
+ * Wizard's MTT 8max ChipEV solutions do: the SB to 2.5x at 20bb, 3.5x at 40bb
+ * and 4.5x at 100bb, the BB to 3x, 4.25x and 5.25x; the button 4-bets 2.2x at
+ * 100bb. In-position 3-bets and out-of-position 4-bets weren't seen there and
+ * keep the old 3x and 4x.
+ */
 const TOURNAMENT_RERAISE_SIZES_BY_STACK = [
   { stackBb: 20, threeBet: { ip: 3, sbOop: 2.5, bbOop: 3 }, fourBetPlus: { ip: 3, oop: 4 } },
   { stackBb: 40, threeBet: { ip: 3, sbOop: 3.5, bbOop: 4.25 }, fourBetPlus: { ip: 2.2, oop: 4 } },
