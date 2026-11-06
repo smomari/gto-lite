@@ -39,17 +39,20 @@ export interface VsReraiseParams {
    */
   valueInDeckCombos?: boolean;
   rake: RakeTerms;
+  /** ICM's price on the chips a call risks: losing them counts this many times. Default 1, chip EV. */
+  bubbleFactor?: number;
 }
 
-export type VsShoveParams = Pick<VsReraiseParams, "heroRange" | "villainRange" | "potBb" | "amountOwedBb" | "rake">;
+export type VsShoveParams = Pick<VsReraiseParams, "heroRange" | "villainRange" | "potBb" | "amountOwedBb" | "rake" | "bubbleFactor">;
 
 /**
  * Facing a raise that all but gets the stacks in, equity is what a hand wins:
  * it calls if that beats the real price of the real pot. Nothing here re-raises.
  */
 export function generateCallShoveScenario(matrix: EquityMatrix, params: VsShoveParams): HandFrequency[] {
-  const { heroRange, villainRange, potBb, amountOwedBb, rake } = params;
-  const equityToCall = amountOwedBb / netPot(potBb + amountOwedBb, rake);
+  const { heroRange, villainRange, potBb, rake } = params;
+  const owed = params.amountOwedBb * (params.bubbleFactor ?? 1);
+  const equityToCall = owed / netPot(potBb + owed, rake);
   return ALL_HANDS.map((h) => {
     const reached = (heroRange.get(h.hand) ?? 0) > 0;
     const call = reached && weightedEquityVsRange(matrix, h.hand, villainRange) > equityToCall ? 1 : 0;
@@ -72,9 +75,10 @@ export function generateVsReraiseScenario(
   ranking: Map<string, number>,
   params: VsReraiseParams,
 ): HandFrequency[] {
-  const { heroRange, villainRange, isIP, potBb, amountOwedBb, raiseWidth, bluffWidth, keepBase, rake } = params;
+  const { heroRange, villainRange, isIP, potBb, raiseWidth, bluffWidth, keepBase, rake } = params;
   const realization = isIP ? EQUITY_REALIZATION_IP : EQUITY_REALIZATION_OOP;
-  const equityToCall = amountOwedBb / (realization * netPot(potBb + amountOwedBb, rake));
+  const owed = params.amountOwedBb * (params.bubbleFactor ?? 1);
+  const equityToCall = owed / (realization * netPot(potBb + owed, rake));
 
   const reached = ALL_HANDS.filter((h) => (heroRange.get(h.hand) ?? 0) > 0)
     .map((h) => ({

@@ -50,7 +50,7 @@ beforeEach(() => {
   });
 });
 
-const TABLE: SolveTable = { effectiveStackBb: 100, format: "cash-8", rake: "none", noFlopNoDrop: true };
+const TABLE: SolveTable = { effectiveStackBb: 100, format: "cash-8", rake: "none", noFlopNoDrop: true, icm: "chip-ev" };
 
 describe("usePreflopSolve", () => {
   it("hands off to the flop with the ranges seen on the way, without fetching them again", async () => {

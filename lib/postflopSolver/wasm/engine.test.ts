@@ -8,7 +8,7 @@ import { stratifiedNextCards } from "../nextCardSampling";
 import { createReferenceCfr } from "../reference/referenceCfr";
 import type { ComboRange } from "../types";
 import { loadNodeSolverModule } from "./loadNode";
-import { NativeCfrEngine, runNativeCfr } from "./engine";
+import { NativeCfrEngine, prepareEngineBuild, runNativeCfr } from "./engine";
 import { FLOP_FAST_LOOKAHEAD, FLOP_LOOKAHEAD, solvePostflopStreet } from "../solvePostflop";
 import { serializeTree } from "../serialize";
 import { initialPostflopPotState } from "../potState";
@@ -180,6 +180,68 @@ describe("rake", () => {
     expect(report.p1ActualBb + report.p2ActualBb).toBeCloseTo(POT - expectedRake, 2);
     expect(report.percentOfPot).toBeLessThan(0.5);
     engine.dispose();
+  });
+});
+
+describe("ICM payoffs", () => {
+  const BOARD = ["Kd", "Qc", "8h", "5s", "2d"];
+  const heroRange: ComboRange = [
+    { cards: ["8d", "8c"], weight: 1 },
+    { cards: ["7c", "6c"], weight: 2 },
+  ];
+  const villainRange: ComboRange = [{ cards: ["Jc", "Jd"], weight: 1 }];
+  const POT = 10;
+  const STACK = 20;
+
+  /** The polarized river again, with the bet all-in. */
+  function polarizedJam() {
+    const start = initialPostflopPotState(POT);
+    const bet = { ...start, committed: { P1: STACK, P2: 0 } };
+    const called = { ...start, committed: { P1: STACK, P2: STACK } };
+    const fold: PostflopTreeNode = { type: "terminal-fold", winner: "P1", state: bet };
+    const call: PostflopTreeNode = { type: "terminal-showdown", state: called };
+    const check: PostflopTreeNode = { type: "terminal-showdown", state: start };
+    const facingBet: DecisionNode = { type: "decision", actor: "P2", state: bet, actions: [{ action: "fold", child: fold }, { action: "call", child: call }] };
+    const root: DecisionNode = { type: "decision", actor: "P1", state: start, actions: [{ action: "check", child: check }, { action: "bet", child: facingBet }] };
+    return { root, facingBet, fold, call, check };
+  }
+
+  async function solveJam(icm?: "bubble") {
+    const spot = polarizedJam();
+    const input = { tree: spot.root, board: BOARD, heroRange, villainRange, icm: icm && { icm, seats: 8, stackBb: STACK, remainingBb: STACK } };
+    const { build, flat } = prepareEngineBuild(input);
+    const engine = NativeCfrEngine.fromBuild(await loadNodeSolverModule(), build, flat);
+    engine.iterate(1, 4000);
+    const bets = engine.averageStrategy(spot.root).map((row) => row[1]);
+    const bluffs = heroRange[1].weight * bets[1];
+    const result = {
+      bluffShare: bluffs / (bluffs + heroRange[0].weight * bets[0]),
+      callFrequency: engine.averageStrategy(spot.facingBet)[0][1],
+      build,
+      at: (node: PostflopTreeNode) => flat.nodeIndex.get(node)!,
+      spot,
+    };
+    engine.dispose();
+    return result;
+  }
+
+  it("count losing a stack for more than winning one", async () => {
+    const { build, at, spot } = await solveJam("bubble");
+    const { won1, risked1 } = build.payoffs!;
+    const call = at(spot.call);
+    expect(risked1[call]).toBeGreaterThan(won1[call] - risked1[call]);
+  });
+
+  it("settle on the indifference frequencies of the prize money, calling less than in chips", async () => {
+    const chips = await solveJam();
+    const { bluffShare, callFrequency, build, at, spot } = await solveJam("bubble");
+    const { won1, risked1, won2, risked2 } = build.payoffs!;
+    const [fold, call, check] = [at(spot.fold), at(spot.call), at(spot.check)];
+    // The bluff catcher is indifferent between folding and calling; a bluff between checking and betting.
+    expect(bluffShare).toBeCloseTo((risked2[call] - risked2[fold]) / won2[call], 2);
+    const bluffWin = won1[fold] - risked1[fold];
+    expect(callFrequency).toBeCloseTo((bluffWin + risked1[check]) / (bluffWin + risked1[call]), 2);
+    expect(callFrequency).toBeLessThan(chips.callFrequency - 0.05);
   });
 });
 

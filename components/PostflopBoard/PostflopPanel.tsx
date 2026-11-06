@@ -14,6 +14,7 @@ import { NextStreetEvNote } from "./NextStreetEvNote";
 import { narrowRangeAlongPath } from "@/lib/postflopSolver/rangeNarrowing";
 import { DEFAULT_TARGET_EXPLOITABILITY_PERCENT } from "@/lib/postflopSolver/cfr";
 import type { RakeStructure } from "@/lib/solveEngine/rake";
+import type { PostflopIcm } from "@/lib/postflopSolver/icmPayoffs";
 import type { ActionWeightKey, SerializedDecisionAction, SerializedTreeNode } from "@/types/postflopSolver";
 import type { HandFrequency } from "@/types/rangeData";
 import { streetLabelForBoardLength } from "./streetLabel";
@@ -30,6 +31,8 @@ interface PostflopPanelProps {
   startPot: number;
   effectiveStackBb: number;
   rake: RakeStructure;
+  /** A tournament hand priced in prize money; omitted in chip EV. */
+  icm?: PostflopIcm;
   /** Back to the first preflop decision, once a hand is over. */
   onNewHand: () => void;
   /** Where each street's StreetBox is portaled — the end of the seat-bar row, so the whole hand reads as one timeline. */

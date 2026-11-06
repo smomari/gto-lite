@@ -39,6 +39,7 @@ export interface SolverModule {
     villainWeights: number,
   ): number;
   _eng_destroy(engine: number): void;
+  _eng_set_payoffs(engine: number, won1: number, risked1: number, won2: number, risked2: number): void;
   _eng_add_equity_table(engine: number, heroEquity: number): number;
   _eng_add_river_board(engine: number, heroStrength: number, villainStrength: number): number;
   _eng_iterate(engine: number, firstT: number, count: number): void;

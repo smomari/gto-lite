@@ -93,6 +93,13 @@ describe("buildStreetSolveRequest", () => {
     });
   });
 
+  it("carries a tournament's ICM to every street", () => {
+    const icm = { icm: "bubble" as const, seats: 8, stackBb: 100 };
+    const inputs = { ...INPUTS, icm };
+    expect(buildStreetSolveRequest([idleStage(3, 97)], 0, ["As", "Kd", "Qh"], inputs, true)).toMatchObject({ icm });
+    expect(buildStreetSolveRequest([flopClosedAtChance(), idleStage(4, 91)], 1, ["7h"], inputs, true)).toMatchObject({ icm });
+  });
+
   it("refuses a later street whose previous one didn't close at a chance node", () => {
     expect(() => buildStreetSolveRequest([idleStage(3, 97), idleStage(4, 97)], 1, ["7h"], INPUTS, false)).toThrow(/chance node/);
   });

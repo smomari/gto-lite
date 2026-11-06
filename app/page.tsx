@@ -12,6 +12,8 @@ import { TOURNAMENT_8, type GameFormat } from "@/lib/solveEngine/gameFormat";
 import { buildFoldPrefixPath } from "@/lib/solveEngine/preview";
 import { replayActionPath } from "@/lib/solveEngine/replay";
 import { DEFAULT_RAKE_SETTINGS, NO_RAKE, type RakeSettings } from "@/lib/solveEngine/rake";
+import { CHIP_EV, isChipEv, type IcmStructure } from "@/lib/solveEngine/icm";
+import { SEAT_ORDER } from "@/lib/actionTree/seatOrder";
 import { PostflopPanel } from "@/components/PostflopBoard/PostflopPanel";
 import { HandResolvedNotice } from "@/components/HandResolvedNotice";
 import type { ActionType, Position } from "@/types/rangeData";
@@ -25,22 +27,30 @@ export default function Home() {
   const [stackBb, setStackBb] = useState(100);
   const [format, setFormat] = useState<GameFormat>(TOURNAMENT_8);
   const [rake, setRake] = useState<RakeSettings>(DEFAULT_RAKE_SETTINGS);
+  const [icm, setIcm] = useState<IcmStructure>(CHIP_EV);
   const [settingsOpen, setSettingsOpen] = useState(false);
   /** Bumped to send the same request again. */
   const [attempt, setAttempt] = useState(0);
   const [requestPath, setRequestPath] = useState<RequestStep[]>([]);
   const [streetBarSlot, setStreetBarSlot] = useState<HTMLDivElement | null>(null);
 
-  const table = { effectiveStackBb: stackBb, format: format.id, rake: rake.structure.id, noFlopNoDrop: rake.noFlopNoDrop };
+  const table = {
+    effectiveStackBb: stackBb,
+    format: format.id,
+    rake: rake.structure.id,
+    noFlopNoDrop: rake.noFlopNoDrop,
+    icm: format.allowsIcm ? icm.id : CHIP_EV.id,
+  };
   const { loading, current, handoff, rangeLoadFailed } = usePreflopSolve(table, requestPath, attempt);
 
-  function handleSettingsApply(nextStackBb: number, nextFormat: GameFormat, nextRake: RakeSettings) {
+  function handleSettingsApply(nextStackBb: number, nextFormat: GameFormat, nextRake: RakeSettings, nextIcm: IcmStructure) {
     setSettingsOpen(false);
     const sameRake = nextRake.structure === rake.structure && nextRake.noFlopNoDrop === rake.noFlopNoDrop;
-    if (nextStackBb === stackBb && nextFormat === format && sameRake) return;
+    if (nextStackBb === stackBb && nextFormat === format && sameRake && nextIcm === icm) return;
     setStackBb(nextStackBb);
     setFormat(nextFormat);
     setRake(nextRake);
+    setIcm(nextIcm);
     setRequestPath([]);
   }
 
@@ -84,11 +94,11 @@ export default function Home() {
     <div className="mx-auto flex min-h-dvh w-full max-w-6xl flex-col gap-2 px-2 py-2 sm:px-4 lg:h-dvh lg:min-h-0 lg:overflow-hidden lg:px-6 lg:py-3">
       <header className="flex items-center justify-between border-b border-line pb-2">
         <span className="text-xl font-semibold tracking-tight text-ink">gtoLite</span>
-        <SettingsButton format={format} rake={rake.structure} stackBb={stackBb} onClick={() => setSettingsOpen(true)} />
+        <SettingsButton format={format} rake={rake.structure} icm={icm} stackBb={stackBb} onClick={() => setSettingsOpen(true)} />
       </header>
 
       {settingsOpen && (
-        <SettingsDialog format={format} rake={rake} stackBb={stackBb} onApply={handleSettingsApply} onClose={() => setSettingsOpen(false)} />
+        <SettingsDialog format={format} rake={rake} icm={icm} stackBb={stackBb} onApply={handleSettingsApply} onClose={() => setSettingsOpen(false)} />
       )}
 
       <SeatActionBar
@@ -154,6 +164,11 @@ export default function Home() {
               startPot={current.potBb}
               effectiveStackBb={Math.min(p1.remainingBb, p2.remainingBb)}
               rake={format.allowsRake ? rake.structure : NO_RAKE}
+              icm={
+                format.allowsIcm && !isChipEv(icm)
+                  ? { icm: icm.id, seats: SEAT_ORDER.length - format.absentSeats.length, stackBb }
+                  : undefined
+              }
               streetBarSlot={streetBarSlot}
               onNewHand={handleNewHand}
             />
@@ -164,7 +179,7 @@ export default function Home() {
       {current?.kind === "success" && (
         <section className="flex flex-col gap-2 lg:min-h-0 lg:flex-1 lg:overflow-hidden">
           <div className="flex items-center justify-between gap-3">
-            <SourceBadge source={current.data.source} />
+            <SourceBadge source={current.data.source} icm={current.data.icm} />
             <span className="font-mono text-xs tabular-nums text-ink-muted">
               Pot {current.data.potBb.toFixed(1)}bb
               {current.data.availableActions.call &&

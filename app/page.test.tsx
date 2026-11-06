@@ -57,6 +57,22 @@ describe("Home", () => {
     expect(screen.getByRole("button", { name: /Settings/ })).toHaveTextContent("40bb");
   });
 
+  it("a new ICM stage restarts the hand and asks for that stage", async () => {
+    render(<Home />);
+    await screen.findAllByRole("button", { name: "Fold" });
+    expect(solveNode).toHaveBeenLastCalledWith(expect.objectContaining({ icm: "chip-ev" }), expect.anything());
+    fireEvent.click(within(activeSeat()).getByRole("button", { name: "Fold" }));
+    await screen.findByRole("button", { name: "New hand" });
+
+    openSettings();
+    fireEvent.click(screen.getByRole("radio", { name: /^Bubble/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+    await screen.findAllByRole("button", { name: "Fold" });
+    expect(screen.queryByRole("button", { name: "New hand" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Settings/ })).toHaveTextContent("ICM Bubble");
+    expect(solveNode).toHaveBeenLastCalledWith(expect.objectContaining({ actionPath: [], format: "tournament-8", icm: "bubble" }), expect.anything());
+  });
+
   it("shows the seat to act while its range loads", async () => {
     let finish: (value: unknown) => void = () => {};
     vi.mocked(solveNode).mockImplementationOnce(() => new Promise((resolve) => (finish = resolve)) as never);

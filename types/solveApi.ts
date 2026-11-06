@@ -1,4 +1,5 @@
 import type { GameFormatId } from "@/lib/solveEngine/gameFormat";
+import type { IcmId } from "@/lib/solveEngine/icm";
 import type { RakeId } from "@/lib/solveEngine/rake";
 import type { ActionNode, ActionType, Position, RangeScenario } from "./rangeData";
 
@@ -11,6 +12,8 @@ export interface SolveRequest {
   rake?: RakeId;
   /** Defaults to true. */
   noFlopNoDrop?: boolean;
+  /** Ignored by formats without ICM. Defaults to chip EV. */
+  icm?: IcmId;
 }
 
 export interface CallOption {
@@ -36,12 +39,14 @@ export interface AvailableActions {
 }
 
 export interface SolveResponse extends RangeScenario {
+  /** The ICM stage these ranges were priced at; absent in chip EV. */
+  icm?: IcmId;
   potBb: number;
   currentBetToCall: number;
   availableActions: AvailableActions;
 }
 
-export type SolveErrorCode = "INVALID_STACK" | "INVALID_ACTION_PATH" | "INVALID_FORMAT" | "INVALID_RAKE" | "HAND_RESOLVED" | "INTERNAL";
+export type SolveErrorCode = "INVALID_STACK" | "INVALID_ACTION_PATH" | "INVALID_FORMAT" | "INVALID_RAKE" | "INVALID_ICM" | "HAND_RESOLVED" | "INTERNAL";
 export type HandResolvedReason = "uncontested" | "action-closed";
 
 export interface SolveErrorBody {

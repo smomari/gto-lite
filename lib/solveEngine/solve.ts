@@ -10,7 +10,7 @@ import {
   openWidthFor,
   type FacingRaiseParams,
 } from "@/lib/heuristicRanges/generateScenario";
-import { RAISE_VALUE_SHARE, RAKE_CONTINUE_FALLOFF, RERAISE_KEEP_BASE } from "@/lib/heuristicRanges/config";
+import { ICM_PARTIAL_RISK_WEIGHT, RAISE_VALUE_SHARE, RAKE_CONTINUE_FALLOFF, RERAISE_KEEP_BASE } from "@/lib/heuristicRanges/config";
 import { generateCallShoveScenario, generateVsReraiseScenario, type VsReraiseParams } from "@/lib/heuristicRanges/vsReraise";
 import type { FrequencyMap } from "@/lib/nashSolver/pushFoldSolver";
 import { firstInWidthsUnder, tunedAt, type FirstInAnchor, type GameFormat } from "./gameFormat";
@@ -19,6 +19,7 @@ import { aggressiveFrequencies } from "./postflopHandoff";
 import { callersOf, type PotState, type SeatDecision } from "./potState";
 import { NO_RAKE_SETTINGS, rakeShare, type RakeSettings } from "./rake";
 import { shouldUseNash } from "./classify";
+import { CHIP_EV, equalStackBubbleFactor, type IcmStructure } from "./icm";
 import { getPlayabilityRanking, getPushFoldResult } from "./solveCache";
 
 export interface SolvedNode {
@@ -47,8 +48,9 @@ function rangeAfter(
   decision: SeatDecision,
   effectiveStackBb: number,
   rake: RakeSettings,
+  icm: IcmStructure,
 ): FrequencyMap {
-  const { hands } = solveActiveSeat(matrix, seat, decision.state, effectiveStackBb, rake);
+  const { hands } = solveActiveSeat(matrix, seat, decision.state, effectiveStackBb, rake, icm);
   const aggressive = decision.action === "raise" || decision.action === "allin";
   const frequencies = aggressive ? aggressiveFrequencies(hands) : hands.map((h) => h.call);
   return new Map(hands.map((h, i) => [h.hand, frequencies[i]]));
@@ -65,6 +67,11 @@ interface SpotContext {
   potState: PotState;
   effectiveStackBb: number;
   rake: RakeSettings;
+  icm: IcmStructure;
+  /** Seats the table has. */
+  seats: number;
+  /** ICM's price on losing the active seat's stack to the raiser; 1 in chip EV. Every seat starts with the same stack, so it doesn't depend on who. */
+  allInBubbleFactor: number;
   /** The format tuned to this stack. */
   format: GameFormat;
   firstInWidths: readonly FirstInAnchor[];
@@ -93,8 +100,11 @@ function spotContext(
   potState: PotState,
   effectiveStackBb: number,
   rake: RakeSettings,
+  icm: IcmStructure,
 ): SpotContext {
   const format = tunedAt(potState.format, effectiveStackBb);
+  const seats = SEAT_ORDER.length - potState.format.absentSeats.length;
+  const remainingStackBb = effectiveStackBb - (potState.committed[activeSeat] ?? 0);
   const lastAggressor = potState.lastAggressor;
   const ownDecision = potState.lastDecision[activeSeat];
   const raiserDecision = lastAggressor && potState.lastDecision[lastAggressor];
@@ -104,16 +114,19 @@ function spotContext(
     potState,
     effectiveStackBb,
     rake,
+    icm,
+    seats,
+    allInBubbleFactor: equalStackBubbleFactor(icm, seats, effectiveStackBb, remainingStackBb),
     format,
     firstInWidths: firstInWidthsUnder(format, rake),
     hasOpener: potState.raiseDepth >= 1,
-    remainingStackBb: effectiveStackBb - (potState.committed[activeSeat] ?? 0),
+    remainingStackBb,
     amountOwedBb: potState.currentBetToCall - (potState.committed[activeSeat] ?? 0),
     lastAggressor,
     ownDecision,
     raiserDecision,
-    heroRange: ownDecision && rangeAfter(matrix, activeSeat, ownDecision, effectiveStackBb, rake),
-    villainRange: raiserDecision && rangeAfter(matrix, lastAggressor, raiserDecision, effectiveStackBb, rake),
+    heroRange: ownDecision && rangeAfter(matrix, activeSeat, ownDecision, effectiveStackBb, rake, icm),
+    villainRange: raiserDecision && rangeAfter(matrix, lastAggressor, raiserDecision, effectiveStackBb, rake, icm),
   };
 }
 
@@ -128,8 +141,9 @@ export function solveActiveSeat(
   potState: PotState,
   effectiveStackBb: number,
   rake: RakeSettings = NO_RAKE_SETTINGS,
+  icm: IcmStructure = CHIP_EV,
 ): SolvedNode {
-  const ctx = spotContext(matrix, activeSeat, potState, effectiveStackBb, rake);
+  const ctx = spotContext(matrix, activeSeat, potState, effectiveStackBb, rake, icm);
   if (shouldUseNash(effectiveStackBb, ctx.remainingStackBb, potState.potBb, ctx.hasOpener)) return solveShoveSpot(ctx);
   if (!ctx.hasOpener) return solveFirstIn(ctx);
   const lastAggressor = ctx.lastAggressor!;
@@ -140,6 +154,11 @@ export function solveActiveSeat(
     isBlind: activeSeat === "SB" || activeSeat === "BB",
     calledLast: ctx.ownDecision?.action === "call",
   });
+}
+
+/** What ICM does to the price of a call that doesn't get the stack in at once: part of the all-in premium. */
+function partialRiskBubbleFactor(ctx: SpotContext): number {
+  return 1 + (ctx.allInBubbleFactor - 1) * ICM_PARTIAL_RISK_WEIGHT;
 }
 
 /** Both seats came here with ranges of their own, so the raise is priced against them. */
@@ -160,12 +179,17 @@ function solveShoveSpot(ctx: SpotContext): SolvedNode {
         potBb: potState.potBb,
         amountOwedBb: ctx.amountOwedBb,
         rake: rake.structure,
+        bubbleFactor: ctx.allInBubbleFactor,
       }),
     };
   }
   const shover = ctx.lastAggressor ?? ctx.activeSeat;
   const opponentsBehind = Math.max(1, SEAT_ORDER.length - 1 - seatIndex(shover));
-  const result = getPushFoldResult(matrix, ctx.remainingStackBb, opponentsBehind, ctx.format.bbAnteBb, rake);
+  const result = getPushFoldResult(matrix, ctx.remainingStackBb, opponentsBehind, ctx.format.bbAnteBb, rake, {
+    structure: ctx.icm,
+    seats: ctx.seats,
+    stackBb: ctx.effectiveStackBb,
+  });
   return {
     source: "nash-shove-fold",
     hands: ctx.hasOpener ? callFrequencyToHands(result.callFrequency) : shoveFrequencyToHands(result.shoveFrequency),
@@ -233,7 +257,14 @@ function reraiseKeepFactor(ctx: FacingRaiseContext): number {
 function vsReraiseParams(ctx: FacingRaiseContext, heroRange: FrequencyMap, villainRange: FrequencyMap): VsReraiseParams {
   const { format, potState, calledLast } = ctx;
   const villainShare = shareOfCombos(villainRange);
-  const common = { heroRange, villainRange, isIP: ctx.isIP, potBb: potState.potBb, amountOwedBb: ctx.amountOwedBb };
+  const common = {
+    heroRange,
+    villainRange,
+    isIP: ctx.isIP,
+    potBb: potState.potBb,
+    amountOwedBb: ctx.amountOwedBb,
+    bubbleFactor: partialRiskBubbleFactor(ctx),
+  };
   if (potState.raiseDepth < 2) {
     // A limper raised over: the 4-bet tuning doesn't apply, and nothing was compared here.
     return {
@@ -307,5 +338,6 @@ function facingRaiseParams(ctx: FacingRaiseContext): FacingRaiseParams {
     threeBetValueShare: format.threeBetValueShare,
     continueFactor: Math.exp(-RAKE_CONTINUE_FALLOFF * rakeShare(ctx.rake.structure)),
     callFactor: flatCallFactor(ctx),
+    bubbleFactor: partialRiskBubbleFactor(ctx),
   };
 }

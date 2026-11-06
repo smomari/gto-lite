@@ -125,6 +125,12 @@ export const OOP_CONTINUE_MULTIPLIER = 0.85;
 export const POT_ODDS_REFERENCE_RATIO = 0.25; // "neutral" amountOwed/(pot+amountOwed)
 export const POT_ODDS_MIN_ADJUST = 0.6;
 export const POT_ODDS_MAX_ADJUST = 1.8;
+/**
+ * Under ICM, the share of the all-in bubble factor a call that doesn't put the
+ * stack in pays: its chips may still all go in later, or may not. A chosen
+ * middle, not fitted to any chart.
+ */
+export const ICM_PARTIAL_RISK_WEIGHT = 0.5;
 
 // --- Raise/call split within the continuing range -------------------------
 export const RAISE_FRACTION_BASE = 0.35;

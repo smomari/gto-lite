@@ -7,6 +7,7 @@ import {
 import { engineEquityTable, riverStrengths } from "../engineBoards";
 import type { RakeTerms } from "@/lib/solveEngine/rake";
 import type { ExploitabilityResult } from "../exploitability";
+import { icmTerminalPayoffs, type PostflopIcm, type TerminalPayoffs } from "../icmPayoffs";
 import { CARD_INDEX, NODE_CHANCE, NODE_DECISION_P2, flattenTree, type FlatTree } from "../flattenTree";
 import type { EquityTable } from "../terminalEquity";
 import { narrowReach } from "../treeMath";
@@ -26,6 +27,8 @@ export interface NativeCfrInput {
   equityTableFor?: (board: string[]) => Float32Array | undefined;
   /** Taken from every pot that reaches a terminal. Defaults to none. */
   rake?: RakeTerms;
+  /** Pay terminals in prize money instead of chips; both players start the tree with `remainingBb` behind. */
+  icm?: PostflopIcm & { remainingBb: number };
 }
 
 /**
@@ -50,6 +53,8 @@ export interface EngineBuild {
   /** By id, as flat.tableBoards / flat.riverBoards order them. */
   equityTables: Float32Array[];
   riverStrengths: { hero: Uint32Array; villain: Uint32Array }[];
+  /** Each player's own terminal payoffs, when they aren't the chips (eng_set_payoffs). */
+  payoffs?: TerminalPayoffs;
 }
 
 export function prepareEngineBuild(input: NativeCfrInput): { build: EngineBuild; flat: FlatTree } {
@@ -82,6 +87,7 @@ export function prepareEngineBuild(input: NativeCfrInput): { build: EngineBuild;
       hero: riverStrengths(heroRange, riverBoard),
       villain: riverStrengths(villainRange, riverBoard),
     })),
+    payoffs: input.icm && icmTerminalPayoffs(flat, input.icm.remainingBb, input.icm),
   };
   return { build, flat };
 }
@@ -159,6 +165,10 @@ export class NativeCfrEngine {
         put(build.villainCards),
         put(build.villainWeights),
       );
+      if (build.payoffs) {
+        const { won1, risked1, won2, risked2 } = build.payoffs;
+        solver._eng_set_payoffs(handle, put(won1), put(risked1), put(won2), put(risked2));
+      }
       // Ids come back in registration order, matching the build's arrays.
       for (const table of build.equityTables) solver._eng_add_equity_table(handle, put(table));
       for (const { hero, villain } of build.riverStrengths) solver._eng_add_river_board(handle, put(hero), put(villain));

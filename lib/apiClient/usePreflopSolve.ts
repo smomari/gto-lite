@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { solveNode, SolveApiError } from "./solveClient";
 import { actionPathKey, resolvePostflopHandoff, type PostflopHandoff } from "@/lib/solveEngine/postflopHandoff";
 import type { GameFormatId } from "@/lib/solveEngine/gameFormat";
+import type { IcmId } from "@/lib/solveEngine/icm";
 import type { RakeId } from "@/lib/solveEngine/rake";
 import type { ActionNode, Position } from "@/types/rangeData";
 import type { SolveRequest, SolveResponse } from "@/types/solveApi";
@@ -14,6 +15,7 @@ export interface SolveTable {
   format: GameFormatId;
   rake: RakeId;
   noFlopNoDrop: boolean;
+  icm: IcmId;
 }
 
 type RequestPath = SolveRequest["actionPath"];

@@ -45,7 +45,19 @@ export interface PushFoldParams {
   opponentsBehind?: number;
   /** A called shove sees a flop, so it always pays; the blinds pay only without no flop no drop. Default none. */
   rake?: RakeSettings;
+  /** What each result is worth to the shover and the caller, in place of chips. Default: the chips themselves. */
+  payoffs?: PushFoldPayoffs;
   maxIterations?: number;
+}
+
+/**
+ * Each seat's value after every way the hand can end, on any scale: only the
+ * differences are compared. A called shove is won or lost whole, so a hand's
+ * value there is equity × win + (1 − equity) × lose.
+ */
+export interface PushFoldPayoffs {
+  shover: { fold: number; steal: number; win: number; lose: number };
+  caller: { fold: number; win: number; lose: number };
 }
 
 export interface PushFoldResult {
@@ -81,7 +93,7 @@ const MAX_ITERATIONS = 300;
  * threshold with only a handful of genuinely near-indifferent hands left
  * mixed, matching the shape of real published push/fold charts.
  *
- * Chip-EV only (no ICM); models the pot as both effective stacks plus the two
+ * Chip EV unless `payoffs` say otherwise; models the pot as both effective stacks plus the two
  * blinds and a single BB-posted ante as dead money — an accepted MVP-level
  * simplification of the exact seats/antes involved in any real hand.
  *
@@ -101,11 +113,18 @@ export function solvePushFold(
     bbAnte = BB_ANTE_BB,
     opponentsBehind = 1,
     rake = NO_RAKE_SETTINGS,
+    payoffs,
     maxIterations = MAX_ITERATIONS,
   } = params;
   const pot = smallBlind + bigBlind + bbAnte;
   const deadMoney = rake.noFlopNoDrop ? pot : netPot(pot, rake.structure);
   const potIfCalled = netPot(2 * S + pot, rake.structure);
+  // Without payoffs the chips are the values, priced the way they always were.
+  const callEv = (equity: number) =>
+    payoffs ? equity * payoffs.caller.win + (1 - equity) * payoffs.caller.lose - payoffs.caller.fold : equity * potIfCalled - S;
+  const shownDownEv = (equity: number) =>
+    payoffs ? equity * payoffs.shover.win + (1 - equity) * payoffs.shover.lose - payoffs.shover.fold : equity * potIfCalled - S;
+  const stealEv = payoffs ? payoffs.shover.steal - payoffs.shover.fold : deadMoney;
 
   let shoveRange: FrequencyMap = allHandsAt(1);
   let callRange: FrequencyMap = allHandsAt(0.5);
@@ -122,7 +141,7 @@ export function solvePushFold(
       const ev =
         shoveWeight === 0
           ? -1
-          : weightedEquityVsRange(matrix, h.hand, shoveRange) * potIfCalled - S;
+          : callEv(weightedEquityVsRange(matrix, h.hand, shoveRange));
       callBestResponse.set(h.hand, ev > 0 ? 1 : 0);
     }
 
@@ -132,9 +151,8 @@ export function solvePushFold(
     for (const h of ALL_HANDS) {
       const ev =
         callProb === 0
-          ? deadMoney
-          : allFoldProb * deadMoney +
-            (1 - allFoldProb) * (weightedEquityVsRange(matrix, h.hand, callRange) * potIfCalled - S);
+          ? stealEv
+          : allFoldProb * stealEv + (1 - allFoldProb) * shownDownEv(weightedEquityVsRange(matrix, h.hand, callRange));
       shoveBestResponse.set(h.hand, ev > 0 ? 1 : 0);
     }
 
