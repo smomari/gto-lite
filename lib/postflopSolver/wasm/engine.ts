@@ -88,6 +88,29 @@ export function prepareEngineBuild(input: NativeCfrInput): { build: EngineBuild;
 
 type Typed = Uint8Array | Int32Array | Uint32Array | Float32Array;
 
+/** Runs `run` with `bytes` of scratch memory in the module, freed afterwards. */
+function withScratch<T>(solver: SolverModule, bytes: number, run: (ptr: number) => T): T {
+  const ptr = solver._malloc(Math.max(bytes, 4));
+  try {
+    return run(ptr);
+  } finally {
+    solver._free(ptr);
+  }
+}
+
+const EXPLOITABILITY_BYTES = 6 * 8;
+
+/** The six doubles eng_exploitability and eng_exploitability_parallel write. */
+function readExploitability(solver: SolverModule, ptr: number): ExploitabilityResult {
+  const [bb, percentOfPot, p1BestResponseBb, p2BestResponseBb, p1ActualBb, p2ActualBb] = solver.HEAPF64.slice(ptr / 8, ptr / 8 + 6);
+  return { bb, percentOfPot, p1BestResponseBb, p2BestResponseBb, p1ActualBb, p2ActualBb };
+}
+
+/** A per-player pair of doubles, as eng_node_ev and eng_trunk_chance_ev write it. */
+function readPlayerPair(solver: SolverModule, ptr: number): { p1: number; p2: number } {
+  return { p1: solver.HEAPF64[ptr / 8], p2: solver.HEAPF64[ptr / 8 + 1] };
+}
+
 /**
  * One engine instance in the C++ core (native/solver/engine.cpp): owns its
  * WASM memory until `dispose`. Values follow the engine's definitions —
@@ -151,14 +174,10 @@ export class NativeCfrEngine {
   }
 
   exploitability(): ExploitabilityResult {
-    const ptr = this.solver._malloc(6 * 8);
-    try {
+    return withScratch(this.solver, EXPLOITABILITY_BYTES, (ptr) => {
       this.solver._eng_exploitability(this.handle, ptr);
-      const [bb, percentOfPot, p1BestResponseBb, p2BestResponseBb, p1ActualBb, p2ActualBb] = this.solver.HEAPF64.slice(ptr / 8, ptr / 8 + 6);
-      return { bb, percentOfPot, p1BestResponseBb, p2BestResponseBb, p1ActualBb, p2ActualBb };
-    } finally {
-      this.solver._free(ptr);
-    }
+      return readExploitability(this.solver, ptr);
+    });
   }
 
   /** [comboIndex][actionIndex], normalized — same shape as CfrSolution.getAverageStrategy. */
@@ -167,57 +186,45 @@ export class NativeCfrEngine {
     if (index === undefined) throw new Error("averageStrategy: node was not part of the solved tree");
     const actions = node.actions.length;
     const combos = node.actor === "P1" ? this.heroCount : this.villainCount;
-    const ptr = this.solver._malloc(combos * actions * 4);
-    try {
+    return withScratch(this.solver, combos * actions * 4, (ptr) => {
       this.solver._eng_average_strategy(this.handle, index, ptr);
       const flat = this.solver.HEAPF32.subarray(ptr / 4, ptr / 4 + combos * actions);
       return Array.from({ length: combos }, (_, c) => Array.from(flat.subarray(c * actions, (c + 1) * actions)));
-    } finally {
-      this.solver._free(ptr);
-    }
+    });
   }
 
   /** Both players' EV at any node, arriving with these reaches (NaN when no pair reaches it). */
   nodeEv(node: PostflopTreeNode, reachP1: number[], reachP2: number[]): { p1: number; p2: number } {
     const index = this.flat.nodeIndex.get(node);
     if (index === undefined) throw new Error("nodeEv: node was not part of the solved tree");
-    const r1 = this.solver._malloc(Math.max(reachP1.length, 1) * 4);
-    const r2 = this.solver._malloc(Math.max(reachP2.length, 1) * 4);
-    const out = this.solver._malloc(2 * 8);
-    try {
-      this.solver.HEAPF32.set(reachP1, r1 / 4);
-      this.solver.HEAPF32.set(reachP2, r2 / 4);
-      this.solver._eng_node_ev(this.handle, index, r1, r2, out);
-      return { p1: this.solver.HEAPF64[out / 8], p2: this.solver.HEAPF64[out / 8 + 1] };
-    } finally {
-      this.solver._free(r1);
-      this.solver._free(r2);
-      this.solver._free(out);
-    }
+    return withScratch(this.solver, reachP1.length * 4, (r1) =>
+      withScratch(this.solver, reachP2.length * 4, (r2) =>
+        withScratch(this.solver, 2 * 8, (out) => {
+          this.solver.HEAPF32.set(reachP1, r1 / 4);
+          this.solver.HEAPF32.set(reachP2, r2 / 4);
+          this.solver._eng_node_ev(this.handle, index, r1, r2, out);
+          return readPlayerPair(this.solver, out);
+        }),
+      ),
+    );
   }
 
   // ---------------------------------------------------------- threaded solves (solveThreadedSession)
 
   /** Makes this engine a split solve over `leafNodes` — see eng_partition. */
   partition(leafNodes: number[]): void {
-    const leaves = this.solver._malloc(Math.max(leafNodes.length, 1) * 4);
-    try {
+    withScratch(this.solver, leafNodes.length * 4, (leaves) => {
       this.solver.HEAP32.set(leafNodes, leaves / 4);
       this.solver._eng_partition(this.handle, leafNodes.length, leaves);
-    } finally {
-      this.solver._free(leaves);
-    }
+    });
   }
 
   /** Fixes a trunk decision node's strategy, per combo (after partition) — see eng_lock_strategy. */
   lockStrategy(node: number, strategy: number[][]): void {
-    const ptr = this.solver._malloc(Math.max(strategy.length * strategy[0].length, 1) * 4);
-    try {
+    withScratch(this.solver, strategy.length * strategy[0].length * 4, (ptr) => {
       this.solver.HEAPF32.set(strategy.flat(), ptr / 4);
       this.solver._eng_lock_strategy(this.handle, node, ptr);
-    } finally {
-      this.solver._free(ptr);
-    }
+    });
   }
 
   /** Starts the pthread pool (after partition); returns the threads actually in use (1 on one-thread builds). */
@@ -230,27 +237,20 @@ export class NativeCfrEngine {
   }
 
   exploitabilityParallel(): ExploitabilityResult {
-    const ptr = this.solver._malloc(6 * 8);
-    try {
+    return withScratch(this.solver, EXPLOITABILITY_BYTES, (ptr) => {
       this.solver._eng_exploitability_parallel(this.handle, ptr);
-      const [bb, percentOfPot, p1BestResponseBb, p2BestResponseBb, p1ActualBb, p2ActualBb] = this.solver.HEAPF64.slice(ptr / 8, ptr / 8 + 6);
-      return { bb, percentOfPot, p1BestResponseBb, p2BestResponseBb, p1ActualBb, p2ActualBb };
-    } finally {
-      this.solver._free(ptr);
-    }
+      return readExploitability(this.solver, ptr);
+    });
   }
 
   /** Both players' EV at a trunk chance node, from the last EV-mode evaluation of each (NaN when unreached). */
   trunkChanceEv(node: ChanceNode): { p1: number; p2: number } {
     const index = this.flat.nodeIndex.get(node);
     if (index === undefined) throw new Error("trunkChanceEv: node was not part of the solved tree");
-    const out = this.solver._malloc(2 * 8);
-    try {
+    return withScratch(this.solver, 2 * 8, (out) => {
       this.solver._eng_trunk_chance_ev(this.handle, index, out);
-      return { p1: this.solver.HEAPF64[out / 8], p2: this.solver.HEAPF64[out / 8 + 1] };
-    } finally {
-      this.solver._free(out);
-    }
+      return readPlayerPair(this.solver, out);
+    });
   }
 
   dispose(): void {
