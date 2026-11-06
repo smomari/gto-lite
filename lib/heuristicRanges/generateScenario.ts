@@ -1,6 +1,7 @@
 import { RANKS } from "@/lib/cards";
 import { ALL_HANDS, TOTAL_COMBOS, type CanonicalHand } from "@/lib/handRange/handList";
 import type { FirstInAnchor } from "@/lib/solveEngine/gameFormat";
+import { interpolateByStack } from "@/lib/solveEngine/interpolate";
 import type { HandFrequency } from "@/types/rangeData";
 import {
   MIX_BUFFER,
@@ -58,20 +59,6 @@ function handFrequencies(
   });
 }
 
-function firstInWidth<A extends FirstInAnchor>(
-  anchors: readonly A[],
-  pick: (anchor: A) => number,
-  effectiveStackBb: number,
-): number {
-  const upperIndex = anchors.findIndex((a) => a.stackBb >= effectiveStackBb);
-  if (upperIndex === 0) return pick(anchors[0]);
-  if (upperIndex === -1) return pick(anchors[anchors.length - 1]);
-  const lower = anchors[upperIndex - 1];
-  const upper = anchors[upperIndex];
-  const t = (effectiveStackBb - lower.stackBb) / (upper.stackBb - lower.stackBb);
-  return pick(lower) + (pick(upper) - pick(lower)) * t;
-}
-
 /** Share of combos seat `seatIdx` (0=UTG..6=SB) opens at this stack. BB (index 7) never opens. */
 export function openWidthFor(
   seatIdx: number,
@@ -81,7 +68,7 @@ export function openWidthFor(
   if (seatIdx < 0 || seatIdx > 6) {
     throw new Error(`openWidthFor: seat index ${seatIdx} cannot open`);
   }
-  return firstInWidth(anchors, (a) => a.widths[seatIdx], effectiveStackBb);
+  return interpolateByStack(anchors, effectiveStackBb, (a) => a.widths[seatIdx]);
 }
 
 function jamShareFor(effectiveStackBb: number): number {
@@ -122,8 +109,8 @@ export function generateSbFirstInScenario(
   anchors: readonly FirstInAnchor[] = FIRST_IN_WIDTHS_BY_STACK,
   raiseSpread = 0,
 ): HandFrequency[] {
-  const playThreshold = firstInWidth(anchors, (a) => a.sbPlay!, effectiveStackBb);
-  const raiseThreshold = firstInWidth(anchors, (a) => a.sbRaise!, effectiveStackBb);
+  const playThreshold = interpolateByStack(anchors, effectiveStackBb, (a) => a.sbPlay!);
+  const raiseThreshold = interpolateByStack(anchors, effectiveStackBb, (a) => a.sbRaise!);
   return handFrequencies(ranking, (p) => {
     const play = softInclude(p, playThreshold);
     const raise = (1 - raiseSpread) * softInclude(p, raiseThreshold) + raiseSpread * play * (raiseThreshold / playThreshold);
