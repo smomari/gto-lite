@@ -126,11 +126,14 @@ export const POT_ODDS_REFERENCE_RATIO = 0.25; // "neutral" amountOwed/(pot+amoun
 export const POT_ODDS_MIN_ADJUST = 0.6;
 export const POT_ODDS_MAX_ADJUST = 1.8;
 /**
- * Under ICM, the share of the all-in bubble factor a call that doesn't put the
- * stack in pays: its chips may still all go in later, or may not. A chosen
- * middle, not fitted to any chart.
+ * Under ICM, a call that doesn't put the stack in pays part of the all-in
+ * bubble factor: SPR^-this of it, after the call. The chips that change hands
+ * by the end of the hand set it, measured in chip-EV postflop solves
+ * (scripts/icm-risk-weight.mts, 6 flops, full lookahead): BB calling a BTN open
+ * at 20/40/100bb (SPR 3.3/6.9/15) paid 0.53/0.38/0.26 of it, a called 3-bet at
+ * 40/100bb (SPR 1.7/3.1) 0.72/0.57 — within 0.05 of SPR^-0.5 each, at every stage.
  */
-export const ICM_PARTIAL_RISK_WEIGHT = 0.5;
+export const ICM_RISK_SPR_EXPONENT = 0.5;
 
 // --- Raise/call split within the continuing range -------------------------
 export const RAISE_FRACTION_BASE = 0.35;

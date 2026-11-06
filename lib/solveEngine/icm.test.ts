@@ -82,4 +82,15 @@ describe("solveActiveSeat under ICM", () => {
     expect(played(solveAt(facingOpen, 40, "bubble").hands)).toBeLessThan(played(solveAt(facingOpen, 40, "chip-ev").hands) - 0.05);
     expect(solveAt(FOLDED_TO_BTN, 40, "bubble").hands).toEqual(solveAt(FOLDED_TO_BTN, 40, "chip-ev").hands);
   });
+
+  it("prices a call harder the less of the stack stays behind it", () => {
+    const facingOpen: [Position, ActionType][] = [...FOLDED_TO_BTN, ["BTN", "raise"], ["SB", "fold"]];
+    const facingThreeBet: [Position, ActionType][] = [...facingOpen, ["BB", "raise"]];
+    const tightening = (path: [Position, ActionType][], stackBb: number) => {
+      const chipEv = played(solveAt(path, stackBb, "chip-ev").hands);
+      return (chipEv - played(solveAt(path, stackBb, "bubble").hands)) / chipEv;
+    };
+    expect(tightening(facingOpen, 100)).toBeLessThan(tightening(facingOpen, 20));
+    expect(tightening(facingThreeBet, 40)).toBeGreaterThan(tightening(facingOpen, 40));
+  });
 });

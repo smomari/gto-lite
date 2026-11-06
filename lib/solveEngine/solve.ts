@@ -10,7 +10,7 @@ import {
   openWidthFor,
   type FacingRaiseParams,
 } from "@/lib/heuristicRanges/generateScenario";
-import { ICM_PARTIAL_RISK_WEIGHT, RAISE_VALUE_SHARE, RAKE_CONTINUE_FALLOFF, RERAISE_KEEP_BASE } from "@/lib/heuristicRanges/config";
+import { ICM_RISK_SPR_EXPONENT, RAISE_VALUE_SHARE, RAKE_CONTINUE_FALLOFF, RERAISE_KEEP_BASE } from "@/lib/heuristicRanges/config";
 import { generateCallShoveScenario, generateVsReraiseScenario, type VsReraiseParams } from "@/lib/heuristicRanges/vsReraise";
 import type { FrequencyMap } from "@/lib/nashSolver/pushFoldSolver";
 import { firstInWidthsUnder, tunedAt, type FirstInAnchor, type GameFormat } from "./gameFormat";
@@ -156,9 +156,12 @@ export function solveActiveSeat(
   });
 }
 
-/** What ICM does to the price of a call that doesn't get the stack in at once: part of the all-in premium. */
+/** What ICM does to the price of a call that doesn't get the stack in at once: less of the all-in premium the deeper the stacks behind it. */
 function partialRiskBubbleFactor(ctx: SpotContext): number {
-  return 1 + (ctx.allInBubbleFactor - 1) * ICM_PARTIAL_RISK_WEIGHT;
+  const behindBb = ctx.remainingStackBb - ctx.amountOwedBb;
+  const spr = behindBb / (ctx.potState.potBb + ctx.amountOwedBb);
+  const weight = spr <= 1 ? 1 : Math.pow(spr, -ICM_RISK_SPR_EXPONENT);
+  return 1 + (ctx.allInBubbleFactor - 1) * weight;
 }
 
 /** Both seats came here with ranges of their own, so the raise is priced against them. */
