@@ -18,10 +18,14 @@
     "test:native": "native/test-wasm.sh"
   },
   "dependencies": {
+    "@upstash/redis": "^1.41.0",
+    "ai": "^7.0.166",
+    "botid": "^1.5.13",
     "next": "16.4.3",
     "phe": "^0.6.0",
     "react": "19.2.8",
-    "react-dom": "19.2.8"
+    "react-dom": "19.2.8",
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

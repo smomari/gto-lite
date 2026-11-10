@@ -48,7 +48,8 @@ function withResponses(cache: RangeCache, tableKey: string, responses: SolveResp
  * so far: each live seat's range entering the flop is the response at its
  * last decision. Only a table change invalidates those; undo/replay just
  * looks up a different path. Ranges a quick action skipped over are fetched
- * on their own. Bumping `attempt` sends the same requests again.
+ * on their own. Bumping `attempt` sends the same requests again. `responses`
+ * are those seen at this table, keyed by actionPathKey.
  */
 export function usePreflopSolve(table: SolveTable, requestPath: RequestPath, attempt: number) {
   const tableKey = JSON.stringify(table);
@@ -121,5 +122,5 @@ export function usePreflopSolve(table: SolveTable, requestPath: RequestPath, att
     return () => controller.abort();
   }, [missingRangesKey]);
 
-  return { loading, current, handoff, rangeLoadFailed };
+  return { loading, current, handoff, rangeLoadFailed, responses: rangeByPathKey };
 }

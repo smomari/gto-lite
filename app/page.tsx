@@ -41,7 +41,7 @@ export default function Home() {
     noFlopNoDrop: rake.noFlopNoDrop,
     icm: format.allowsIcm ? icm.id : CHIP_EV.id,
   };
-  const { loading, current, handoff, rangeLoadFailed } = usePreflopSolve(table, requestPath, attempt);
+  const { loading, current, handoff, rangeLoadFailed, responses } = usePreflopSolve(table, requestPath, attempt);
 
   function handleSettingsApply(nextStackBb: number, nextFormat: GameFormat, nextRake: RakeSettings, nextIcm: IcmStructure) {
     setSettingsOpen(false);
@@ -169,6 +169,12 @@ export default function Home() {
                   ? { icm: icm.id, seats: SEAT_ORDER.length - format.absentSeats.length, stackBb }
                   : undefined
               }
+              explain={{
+                game: { format: format.id, stackBb, rake: format.allowsRake ? rake.structure.id : NO_RAKE.id, icm: table.icm },
+                oop: p1.seat,
+                ip: p2.seat,
+                preflop: { actionPath: current.actionPath, responses, potBb: current.potBb },
+              }}
               streetBarSlot={streetBarSlot}
               onNewHand={handleNewHand}
             />

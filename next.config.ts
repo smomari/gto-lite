@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { withBotId } from "botid/next/config";
 
 const nextConfig: NextConfig = {
   // Cross-origin isolation unlocks SharedArrayBuffer, which the postflop solver
@@ -19,4 +20,5 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+// withBotId proxies BotID's challenge scripts through this origin, so they stay same-origin under COEP.
+export default withBotId(nextConfig);

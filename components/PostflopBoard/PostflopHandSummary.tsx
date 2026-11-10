@@ -38,6 +38,8 @@ interface PostflopHandSummaryProps {
   villain: PlayerRanges;
   /** Where to go next; kept beside the street list so it stays on screen above long range charts. */
   actions?: ReactNode;
+  /** Full width under the ranges and the line. */
+  explanation?: ReactNode;
 }
 
 function headline(outcome: HandOutcome): string {
@@ -61,7 +63,7 @@ function EquitySide({ label, equity, potShare, align }: { label: string; equity:
 }
 
 /** What a finished hand came to: how the two ranges stacked up, who got there, and how the hand went. */
-export function PostflopHandSummary({ outcome, board, potBb, rakeBb, equity, streets, hero, villain, actions }: PostflopHandSummaryProps) {
+export function PostflopHandSummary({ outcome, board, potBb, rakeBb, equity, streets, hero, villain, actions, explanation }: PostflopHandSummaryProps) {
   const [shownPlayer, setShownPlayer] = useState<"hero" | "villain">("hero");
   const rarePlayer = [hero, villain].find((ranges) => comboCount(ranges.end) < RARE_LINE_COMBOS);
   const collectedBb = potBb - rakeBb;
@@ -155,6 +157,7 @@ export function PostflopHandSummary({ outcome, board, potBb, rakeBb, equity, str
           {actions}
         </div>
       </div>
+      {explanation}
     </div>
   );
 }

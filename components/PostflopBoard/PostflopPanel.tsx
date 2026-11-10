@@ -15,6 +15,7 @@ import { narrowRangeAlongPath } from "@/lib/postflopSolver/rangeNarrowing";
 import { DEFAULT_TARGET_EXPLOITABILITY_PERCENT } from "@/lib/postflopSolver/cfr";
 import type { RakeStructure } from "@/lib/solveEngine/rake";
 import type { PostflopIcm } from "@/lib/postflopSolver/icmPayoffs";
+import type { ExplainContext } from "@/lib/explain/buildHandSummary";
 import type { ActionWeightKey, SerializedDecisionAction, SerializedTreeNode } from "@/types/postflopSolver";
 import type { HandFrequency } from "@/types/rangeData";
 import { streetLabelForBoardLength } from "./streetLabel";
@@ -33,6 +34,8 @@ interface PostflopPanelProps {
   rake: RakeStructure;
   /** A tournament hand priced in prize money; omitted in chip EV. */
   icm?: PostflopIcm;
+  /** Offers an AI explanation once the hand is over. */
+  explain?: ExplainContext;
   /** Back to the first preflop decision, once a hand is over. */
   onNewHand: () => void;
   /** Where each street's StreetBox is portaled — the end of the seat-bar row, so the whole hand reads as one timeline. */
@@ -142,6 +145,7 @@ export function PostflopPanel(props: PostflopPanelProps) {
             villainLabel={props.villainLabel}
             rake={props.rake}
             actions={links}
+            explain={props.explain}
           />
         )}
         {currentNode.type === "chance" && (
