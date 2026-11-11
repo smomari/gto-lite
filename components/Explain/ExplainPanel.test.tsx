@@ -14,6 +14,11 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+/** The allowance line, whose count sits in its own span. */
+function allowance(count: string) {
+  return screen.getByText((_, el) => el?.tagName === "SPAN" && (el.textContent ?? "").startsWith(`${count} left today`));
+}
+
 const OPEN: ExplainStatus = { available: true, remaining: 3, limit: 3, globalExhausted: false };
 
 describe("ExplainPanel", () => {
@@ -33,7 +38,7 @@ describe("ExplainPanel", () => {
     expect(await screen.findByRole("heading", { name: "Flop" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Preflop" })).toBeInTheDocument();
     expect(screen.getByText("42%").tagName).toBe("STRONG");
-    expect(screen.getByText(/2\/3 left today/)).toBeInTheDocument();
+    expect(allowance("2/3")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Explain this hand" })).not.toBeInTheDocument();
     expect(screen.getByText(/Written by AI/)).toBeInTheDocument();
     expect(JSON.parse(fetchMock.mock.calls[1][1]!.body as string)).toEqual(SAMPLE_SUMMARY);
@@ -45,7 +50,7 @@ describe("ExplainPanel", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Explain this hand" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("You've used today's AI explanations");
     expect(screen.getByRole("button", { name: "Try again" })).toBeDisabled();
-    expect(screen.getByText(/0\/3 left today/)).toBeInTheDocument();
+    expect(allowance("0/3")).toBeInTheDocument();
   });
 
   it("is disabled once the service is closed for the day", async () => {

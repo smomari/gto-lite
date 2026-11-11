@@ -45,6 +45,8 @@ interface PostflopPanelProps {
 /** At or below this many cores the full flop lookahead passes 10s, so the quick one starts ticked. */
 const FAST_FLOP_MAX_CORES = 4;
 
+const SECONDARY_BUTTON = "rounded border border-line-strong px-3 py-1 text-sm text-ink hover:bg-raised pointer-coarse:min-h-11";
+
 export function PostflopPanel(props: PostflopPanelProps) {
   const { streets, navigate, resetStreet, pickDifferentBoard, confirmBoard } = useStreetStages(props);
   const [fastFlop, setFastFlop] = useState(() => navigator.hardwareConcurrency <= FAST_FLOP_MAX_CORES);
@@ -118,14 +120,14 @@ export function PostflopPanel(props: PostflopPanelProps) {
         <button
           type="button"
           onClick={() => handleResetStreet(i)}
-          className="text-xs text-ink-muted underline hover:text-ink pointer-coarse:py-2"
+          className={SECONDARY_BUTTON}
         >
           Reset to start of street
         </button>
         <button
           type="button"
           onClick={() => handlePickDifferentBoard(i)}
-          className="text-xs text-ink-muted underline hover:text-ink pointer-coarse:py-2"
+          className={SECONDARY_BUTTON}
         >
           {pickDifferentLabel(stage)}
         </button>
@@ -299,7 +301,7 @@ export function PostflopPanel(props: PostflopPanelProps) {
               <button
                 type="button"
                 onClick={() => handlePickDifferentBoard(liveIndex)}
-                className="text-xs text-ink-muted underline hover:text-ink pointer-coarse:py-2"
+                className={SECONDARY_BUTTON}
               >
                 {pickDifferentLabel(live)}
               </button>

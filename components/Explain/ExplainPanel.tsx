@@ -18,7 +18,7 @@ type RunState =
 
 /** `**bold**` inside a line of the model's markdown. */
 function inline(line: string): ReactNode {
-  return line.split(/\*\*(.+?)\*\*/g).map((part, i) => (i % 2 ? <strong key={i} className="font-semibold text-ink">{part}</strong> : <Fragment key={i}>{part}</Fragment>));
+  return line.split(/\*\*(.+?)\*\*/g).map((part, i) => (i % 2 ? <strong key={i} className="font-semibold text-white">{part}</strong> : <Fragment key={i}>{part}</Fragment>));
 }
 
 /** The model's "## Section" headings and paragraphs; anything fancier shows as plain text. */
@@ -41,10 +41,10 @@ function ExplanationText({ text }: { text: string }) {
   endParagraph();
 
   return (
-    <div className="flex flex-col gap-2 text-sm leading-relaxed text-ink-muted">
+    <div className="flex flex-col gap-2.5 text-sm leading-relaxed text-ink">
       {blocks.map((block, i) =>
         block.heading ? (
-          <h3 key={i} className="mt-1 text-xs font-semibold text-ink">
+          <h3 key={i} className={`text-sm font-semibold text-accent ${i > 0 ? "mt-2 border-t border-line pt-3" : ""}`}>
             {block.text}
           </h3>
         ) : (
@@ -116,26 +116,35 @@ export function ExplainPanel({ buildSummary }: ExplainPanelProps) {
 
   const showButton = run.kind === "idle" || run.kind === "error";
   return (
-    <section data-testid="explain-panel" className="flex flex-col gap-2 border-t border-line pt-3">
+    <section data-testid="explain-panel" className="flex flex-col gap-3 rounded-lg border border-line bg-surface p-4">
       <div className="flex flex-wrap items-center gap-3">
-        <p className="text-xs font-semibold text-ink">AI explanation</p>
+        <p className="text-sm font-semibold text-accent">
+          <span aria-hidden="true">✦ </span>AI explanation
+        </p>
         {showButton && (
           <button
             type="button"
             onClick={explain}
             disabled={outOfExplanations}
-            className="rounded border border-line-strong px-3 py-1 text-sm text-ink hover:bg-raised disabled:cursor-not-allowed disabled:opacity-50 pointer-coarse:min-h-11"
+            className="rounded border border-accent/60 px-3 py-1.5 text-sm font-medium text-accent hover:bg-accent/10 disabled:cursor-not-allowed disabled:opacity-40 pointer-coarse:min-h-11"
           >
             {run.kind === "error" ? "Try again" : "Explain this hand"}
           </button>
         )}
-        <span className="text-xs text-ink-faint">
-          {status.globalExhausted
-            ? "Closed for today"
-            : `${status.remaining}/${status.limit} left today · the same line again is free`}
+        <span className="text-xs text-ink-muted">
+          {status.globalExhausted ? (
+            "Closed for today"
+          ) : (
+            <>
+              <span className="font-semibold text-ink">
+                {status.remaining}/{status.limit}
+              </span>{" "}
+              left today · the same line again is free
+            </>
+          )}
         </span>
       </div>
-      {run.kind === "streaming" && !run.text && <p className="text-xs text-ink-faint">Writing…</p>}
+      {run.kind === "streaming" && !run.text && <p className="animate-pulse text-xs text-ink-muted">Writing…</p>}
       {run.kind !== "idle" && run.text && <ExplanationText text={run.text} />}
       {run.kind === "error" && (
         <p role="alert" className="text-xs text-[#d98a82]">
@@ -143,7 +152,7 @@ export function ExplainPanel({ buildSummary }: ExplainPanelProps) {
         </p>
       )}
       {run.kind !== "idle" && (
-        <p className="text-xs text-ink-faint">Written by AI from this hand&apos;s solver numbers. It can misread them or be wrong.</p>
+        <p className="border-t border-line pt-2 text-xs text-ink-faint">Written by AI from this hand&apos;s solver numbers. It can misread them or be wrong.</p>
       )}
     </section>
   );
