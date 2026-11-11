@@ -2,6 +2,7 @@ import type { HandFrequency } from "@/types/rangeData";
 import { formatPercent } from "@/lib/format";
 import { readableTextColor } from "@/components/PostflopStrategy/postflopColorLegend";
 import { ACTION_COLORS } from "./colorLegend";
+import { useMessages } from "@/lib/i18n/locale";
 
 interface HandCellProps {
   hand: string;
@@ -14,6 +15,8 @@ interface HandCellProps {
 const FALLBACK: Omit<HandFrequency, "hand"> = { fold: 1, call: 0, raise: 0 };
 
 export function HandCell({ hand, frequency, isSelected, onClick }: HandCellProps) {
+  const t = useMessages();
+  const names = t.actionLegend;
   const freq = frequency ?? { hand, ...FALLBACK };
   const allin = freq.allin ?? 0;
 
@@ -24,8 +27,8 @@ export function HandCell({ hand, frequency, isSelected, onClick }: HandCellProps
     { key: "fold", value: freq.fold, color: ACTION_COLORS.fold },
   ].filter((s) => s.value > 0);
 
-  const tooltip = `${hand}\nFold ${formatPercent(freq.fold)} / Call ${formatPercent(freq.call)} / Raise ${formatPercent(freq.raise)}${
-    allin ? ` / All-in ${formatPercent(allin)}` : ""
+  const tooltip = `${hand}\n${names.fold} ${formatPercent(freq.fold)} / ${names.call} ${formatPercent(freq.call)} / ${names.raise} ${formatPercent(freq.raise)}${
+    allin ? ` / ${names.allin} ${formatPercent(allin)}` : ""
   }`;
 
   // A hand that's all fold is out of the range: let it sink so the range reads at a glance.

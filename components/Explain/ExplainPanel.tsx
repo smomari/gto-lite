@@ -4,6 +4,8 @@ import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
 import { ExplainApiError, fetchExplainStatus, requestExplanation } from "@/lib/apiClient/explainClient";
 import type { HandSummary } from "@/lib/explain/summarySchema";
 import type { ExplainStatus } from "@/types/explainApi";
+import { useLocale, useMessages } from "@/lib/i18n/locale";
+import type { Messages } from "@/lib/i18n/messages";
 
 interface ExplainPanelProps {
   /** Built only when asked for: it walks every street's ranges. */
@@ -55,17 +57,19 @@ function ExplanationText({ text }: { text: string }) {
   );
 }
 
-function errorMessage(err: unknown): string {
+function errorMessage(err: unknown, t: Messages): string {
   if (err instanceof ExplainApiError) {
-    if (err.code === "USER_LIMIT") return "You've used today's AI explanations. They reset at midnight KST.";
-    if (err.code === "GLOBAL_LIMIT") return "Today's AI explanations are all used up. Try again tomorrow.";
+    if (err.code === "USER_LIMIT") return t.explain.userLimit;
+    if (err.code === "GLOBAL_LIMIT") return t.explain.globalLimit;
     return err.message;
   }
-  return "The explanation was cut off. Try again.";
+  return t.explain.cutOff;
 }
 
 /** "Explain with AI" for a finished hand: today's allowance, the streamed explanation, and its caveat. */
 export function ExplainPanel({ buildSummary }: ExplainPanelProps) {
+  const language = useLocale();
+  const t = useMessages();
   const [status, setStatus] = useState<ExplainStatus | null>(null);
   const [run, setRun] = useState<RunState>({ kind: "idle" });
   const controllerRef = useRef<AbortController | null>(null);
@@ -96,6 +100,7 @@ export function ExplainPanel({ buildSummary }: ExplainPanelProps) {
     try {
       const result = await requestExplanation(
         buildSummary(),
+        language,
         (text) => {
           latest = text;
           setRun({ kind: "streaming", text });
@@ -107,7 +112,7 @@ export function ExplainPanel({ buildSummary }: ExplainPanelProps) {
       if (result.remaining !== null) setStatus({ ...status, remaining: result.remaining });
     } catch (err) {
       if (controller.signal.aborted) return;
-      setRun({ kind: "error", message: errorMessage(err), text: latest });
+      setRun({ kind: "error", message: errorMessage(err, t), text: latest });
       if (err instanceof ExplainApiError && err.remaining !== undefined) {
         setStatus({ ...status, remaining: err.remaining, globalExhausted: err.code === "GLOBAL_LIMIT" || status.globalExhausted });
       }
@@ -119,7 +124,7 @@ export function ExplainPanel({ buildSummary }: ExplainPanelProps) {
     <section data-testid="explain-panel" className="flex flex-col gap-3 rounded-lg border border-line bg-surface p-4">
       <div className="flex flex-wrap items-center gap-3">
         <p className="text-sm font-semibold text-accent">
-          <span aria-hidden="true">✦ </span>AI explanation
+          <span aria-hidden="true">✦ </span>{t.explain.title}
         </p>
         {showButton && (
           <button
@@ -128,23 +133,23 @@ export function ExplainPanel({ buildSummary }: ExplainPanelProps) {
             disabled={outOfExplanations}
             className="rounded border border-accent/60 px-3 py-1.5 text-sm font-medium text-accent hover:bg-accent/10 disabled:cursor-not-allowed disabled:opacity-40 pointer-coarse:min-h-11"
           >
-            {run.kind === "error" ? "Try again" : "Explain this hand"}
+            {run.kind === "error" ? t.explain.tryAgain : t.explain.explain}
           </button>
         )}
         <span className="text-xs text-ink-muted">
           {status.globalExhausted ? (
-            "Closed for today"
+            t.explain.closed
           ) : (
             <>
               <span className="font-semibold text-ink">
                 {status.remaining}/{status.limit}
               </span>{" "}
-              left today · the same line again is free
+              {t.explain.left}
             </>
           )}
         </span>
       </div>
-      {run.kind === "streaming" && !run.text && <p className="animate-pulse text-xs text-ink-muted">Writing…</p>}
+      {run.kind === "streaming" && !run.text && <p className="animate-pulse text-xs text-ink-muted">{t.explain.writing}</p>}
       {run.kind !== "idle" && run.text && <ExplanationText text={run.text} />}
       {run.kind === "error" && (
         <p role="alert" className="text-xs text-[#d98a82]">
@@ -152,7 +157,7 @@ export function ExplainPanel({ buildSummary }: ExplainPanelProps) {
         </p>
       )}
       {run.kind !== "idle" && (
-        <p className="border-t border-line pt-2 text-xs text-ink-faint">Written by AI from this hand&apos;s solver numbers. It can misread them or be wrong.</p>
+        <p className="border-t border-line pt-2 text-xs text-ink-faint">{t.explain.disclaimer}</p>
       )}
     </section>
   );

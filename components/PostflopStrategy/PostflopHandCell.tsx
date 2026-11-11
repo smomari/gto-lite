@@ -1,5 +1,6 @@
 import { formatPercent } from "@/lib/format";
 import { readableTextColor } from "./postflopColorLegend";
+import { useMessages } from "@/lib/i18n/locale";
 
 interface PostflopHandCellProps {
   hand: string;
@@ -27,6 +28,7 @@ export function PostflopHandCell({
   isSelected,
   onClick,
 }: PostflopHandCellProps) {
+  const t = useMessages();
   // actionFrequencies/actionLabels/colors come in least-aggressive-first
   // order (fold, check, call, bet(s), raise(s), allin — treeBuilder.ts's
   // push order); reversed so the most aggressive action's segment renders
@@ -37,9 +39,9 @@ export function PostflopHandCell({
     .reverse();
 
   const tooltipLines = actionFrequencies
-    .map((v, i) => (v > 0 ? `${actionLabels[i]} ${formatPercent(v)}` : null))
+    .map((v, i) => (v > 0 ? `${t.action(actionLabels[i])} ${formatPercent(v)}` : null))
     .filter((line): line is string => line !== null);
-  const tooltip = inRange ? [hand, ...tooltipLines].join("\n") : `${hand}\nNot in range`;
+  const tooltip = inRange ? [hand, ...tooltipLines].join("\n") : `${hand}\n${t.solve.notInRange}`;
 
   // The label sits on whichever action fills most of the cell, unless one is isolated (a faint fill on the dark cell).
   const dominantColor = segments.reduce((a, b) => (b.value > a.value ? b : a), { value: 0, color: "#1a1e24", label: "" }).color;

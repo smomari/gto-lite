@@ -2,6 +2,7 @@ import { HandMatrixGrid } from "@/components/RangeGrid/HandMatrixGrid";
 import { canonicalHandOf } from "@/lib/postflopSolver/canonicalHand";
 import type { SerializedCombo, SerializedDecisionNode } from "@/types/postflopSolver";
 import { PostflopHandCell } from "./PostflopHandCell";
+import { useMessages } from "@/lib/i18n/locale";
 
 interface PostflopRangeGridProps {
   /** The acting player's range — must be the range for whichever player `node.actor` is. */
@@ -29,6 +30,7 @@ interface HandAggregate {
  * detail via SuitedComboBreakdown.
  */
 export function PostflopRangeGrid({ range, node, colors, isolatedActionIndex, selectedHand, onSelectHand }: PostflopRangeGridProps) {
+  const t = useMessages();
   const byHand = new Map<string, HandAggregate>();
 
   range.forEach((combo, i) => {
@@ -44,7 +46,7 @@ export function PostflopRangeGrid({ range, node, colors, isolatedActionIndex, se
   });
 
   const actionLabels = node.actions.map((a) => a.label);
-  const legend = node.actions.map((a, i) => ({ key: String(i), label: a.label, color: colors[i] }));
+  const legend = node.actions.map((a, i) => ({ key: String(i), label: t.action(a.label), color: colors[i] }));
 
   return (
     <HandMatrixGrid

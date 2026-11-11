@@ -10,6 +10,7 @@ import type {
   SerializedTreeNode,
 } from "@/types/postflopSolver";
 import type { HandFrequency } from "@/types/rangeData";
+import type { Messages } from "@/lib/i18n/messages";
 import { streetLabelForBoardLength, type StreetLabel } from "./streetLabel";
 
 export type SolveState =
@@ -111,6 +112,6 @@ export function streetStartPot(streets: StreetStage[], i: number, preflopPot: nu
   return i === 0 ? preflopPot : (streets[i - 1].currentNode?.potBb ?? preflopPot);
 }
 
-export function pickDifferentLabel(stage: StreetStage): string {
-  return stage.streetLabel === "Flop" ? "Pick a different board" : `Pick a different ${stage.streetLabel.toLowerCase()} card`;
+export function pickDifferentLabel(stage: StreetStage, t: Messages): string {
+  return stage.streetLabel === "Flop" ? t.postflop.pickDifferentBoard : t.postflop.pickDifferentCard(stage.streetLabel);
 }

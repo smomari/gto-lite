@@ -2,6 +2,7 @@ import { HandMatrixGrid } from "@/components/RangeGrid/HandMatrixGrid";
 import { canonicalHandOf } from "@/lib/postflopSolver/canonicalHand";
 import type { SerializedCombo } from "@/types/postflopSolver";
 import { readableTextColor } from "./postflopColorLegend";
+import { useMessages } from "@/lib/i18n/locale";
 
 interface ShowdownRangeGridProps {
   /** The player's range entering the flop. */
@@ -23,6 +24,7 @@ function weightByHand(range: SerializedCombo[]): Map<string, number> {
 
 /** Each hand filled by how much of what entered the flop is still here at the end of the hand. */
 export function ShowdownRangeGrid({ startRange, endRange, color }: ShowdownRangeGridProps) {
+  const t = useMessages();
   const start = weightByHand(startRange);
   const end = weightByHand(endRange);
 
@@ -38,7 +40,7 @@ export function ShowdownRangeGrid({ startRange, endRange, color }: ShowdownRange
             data-hand={hand}
             data-testid="showdown-cell"
             className={`relative h-full w-full overflow-hidden rounded-[2px] ${reached ? "bg-raised" : "bg-sunken"}`}
-            title={reached ? `${hand}: ${(share * 100).toFixed(1)}% reaches here` : undefined}
+            title={reached ? t.solve.reachesHere(hand, (share * 100).toFixed(1)) : undefined}
           >
             {reached && <div className="absolute inset-y-0 left-0" style={{ width: `${share * 100}%`, backgroundColor: color }} />}
             <span

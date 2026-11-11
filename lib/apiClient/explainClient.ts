@@ -1,4 +1,5 @@
 import type { HandSummary } from "@/lib/explain/summarySchema";
+import type { ExplainLanguage } from "@/lib/explain/prompt";
 import { EXPLAIN_CACHE_HEADER, EXPLAIN_REMAINING_HEADER, type ExplainErrorBody, type ExplainStatus } from "@/types/explainApi";
 
 export class ExplainApiError extends Error {
@@ -19,13 +20,14 @@ export async function fetchExplainStatus(signal?: AbortSignal): Promise<ExplainS
   return res.json();
 }
 
-/** Streams the explanation of `summary` into `onText` (the text so far), and resolves once it's complete. */
+/** Streams the explanation of `summary`, written in `language`, into `onText` (the text so far), and resolves once it's complete. */
 export async function requestExplanation(
   summary: HandSummary,
+  language: ExplainLanguage,
   onText: (textSoFar: string) => void,
   signal?: AbortSignal,
 ): Promise<{ text: string; remaining: number | null; cached: boolean }> {
-  const res = await fetch("/api/explain", {
+  const res = await fetch(`/api/explain?lang=${language}`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(summary),

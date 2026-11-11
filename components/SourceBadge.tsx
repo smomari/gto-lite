@@ -1,17 +1,15 @@
 import type { RangeSource } from "@/types/rangeData";
-import { icmById, type IcmId } from "@/lib/solveEngine/icm";
-
-const SOURCE_LABEL: Record<RangeSource, string> = {
-  "nash-shove-fold": "Nash",
-  "heuristic-approx": "Estimated",
-};
+import type { IcmId } from "@/lib/solveEngine/icm";
+import { useMessages } from "@/lib/i18n/locale";
 
 /** With `icm`, the ranges were priced in prize money at that stage. */
 export function SourceBadge({ source, icm }: { source: RangeSource; icm?: IcmId }) {
+  const t = useMessages();
+  const sourceLabel: Record<RangeSource, string> = { "nash-shove-fold": t.preflop.nash, "heuristic-approx": t.preflop.estimated };
   return (
     <span className={`text-xs font-medium ${source === "heuristic-approx" ? "text-ink-muted" : "text-accent"}`}>
-      {SOURCE_LABEL[source]}
-      {icm && ` · ICM ${icmById(icm)?.label ?? icm}`}
+      {sourceLabel[source]}
+      {icm && ` · ${t.settings.icmStage(t.icm[icm].label)}`}
     </span>
   );
 }

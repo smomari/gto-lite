@@ -5,9 +5,5 @@ export const ACTION_COLORS = {
   allin: "#9c3a3a",
 } as const;
 
-export const ACTION_LABELS: Record<keyof typeof ACTION_COLORS, string> = {
-  fold: "Fold",
-  call: "Call",
-  raise: "Raise",
-  allin: "All-in",
-};
+/** Legend order; their names are `Messages.actionLegend`. */
+export const ACTION_KEYS = ["fold", "call", "raise", "allin"] as const satisfies readonly (keyof typeof ACTION_COLORS)[];

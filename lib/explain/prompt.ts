@@ -12,18 +12,9 @@ const HEADINGS: Record<ExplainLanguage, { preflop: string; Flop: string; Turn: s
 
 const LANGUAGE_NAMES: Record<ExplainLanguage, string> = { ko: "Korean", en: "English" };
 
-/** Korean when the browser ranks Korean first, otherwise English. */
-export function explainLanguage(acceptLanguage: string | null): ExplainLanguage {
-  const ranked = (acceptLanguage ?? "")
-    .split(",")
-    .map((part, index) => {
-      const [tag, ...params] = part.trim().toLowerCase().split(";");
-      const q = params.map((p) => p.trim()).find((p) => p.startsWith("q="));
-      return { tag, q: q ? Number(q.slice(2)) : 1, index };
-    })
-    .filter((entry) => entry.tag && !Number.isNaN(entry.q))
-    .sort((a, b) => b.q - a.q || a.index - b.index);
-  return ranked[0]?.tag.startsWith("ko") ? "ko" : "en";
+/** The language the page asked for (`?lang=`), English unless it's Korean. */
+export function explainLanguage(lang: string | null): ExplainLanguage {
+  return lang === "ko" ? "ko" : "en";
 }
 
 const GLOSSARY = `How to read the data:

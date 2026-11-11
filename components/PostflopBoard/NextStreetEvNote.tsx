@@ -1,10 +1,12 @@
 import { formatSignedBb } from "@/lib/format";
+import { useMessages } from "@/lib/i18n/locale";
+import type { StreetLabel } from "./streetLabel";
 
 interface NextStreetEvNoteProps {
   ev: { heroEvBb: number; villainEvBb: number };
   heroLabel: string;
   villainLabel: string;
-  nextStreetLabel: string;
+  nextStreetLabel: StreetLabel;
 }
 
 /**
@@ -14,9 +16,10 @@ interface NextStreetEvNoteProps {
  * approximately.
  */
 export function NextStreetEvNote({ ev, heroLabel, villainLabel, nextStreetLabel }: NextStreetEvNoteProps) {
+  const t = useMessages();
   return (
     <p className="text-xs text-ink-muted">
-      Lookahead avg EV over the {nextStreetLabel.toLowerCase()} (sampled cards, simplified later betting): {heroLabel}{" "}
+      {t.postflop.lookahead(nextStreetLabel)} {heroLabel}{" "}
       {formatSignedBb(ev.heroEvBb)} · {villainLabel} {formatSignedBb(ev.villainEvBb)}
     </p>
   );

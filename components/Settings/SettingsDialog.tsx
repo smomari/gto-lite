@@ -3,6 +3,7 @@ import { StackSizeControl } from "@/components/TableBar/StackSizeControl";
 import { GAME_FORMATS, type GameFormat } from "@/lib/solveEngine/gameFormat";
 import { RAKE_PRESETS, rakeSummary, type RakeSettings } from "@/lib/solveEngine/rake";
 import { ICM_PRESETS, type IcmStructure } from "@/lib/solveEngine/icm";
+import { useMessages } from "@/lib/i18n/locale";
 
 interface SettingsDialogProps {
   format: GameFormat;
@@ -19,6 +20,7 @@ interface SettingsDialogProps {
  * refetches — a slider would otherwise do both on every tick of a drag.
  */
 export function SettingsDialog({ format, rake, icm, stackBb, onApply, onClose }: SettingsDialogProps) {
+  const t = useMessages();
   /** Through the dialog's own close, which hands focus back; its close event then reaches onClose. */
   const close = () => dialogRef.current?.close();
   const dialogRef = useRef<HTMLDialogElement>(null);
@@ -58,11 +60,11 @@ export function SettingsDialog({ format, rake, icm, stackBb, onApply, onClose }:
       >
         <div className="flex items-center justify-between">
           <h2 id="settings-title" className="text-base font-semibold">
-            Settings
+            {t.settings.title}
           </h2>
           <button
             type="button"
-            aria-label="Close"
+            aria-label={t.settings.close}
             onClick={close}
             className="rounded px-2 py-0.5 text-base text-ink-muted hover:bg-raised hover:text-ink pointer-coarse:min-h-9"
           >
@@ -71,7 +73,7 @@ export function SettingsDialog({ format, rake, icm, stackBb, onApply, onClose }:
         </div>
 
         <fieldset className="flex flex-col gap-1">
-          <legend className="mb-1 text-sm font-medium text-ink-muted">Game</legend>
+          <legend className="mb-1 text-sm font-medium text-ink-muted">{t.settings.game}</legend>
           {GAME_FORMATS.map((option) => (
             <label key={option.id} className="flex items-center gap-2 py-1 text-sm text-ink">
               <input
@@ -82,15 +84,15 @@ export function SettingsDialog({ format, rake, icm, stackBb, onApply, onClose }:
                 onChange={() => setDraftFormat(option)}
                 className="accent-accent"
               />
-              {option.label}
+              {t.formats[option.id]}
             </label>
           ))}
-          <p className="text-xs text-ink-faint">Cash charts are estimates.</p>
+          <p className="text-xs text-ink-faint">{t.settings.cashNote}</p>
         </fieldset>
 
         {draftFormat.allowsRake && (
           <fieldset className="flex flex-col gap-1">
-            <legend className="mb-1 text-sm font-medium text-ink-muted">Rake</legend>
+            <legend className="mb-1 text-sm font-medium text-ink-muted">{t.settings.rake}</legend>
             <div className="grid gap-x-4 sm:grid-cols-2">
               {RAKE_PRESETS.map((option) => (
                 <label key={option.id} className="flex items-center gap-2 py-1 text-sm text-ink">
@@ -102,9 +104,9 @@ export function SettingsDialog({ format, rake, icm, stackBb, onApply, onClose }:
                     onChange={() => setDraftRake({ ...draftRake, structure: option })}
                     className="accent-accent"
                   />
-                  {option.label}
+                  {t.rakes[option.id].label}
                   {option.rate > 0 && <span className="font-mono text-xs tabular-nums text-ink-muted">{rakeSummary(option)}</span>}
-                  <span className="ml-auto text-xs text-ink-faint">{option.stakes}</span>
+                  <span className="ml-auto text-xs text-ink-faint">{t.rakes[option.id].stakes}</span>
                 </label>
               ))}
             </div>
@@ -115,14 +117,14 @@ export function SettingsDialog({ format, rake, icm, stackBb, onApply, onClose }:
                 onChange={(e) => setDraftRake({ ...draftRake, noFlopNoDrop: e.target.checked })}
                 className="accent-accent"
               />
-              No flop, no drop
+              {t.settings.noFlopNoDrop}
             </label>
           </fieldset>
         )}
 
         {draftFormat.allowsIcm && (
           <fieldset className="flex flex-col gap-1">
-            <legend className="mb-1 text-sm font-medium text-ink-muted">ICM</legend>
+            <legend className="mb-1 text-sm font-medium text-ink-muted">{t.settings.icm}</legend>
             <div className="grid gap-x-4 sm:grid-cols-2">
               {ICM_PRESETS.map((option) => (
                 <label key={option.id} className="flex items-center gap-2 py-1 text-sm text-ink">
@@ -134,18 +136,18 @@ export function SettingsDialog({ format, rake, icm, stackBb, onApply, onClose }:
                     onChange={() => setDraftIcm(option)}
                     className="accent-accent"
                   />
-                  {option.label}
-                  <span className="ml-auto text-xs text-ink-faint">{option.stage}</span>
+                  {t.icm[option.id].label}
+                  <span className="ml-auto text-xs text-ink-faint">{t.icm[option.id].stage}</span>
                 </label>
               ))}
             </div>
-            <p className="text-xs text-ink-faint">A 1,000-player field paying 150. Every seat and every player left holds the same stack. Postflop is solved in prize money too.</p>
+            <p className="text-xs text-ink-faint">{t.settings.icmNote}</p>
           </fieldset>
         )}
 
         <div className="flex flex-col gap-1">
           <StackSizeControl value={draftStackBb} onChange={setDraftStackBb} />
-          <p className="text-xs text-ink-faint">Changing these restarts the hand.</p>
+          <p className="text-xs text-ink-faint">{t.settings.restartNote}</p>
         </div>
 
         <div className="flex justify-end gap-2">
@@ -154,10 +156,10 @@ export function SettingsDialog({ format, rake, icm, stackBb, onApply, onClose }:
             onClick={close}
             className="rounded px-3 py-1.5 text-sm text-ink-muted hover:bg-raised hover:text-ink pointer-coarse:min-h-11"
           >
-            Cancel
+            {t.settings.cancel}
           </button>
           <button type="submit" className="rounded bg-accent px-3 py-1.5 text-sm font-medium text-canvas pointer-coarse:min-h-11">
-            Apply
+            {t.settings.apply}
           </button>
         </div>
       </form>

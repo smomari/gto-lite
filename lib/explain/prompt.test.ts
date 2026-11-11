@@ -2,11 +2,10 @@ import { describe, expect, it } from "vitest";
 import { explainInstructions, explainLanguage } from "./prompt";
 
 describe("explainLanguage", () => {
-  it("answers in Korean only when the browser ranks Korean first", () => {
-    expect(explainLanguage("ko-KR,ko;q=0.9,en-US;q=0.8")).toBe("ko");
-    expect(explainLanguage("en-US,en;q=0.9,ko;q=0.8")).toBe("en");
-    expect(explainLanguage("en;q=0.5,ko;q=0.7")).toBe("ko");
-    expect(explainLanguage("ja-JP")).toBe("en");
+  it("answers in Korean only when the page asks for it", () => {
+    expect(explainLanguage("ko")).toBe("ko");
+    expect(explainLanguage("en")).toBe("en");
+    expect(explainLanguage("ja")).toBe("en");
     expect(explainLanguage(null)).toBe("en");
   });
 });

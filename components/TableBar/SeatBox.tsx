@@ -1,5 +1,6 @@
 import type { ActionNode, ActionType, Position } from "@/types/rangeData";
 import type { AvailableActions } from "@/types/solveApi";
+import { useMessages } from "@/lib/i18n/locale";
 
 type SeatBoxProps =
   | {
@@ -46,6 +47,7 @@ interface ActionButtonsProps {
 }
 
 function ActionButtons({ actions, onClick, compact }: ActionButtonsProps) {
+  const t = useMessages();
   const base = `rounded px-2 py-1 text-left text-xs font-medium pointer-coarse:min-h-9 ${
     compact ? "hover:bg-raised" : "bg-raised hover:bg-line-strong"
   }`;
@@ -53,22 +55,22 @@ function ActionButtons({ actions, onClick, compact }: ActionButtonsProps) {
     <>
       {actions.fold && (
         <button type="button" onClick={() => onClick("fold")} className={`${base} text-ink-muted hover:text-ink`}>
-          Fold
+          {t.action("Fold")}
         </button>
       )}
       {actions.call && (
         <button type="button" onClick={() => onClick("call")} className={`${base} text-[#7fa6e0]`}>
-          {actions.call.label}
+          {t.action(actions.call.label)}
         </button>
       )}
       {actions.raise && (
         <button type="button" onClick={() => onClick("raise")} className={`${base} text-[#d3a24a]`}>
-          Raise {actions.raise.toBb}bb
+          {t.action(`Raise ${actions.raise.toBb}bb`)}
         </button>
       )}
       {actions.allin && (
         <button type="button" onClick={() => onClick("allin")} className={`${base} text-[#d98a82]`}>
-          Allin {actions.allin.toBb}bb
+          {t.action(`Allin ${actions.allin.toBb}bb`)}
         </button>
       )}
     </>
@@ -76,6 +78,7 @@ function ActionButtons({ actions, onClick, compact }: ActionButtonsProps) {
 }
 
 export function SeatBox(props: SeatBoxProps) {
+  const t = useMessages();
   const { position, stackBb } = props;
   const isActive = props.kind === "active";
   const isFolded = props.kind === "history" && props.action.action === "fold";
@@ -104,9 +107,9 @@ export function SeatBox(props: SeatBoxProps) {
             type="button"
             onClick={props.onRevisit}
             className="rounded py-0.5 text-left text-xs text-ink-muted hover:text-ink"
-            title="Click to undo back to this point"
+            title={t.preflop.undoHere}
           >
-            {describeAction(props.action)}
+            {t.action(describeAction(props.action))}
           </button>
         </div>
       )}

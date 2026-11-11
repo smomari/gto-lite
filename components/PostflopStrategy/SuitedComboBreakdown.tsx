@@ -3,6 +3,7 @@ import { comboKey } from "@/lib/cards";
 import { buildComboIndex, enumerateCombos, filterBlockedCombos } from "@/lib/postflopSolver/combos";
 import { formatPercent } from "@/lib/format";
 import type { SerializedCombo, SerializedDecisionNode } from "@/types/postflopSolver";
+import { useMessages } from "@/lib/i18n/locale";
 
 interface SuitedComboBreakdownProps {
   selectedHand: string | null;
@@ -26,9 +27,10 @@ interface SuitedComboBreakdownProps {
  * in the solver yet).
  */
 export function SuitedComboBreakdown({ selectedHand, node, range, board, colors, heroLabel, villainLabel }: SuitedComboBreakdownProps) {
+  const t = useMessages();
   if (!selectedHand || !node) {
     return (
-      <p className="text-sm text-ink-muted">Select a hand to see its live suited combos.</p>
+      <p className="text-sm text-ink-muted">{t.solve.selectHand}</p>
     );
   }
 
@@ -39,7 +41,7 @@ export function SuitedComboBreakdown({ selectedHand, node, range, board, colors,
 
   if (liveCombos.length === 0) {
     return (
-      <p className="text-sm text-ink-muted">All combos of {selectedHand} are blocked by the board.</p>
+      <p className="text-sm text-ink-muted">{t.solve.allBlocked(selectedHand)}</p>
     );
   }
 
@@ -49,7 +51,7 @@ export function SuitedComboBreakdown({ selectedHand, node, range, board, colors,
   return (
     <div className="flex flex-col gap-3">
       <p className="flex items-baseline justify-between text-base font-semibold text-ink">
-        {selectedHand} <span className="text-xs font-normal text-ink-muted">by suit</span>
+        {selectedHand} <span className="text-xs font-normal text-ink-muted">{t.solve.bySuit}</span>
       </p>
       {liveCombos.map((combo) => {
         const key = comboKey(combo.cards);
@@ -63,7 +65,7 @@ export function SuitedComboBreakdown({ selectedHand, node, range, board, colors,
                 <CardChip card={combo.cards[1]} size="sm" />
               </div>
               {!inRange && (
-                <span className="text-xs text-ink-faint">Not in {actorLabel}&apos;s range here</span>
+                <span className="text-xs text-ink-faint">{t.solve.notInActorRange(actorLabel)}</span>
               )}
             </div>
             {inRange && idx !== undefined && (
@@ -81,7 +83,7 @@ export function SuitedComboBreakdown({ selectedHand, node, range, board, colors,
                     if (value <= 0) return null;
                     return (
                       <span key={a.label}>
-                        {a.label} {formatPercent(value)}
+                        {t.action(a.label)} {formatPercent(value)}
                       </span>
                     );
                   })}

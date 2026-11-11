@@ -5,6 +5,8 @@ import { ShowdownRangeGrid } from "@/components/PostflopStrategy/ShowdownRangeGr
 import type { CheckdownEquitySummary } from "@/lib/postflopSolver/checkdownEquity";
 import type { SerializedCombo } from "@/types/postflopSolver";
 import { CardChip } from "./CardChip";
+import { useMessages } from "@/lib/i18n/locale";
+import type { Messages } from "@/lib/i18n/messages";
 
 const HERO_COLOR = "#4874ad";
 const VILLAIN_COLOR = "#c4692f";
@@ -42,21 +44,22 @@ interface PostflopHandSummaryProps {
   explanation?: ReactNode;
 }
 
-function headline(outcome: HandOutcome): string {
-  if (outcome.kind === "fold") return `Hand complete · ${outcome.winnerLabel} wins`;
-  return outcome.kind === "allin" ? "All-in · Runout" : "Hand complete · Showdown";
+function headline(outcome: HandOutcome, t: Messages): string {
+  if (outcome.kind === "fold") return t.summary.wins(outcome.winnerLabel);
+  return outcome.kind === "allin" ? t.summary.allInRunout : t.summary.showdown;
 }
 
 const comboCount = (range: SerializedCombo[]) => range.reduce((sum, c) => sum + c.weight, 0);
 const formatCombos = (count: number) => (count < RARE_LINE_COMBOS ? "<0.1" : count.toFixed(1));
 
 function EquitySide({ label, equity, potShare, align }: { label: string; equity: number; potShare: number; align: "left" | "right" }) {
+  const t = useMessages();
   return (
     <div className={align === "right" ? "text-right" : ""}>
       <div className="text-sm font-semibold text-ink">{label}</div>
       <div className="font-mono text-xl font-medium tabular-nums text-ink">{equity.toFixed(1)}%</div>
       <div className="text-xs text-ink-muted">
-        pot share <span className="font-mono tabular-nums text-ink">{potShare.toFixed(1)}bb</span>
+        {t.summary.potShare} <span className="font-mono tabular-nums text-ink">{potShare.toFixed(1)}bb</span>
       </div>
     </div>
   );
@@ -64,16 +67,17 @@ function EquitySide({ label, equity, potShare, align }: { label: string; equity:
 
 /** What a finished hand came to: how the two ranges stacked up, who got there, and how the hand went. */
 export function PostflopHandSummary({ outcome, board, potBb, rakeBb, equity, streets, hero, villain, actions, explanation }: PostflopHandSummaryProps) {
+  const t = useMessages();
   const [shownPlayer, setShownPlayer] = useState<"hero" | "villain">("hero");
   const rarePlayer = [hero, villain].find((ranges) => comboCount(ranges.end) < RARE_LINE_COMBOS);
   const collectedBb = potBb - rakeBb;
-  const rangeTitle = outcome.kind === "fold" ? "at the end" : outcome.kind === "allin" ? "all-in" : "at showdown";
+  const rangeTitle = outcome.kind === "fold" ? t.summary.atEnd : outcome.kind === "allin" ? t.summary.allIn : t.summary.atShowdown;
 
   return (
     <div data-testid="hand-summary" className="flex flex-col gap-3">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-xs font-semibold text-accent">{headline(outcome)}</p>
+          <p className="text-xs font-semibold text-accent">{headline(outcome, t)}</p>
           <div className="mt-1.5 flex flex-wrap gap-1" data-testid="summary-board">
             {board.map((card, i) => (
               <span key={card} className={i >= 3 ? "ml-1" : ""}>
@@ -83,11 +87,11 @@ export function PostflopHandSummary({ outcome, board, potBb, rakeBb, equity, str
           </div>
         </div>
         <div className="text-right">
-          <p className="text-xs text-ink-muted">Final pot</p>
+          <p className="text-xs text-ink-muted">{t.summary.finalPot}</p>
           <p className="font-mono text-xl font-medium tabular-nums text-ink">{potBb.toFixed(1)}bb</p>
           {rakeBb > 0 && (
             <p className="text-xs text-ink-faint">
-              Rake <span className="font-mono tabular-nums">{rakeBb.toFixed(1)}bb</span>
+              {t.summary.rake} <span className="font-mono tabular-nums">{rakeBb.toFixed(1)}bb</span>
             </p>
           )}
         </div>
@@ -107,8 +111,8 @@ export function PostflopHandSummary({ outcome, board, potBb, rakeBb, equity, str
           </div>
           <p className="mt-2 text-xs text-ink-faint">
             {rarePlayer
-              ? `${rarePlayer.label} almost never takes this line at equilibrium, so these figures rest on a tiny range.`
-              : "Average equity of the ranges that reach this point."}
+              ? t.summary.rareLine(rarePlayer.label)
+              : t.summary.averageEquity}
           </p>
         </div>
       )}
@@ -125,7 +129,7 @@ export function PostflopHandSummary({ outcome, board, potBb, rakeBb, equity, str
               shownPlayer === player ? "bg-raised text-ink shadow-[inset_0_0_0_1px_var(--color-line-strong)]" : "text-ink-muted"
             }`}
           >
-            {(player === "hero" ? hero : villain).label} range
+            {t.summary.range((player === "hero" ? hero : villain).label)}
           </button>
         ))}
       </div>
@@ -137,7 +141,7 @@ export function PostflopHandSummary({ outcome, board, potBb, rakeBb, equity, str
               <span>
                 <span className="font-semibold text-ink">{ranges.label}</span> {rangeTitle}
               </span>
-              <span className="font-mono tabular-nums">{formatCombos(comboCount(ranges.end))} combos</span>
+              <span className="font-mono tabular-nums">{t.common.combos(formatCombos(comboCount(ranges.end)))}</span>
             </div>
             <ShowdownRangeGrid startRange={ranges.start} endRange={ranges.end} color={color} />
           </div>
@@ -145,12 +149,12 @@ export function PostflopHandSummary({ outcome, board, potBb, rakeBb, equity, str
 
         <div className="flex flex-col gap-3">
           <div>
-            <p className="mb-1.5 text-xs font-semibold text-ink">How the hand went</p>
+            <p className="mb-1.5 text-xs font-semibold text-ink">{t.summary.howItWent}</p>
             {streets.map((street) => (
               <div key={street.label} className="grid grid-cols-[44px_1fr_auto] items-baseline gap-2 border-t border-line py-2 text-xs">
                 <span className="font-semibold text-ink">{street.label}</span>
                 <span className="text-ink-muted">{street.actions.join(" · ") || "—"}</span>
-                <span className="font-mono tabular-nums text-ink-faint">pot {street.potBb.toFixed(1)}</span>
+                <span className="font-mono tabular-nums text-ink-faint">{t.summary.pot(street.potBb.toFixed(1))}</span>
               </div>
             ))}
           </div>

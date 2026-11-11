@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { DEFAULT_MAX_CFR_ITERATIONS, DEFAULT_TARGET_EXPLOITABILITY_PERCENT } from "@/lib/postflopSolver/cfr";
 import { NO_RAKE } from "@/lib/solveEngine/rake";
+import { MESSAGES } from "@/lib/i18n/messages";
 import type { SerializedChanceNode, SerializedDecisionNode } from "@/types/postflopSolver";
 import {
   buildStreetSolveRequest,
@@ -116,7 +117,8 @@ describe("streetStartPot", () => {
 
 describe("pickDifferentLabel", () => {
   it("names the board on the flop and the single card after it", () => {
-    expect(pickDifferentLabel(idleStage(3, 97))).toBe("Pick a different board");
-    expect(pickDifferentLabel(idleStage(5, 97))).toBe("Pick a different river card");
+    expect(pickDifferentLabel(idleStage(3, 97), MESSAGES.en)).toBe("Pick a different board");
+    expect(pickDifferentLabel(idleStage(5, 97), MESSAGES.en)).toBe("Pick a different river card");
+    expect(pickDifferentLabel(idleStage(5, 97), MESSAGES.ko)).toBe("다른 리버 카드 고르기");
   });
 });

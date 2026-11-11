@@ -1,4 +1,5 @@
 import { STACK_MIN_BB, STACK_MAX_BB } from "@/lib/solveEngine/constants";
+import { useMessages } from "@/lib/i18n/locale";
 
 interface StackSizeControlProps {
   value: number;
@@ -6,12 +7,13 @@ interface StackSizeControlProps {
 }
 
 export function StackSizeControl({ value, onChange }: StackSizeControlProps) {
+  const t = useMessages();
   return (
     <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-      <span className="basis-full text-sm font-medium text-ink-muted">Effective stack</span>
+      <span className="basis-full text-sm font-medium text-ink-muted">{t.settings.effectiveStack}</span>
       <input
         type="range"
-        aria-label="Effective stack"
+        aria-label={t.settings.effectiveStack}
         min={STACK_MIN_BB}
         max={STACK_MAX_BB}
         step={1}
@@ -21,7 +23,7 @@ export function StackSizeControl({ value, onChange }: StackSizeControlProps) {
       />
       <input
         type="number"
-        aria-label="Effective stack"
+        aria-label={t.settings.effectiveStack}
         min={STACK_MIN_BB}
         max={STACK_MAX_BB}
         step={1}

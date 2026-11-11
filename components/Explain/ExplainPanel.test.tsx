@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { setLocale } from "@/lib/i18n/locale";
 import { SAMPLE_SUMMARY } from "@/lib/explain/explainTestUtils";
 import { EXPLAIN_REMAINING_HEADER, type ExplainStatus } from "@/types/explainApi";
 import { ExplainPanel } from "./ExplainPanel";
@@ -12,6 +13,7 @@ function mockFetch(status: ExplainStatus, post: () => Response) {
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  act(() => setLocale("en"));
 });
 
 /** The allowance line, whose count sits in its own span. */
@@ -41,7 +43,18 @@ describe("ExplainPanel", () => {
     expect(allowance("2/3")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Explain this hand" })).not.toBeInTheDocument();
     expect(screen.getByText(/Written by AI/)).toBeInTheDocument();
+    expect(fetchMock.mock.calls[1][0]).toBe("/api/explain?lang=en");
     expect(JSON.parse(fetchMock.mock.calls[1][1]!.body as string)).toEqual(SAMPLE_SUMMARY);
+  });
+
+  it("asks for Korean, and speaks it, when the page is in Korean", async () => {
+    setLocale("ko");
+    const fetchMock = mockFetch(OPEN, () => new Response("## 프리플랍\nBTN 오픈.", { headers: { [EXPLAIN_REMAINING_HEADER]: "2" } }));
+    render(<ExplainPanel buildSummary={() => SAMPLE_SUMMARY} />);
+    fireEvent.click(await screen.findByRole("button", { name: "이 핸드 설명 보기" }));
+    expect(await screen.findByRole("heading", { name: "프리플랍" })).toBeInTheDocument();
+    expect(fetchMock.mock.calls[1][0]).toBe("/api/explain?lang=ko");
+    expect(screen.getByText(/솔버 수치로 AI가 쓴/)).toBeInTheDocument();
   });
 
   it("explains a limit error and offers to try again", async () => {

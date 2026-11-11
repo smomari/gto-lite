@@ -1,4 +1,5 @@
 import type { SerializedDecisionAction } from "@/types/postflopSolver";
+import { useMessages } from "@/lib/i18n/locale";
 
 type PostflopSeatBoxProps =
   | {
@@ -18,6 +19,7 @@ type PostflopSeatBoxProps =
     };
 
 export function PostflopSeatBox(props: PostflopSeatBoxProps) {
+  const t = useMessages();
   const isActive = props.kind === "active";
 
   return (
@@ -33,13 +35,13 @@ export function PostflopSeatBox(props: PostflopSeatBoxProps) {
         <span className="font-semibold text-ink">{props.seatLabel}</span>
         {props.kind === "active" && (
           <span className="font-mono tabular-nums text-ink-faint">
-            pot {props.potBb.toFixed(1)}bb
-            {props.currentBetToCall > 0 && ` · facing ${props.currentBetToCall.toFixed(1)}bb`}
+            {t.postflop.pot(props.potBb.toFixed(1))}
+            {props.currentBetToCall > 0 && t.postflop.facing(props.currentBetToCall.toFixed(1))}
           </span>
         )}
       </div>
 
-      {props.kind === "history" && <span className="py-0.5 text-left text-xs text-ink-muted">{props.label}</span>}
+      {props.kind === "history" && <span className="py-0.5 text-left text-xs text-ink-muted">{t.action(props.label)}</span>}
 
       {props.kind === "active" && (
         <div className="flex flex-nowrap gap-1">
@@ -51,7 +53,7 @@ export function PostflopSeatBox(props: PostflopSeatBoxProps) {
               className="flex items-center gap-1.5 whitespace-nowrap rounded bg-raised px-2 py-1 text-left text-xs font-medium text-ink transition pointer-coarse:min-h-9 hover:bg-line-strong"
             >
               <span aria-hidden className="h-2 w-2 rounded-[2px]" style={{ backgroundColor: props.actionColors[i] }} />
-              {a.label}
+              {t.action(a.label)}
             </button>
           ))}
         </div>

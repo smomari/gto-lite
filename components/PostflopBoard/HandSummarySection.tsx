@@ -9,6 +9,7 @@ import { ExplainPanel } from "@/components/Explain/ExplainPanel";
 import type { SerializedTerminalNode } from "@/types/postflopSolver";
 import { PostflopHandSummary, type HandOutcome } from "./PostflopHandSummary";
 import { streetStartPot, type StreetStage } from "./streetStages";
+import { useMessages } from "@/lib/i18n/locale";
 
 interface HandSummarySectionProps {
   streets: StreetStage[];
@@ -27,6 +28,7 @@ interface HandSummarySectionProps {
 
 /** The finished hand: each street's line, the pot and rake, and both ranges from the flop to the end. */
 export function HandSummarySection({ streets, stageIndex, node, allIn, preflopPot, heroLabel, villainLabel, rake, actions, explain }: HandSummarySectionProps) {
+  const t = useMessages();
   const firstStage = streets[0].state;
   const stage = streets[stageIndex];
   if (firstStage.kind !== "done" || stage.state.kind !== "done") return null;
@@ -50,7 +52,7 @@ export function HandSummarySection({ streets, stageIndex, node, allIn, preflopPo
     node.type === "terminal-fold"
       ? { kind: "fold", winnerLabel: seatLabel(node.winner!) }
       : allIn
-        ? { kind: "allin", note: `All-in — hand is already decided, pot ${node.potBb.toFixed(1)}bb runs out to showdown automatically.` }
+        ? { kind: "allin", note: t.postflop.allInNote(node.potBb.toFixed(1)) }
         : { kind: "showdown" };
   return (
     <PostflopHandSummary
@@ -60,9 +62,9 @@ export function HandSummarySection({ streets, stageIndex, node, allIn, preflopPo
       rakeBb={rakeBb}
       equity={node.type === "terminal-showdown" ? node.checkdownEquity : undefined}
       streets={played.map((street, k) => ({
-        label: street.streetLabel,
+        label: t.streets[street.streetLabel],
         potBb: k === stageIndex ? node.potBb : streetStartPot(streets, k + 1, preflopPot),
-        actions: street.path.map((step) => `${seatLabel(step.node.actor)} ${step.node.actions[step.actionIndex].label}`),
+        actions: street.path.map((step) => `${seatLabel(step.node.actor)} ${t.action(step.node.actions[step.actionIndex].label)}`),
       }))}
       hero={{ label: heroLabel, start: firstStage.result.heroRange, end: narrowRangeAlongPath(result.heroRange, "P1", stage.path) }}
       villain={{ label: villainLabel, start: firstStage.result.villainRange, end: narrowRangeAlongPath(result.villainRange, "P2", stage.path) }}

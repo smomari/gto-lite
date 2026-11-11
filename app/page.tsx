@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { SettingsButton } from "@/components/Settings/SettingsButton";
 import { SettingsDialog } from "@/components/Settings/SettingsDialog";
+import { LanguageToggle } from "@/components/Settings/LanguageToggle";
 import { SeatActionBar } from "@/components/TableBar/SeatActionBar";
 import { ActionSummaryTiles } from "@/components/ActionSummaryTiles";
 import { SourceBadge } from "@/components/SourceBadge";
@@ -16,6 +17,7 @@ import { CHIP_EV, isChipEv, type IcmStructure } from "@/lib/solveEngine/icm";
 import { SEAT_ORDER } from "@/lib/actionTree/seatOrder";
 import { PostflopPanel } from "@/components/PostflopBoard/PostflopPanel";
 import { HandResolvedNotice } from "@/components/HandResolvedNotice";
+import { useMessages } from "@/lib/i18n/locale";
 import type { ActionType, Position } from "@/types/rangeData";
 
 interface RequestStep {
@@ -24,6 +26,7 @@ interface RequestStep {
 }
 
 export default function Home() {
+  const t = useMessages();
   const [stackBb, setStackBb] = useState(100);
   const [format, setFormat] = useState<GameFormat>(TOURNAMENT_8);
   const [rake, setRake] = useState<RakeSettings>(DEFAULT_RAKE_SETTINGS);
@@ -94,7 +97,10 @@ export default function Home() {
     <div className="mx-auto flex min-h-dvh w-full max-w-6xl flex-col gap-2 px-2 py-2 sm:px-4 lg:h-dvh lg:min-h-0 lg:overflow-hidden lg:px-6 lg:py-3">
       <header className="flex items-center justify-between border-b border-line pb-2">
         <span className="text-xl font-semibold tracking-tight text-ink">gtoLite</span>
-        <SettingsButton format={format} rake={rake.structure} icm={icm} stackBb={stackBb} onClick={() => setSettingsOpen(true)} />
+        <div className="flex items-center gap-2">
+          <LanguageToggle />
+          <SettingsButton format={format} rake={rake.structure} icm={icm} stackBb={stackBb} onClick={() => setSettingsOpen(true)} />
+        </div>
       </header>
 
       {settingsOpen && (
@@ -122,20 +128,20 @@ export default function Home() {
 
       {current?.kind === "error" && (
         <div role="alert" className="flex flex-wrap items-center gap-3">
-          <p className="text-sm text-[#d98a82]">Error: {current.message}</p>
+          <p className="text-sm text-[#d98a82]">{t.common.error(t.errorMessage(current.message))}</p>
           <button
             type="button"
             onClick={() => setAttempt((n) => n + 1)}
             className="rounded bg-accent px-3 py-1.5 text-sm font-medium text-canvas pointer-coarse:min-h-11"
           >
-            Retry
+            {t.common.retry}
           </button>
           <button
             type="button"
             onClick={handleNewHand}
             className="rounded px-3 py-1.5 text-sm text-ink-muted hover:bg-raised hover:text-ink pointer-coarse:min-h-11"
           >
-            New hand
+            {t.common.newHand}
           </button>
         </div>
       )}
@@ -187,9 +193,8 @@ export default function Home() {
           <div className="flex items-center justify-between gap-3">
             <SourceBadge source={current.data.source} icm={current.data.icm} />
             <span className="font-mono text-xs tabular-nums text-ink-muted">
-              Pot {current.data.potBb.toFixed(1)}bb
-              {current.data.availableActions.call &&
-                ` · to call ${current.data.availableActions.call.amountBb.toFixed(1)}bb`}
+              {t.preflop.pot(current.data.potBb.toFixed(1))}
+              {current.data.availableActions.call && t.preflop.toCall(current.data.availableActions.call.amountBb.toFixed(1))}
             </span>
           </div>
           <ActionSummaryTiles hands={current.data.hands} />

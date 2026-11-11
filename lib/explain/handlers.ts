@@ -106,7 +106,7 @@ export function createExplainHandlers(deps: ExplainDeps) {
 
     const { store } = config;
     const { requester, setCookie } = identify(request, config.secret);
-    const language = explainLanguage(request.headers.get("accept-language"));
+    const language = explainLanguage(new URL(request.url).searchParams.get("lang"));
     const cacheKey = explanationCacheKey(summary, language, deps.model);
 
     const cached = await cachedExplanation(store, cacheKey);

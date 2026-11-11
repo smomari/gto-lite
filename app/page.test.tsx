@@ -1,7 +1,8 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { ALL_HANDS } from "@/lib/handRange/handList";
 import { SolveApiError, solveNode } from "@/lib/apiClient/solveClient";
+import { setLocale } from "@/lib/i18n/locale";
 import Home from "./page";
 
 vi.mock("@/lib/apiClient/solveClient", async (original) => ({
@@ -28,6 +29,10 @@ beforeEach(() => {
     if (actionPath.length === 0) return firstDecision as never;
     throw new SolveApiError({ code: "HAND_RESOLVED", error: "resolved", reason: "uncontested", actionPath: [], potBb: 1.5, committed: {} } as never);
   });
+});
+
+afterEach(() => {
+  act(() => setLocale("en"));
 });
 
 function openSettings() {
@@ -188,5 +193,18 @@ describe("Home", () => {
     await screen.findAllByRole("button", { name: "Fold" });
     expect(screen.queryByRole("button", { name: "New hand" })).not.toBeInTheDocument();
     expect(activeSeat()).toHaveAttribute("data-position", "UTG");
+  });
+
+  it("switches the page to Korean without restarting the hand", async () => {
+    render(<Home />);
+    await screen.findAllByRole("button", { name: "Fold" });
+    const requests = vi.mocked(solveNode).mock.calls.length;
+    fireEvent.click(screen.getByRole("button", { name: "한" }));
+    expect(within(activeSeat()).getByRole("button", { name: "폴드" })).toBeInTheDocument();
+    expect(within(activeSeat()).getByRole("button", { name: "레이즈 2.5bb" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /설정/ })).toHaveTextContent("토너먼트 8인");
+    expect(vi.mocked(solveNode).mock.calls.length).toBe(requests);
+    fireEvent.click(screen.getByRole("button", { name: "EN" }));
+    expect(within(activeSeat()).getByRole("button", { name: "Fold" })).toBeInTheDocument();
   });
 });

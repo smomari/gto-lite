@@ -1,4 +1,5 @@
 import type { PostflopSolvePhase } from "@/types/postflopSolver";
+import { useMessages } from "@/lib/i18n/locale";
 
 interface SolveProgressProps {
   phase: PostflopSolvePhase;
@@ -11,16 +12,17 @@ interface SolveProgressProps {
 }
 
 export function SolveProgress({ phase, done, total, exploitabilityPercent, targetExploitabilityPercent }: SolveProgressProps) {
+  const t = useMessages();
   if (phase === "cfr") {
     return (
-      <div role="progressbar" aria-label="Running CFR" className="flex flex-col gap-1">
+      <div role="progressbar" aria-label={t.solve.runningCfr} className="flex flex-col gap-1">
         <div className="flex justify-between text-xs text-ink-muted">
-          <span>Running CFR…</span>
+          <span>{t.solve.runningCfr}…</span>
           <span>
             {exploitabilityPercent !== undefined
-              ? `exploitability ${exploitabilityPercent.toFixed(2)}% pot`
-              : "measuring…"}
-            {targetExploitabilityPercent !== undefined && ` (target ${targetExploitabilityPercent.toFixed(2)}%)`}
+              ? t.solve.exploitability(exploitabilityPercent.toFixed(2))
+              : t.solve.measuring}
+            {targetExploitabilityPercent !== undefined && t.solve.target(targetExploitabilityPercent.toFixed(2))}
           </span>
         </div>
         <div className="h-1 w-full overflow-hidden rounded-[1px] bg-raised">
@@ -33,9 +35,9 @@ export function SolveProgress({ phase, done, total, exploitabilityPercent, targe
   const pct = total > 0 ? Math.min(100, Math.round((done / total) * 100)) : 0;
 
   return (
-    <div role="progressbar" aria-label="Computing showdown equities" aria-valuenow={pct} className="flex flex-col gap-1">
+    <div role="progressbar" aria-label={t.solve.computingEquities} aria-valuenow={pct} className="flex flex-col gap-1">
       <div className="flex justify-between text-xs text-ink-muted">
-        <span>Computing showdown equities…</span>
+        <span>{t.solve.computingEquities}…</span>
         <span className="font-mono tabular-nums">{pct}%</span>
       </div>
       <div className="h-1 w-full overflow-hidden rounded-[1px] bg-raised">

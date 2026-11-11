@@ -31,11 +31,11 @@ function setup(script: ExplanationPart[] | (() => AsyncIterable<ExplanationPart>
   return { store, explain, deps, handlers: createExplainHandlers(deps) };
 }
 
-function post(body: string, headers: Record<string, string> = {}): Request {
-  return new Request("http://localhost/api/explain", {
+function post(body: string, headers: Record<string, string> = {}, lang = "ko"): Request {
+  return new Request(`http://localhost/api/explain?lang=${lang}`, {
     method: "POST",
     body,
-    headers: { "x-forwarded-for": "203.0.113.7", "accept-language": "ko-KR", ...headers },
+    headers: { "x-forwarded-for": "203.0.113.7", ...headers },
   });
 }
 
@@ -73,7 +73,7 @@ describe("POST /api/explain", () => {
   it("caches per language", async () => {
     const { handlers, explain } = setup();
     await (await handlers.POST(post(BODY))).text();
-    await (await handlers.POST(post(BODY, { "accept-language": "en-US" }))).text();
+    await (await handlers.POST(post(BODY, {}, "en"))).text();
     expect(explain).toHaveBeenCalledTimes(2);
   });
 

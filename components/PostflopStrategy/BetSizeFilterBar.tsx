@@ -1,5 +1,6 @@
 import { formatPercent } from "@/lib/format";
 import type { SerializedCombo, SerializedDecisionNode } from "@/types/postflopSolver";
+import { useMessages } from "@/lib/i18n/locale";
 
 interface BetSizeFilterBarProps {
   node: SerializedDecisionNode;
@@ -29,6 +30,7 @@ function actionFrequencies(node: SerializedDecisionNode, range: SerializedCombo[
  * action (click again to return to the blended view).
  */
 export function BetSizeFilterBar({ node, range, colors, isolatedActionIndex, onIsolateChange }: BetSizeFilterBarProps) {
+  const t = useMessages();
   const frequencies = actionFrequencies(node, range);
 
   return (
@@ -41,7 +43,7 @@ export function BetSizeFilterBar({ node, range, colors, isolatedActionIndex, onI
             <button
               key={i}
               type="button"
-              aria-label={`${a.label} · ${formatPercent(frequencies[i])}`}
+              aria-label={`${t.action(a.label)} · ${formatPercent(frequencies[i])}`}
               aria-pressed={isActive}
               onClick={() => onIsolateChange(isActive ? null : i)}
               className={`min-w-0 flex-1 rounded-md px-2 py-1 text-left transition pointer-coarse:min-h-9 ${dimmed ? "opacity-40" : ""} ${
@@ -50,7 +52,7 @@ export function BetSizeFilterBar({ node, range, colors, isolatedActionIndex, onI
             >
               <span className="flex items-center gap-1.5 truncate text-xs text-ink-muted">
                 <span className="h-2 w-2 shrink-0 rounded-[2px]" style={{ backgroundColor: colors[i] }} />
-                {a.label}
+                {t.action(a.label)}
               </span>
               <span className="mt-0.5 block font-mono text-xl font-medium tabular-nums text-ink">{formatPercent(frequencies[i])}</span>
             </button>
