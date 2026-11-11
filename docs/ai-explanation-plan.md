@@ -127,10 +127,13 @@
   - 캐시 키는 요약·언어·모델·프롬프트 버전의 해시, 30일 보관. 토큰 한도에서 잘린 응답도 저장한다.
   - Redis나 서명 비밀값이 없으면 기능이 꺼지고 화면에 버튼이 나오지 않는다.
 - **4단계 완료.** `components/Explain/ExplainPanel.tsx`가 결과 화면 아래 전체 폭에 붙는다. 같은 화면에서 다른 라인으로 바꾸면 새로 시작한다.
-- **5단계 남음.** BotID는 `next.config.ts`(`withBotId`)와 `instrumentation-client.ts`에 넣었다. 아래 환경 변수와 Gateway 예산 설정이 필요하다.
+- **5단계 완료 (2026-11-11).** BotID는 `next.config.ts`(`withBotId`)와 `instrumentation-client.ts`에 넣었다. Vercel 프로젝트에 Upstash Redis를 Marketplace로 연결하고 아래 변수를 Preview·Production에 넣었다. 미리보기 배포에서 버튼을 눌러 실제 설명이 나오는 것을 확인한 뒤 main에 병합했다.
   - `AI_GATEWAY_API_KEY`(로컬) 또는 Vercel 배포의 OIDC
   - `KV_REST_API_URL`·`KV_REST_API_TOKEN` 또는 `UPSTASH_REDIS_REST_URL`·`UPSTASH_REDIS_REST_TOKEN`(Marketplace 연결 시 자동)
   - `EXPLAIN_SECRET`: 쿠키 서명과 IP 해시용 임의 문자열
+  - 로컬 `next dev`는 Development 환경에 변수가 없고 Secret이라 `vercel env pull`로 받을 수 없다. `.env.local`에 직접 넣는다.
+  - Gateway 예산 상한은 아직 걸지 않았다. 코드의 하루 300회 전체 한도가 비용을 막는다.
+- **남은 일.** 무료 크레딧을 다 쓰면 유료 크레딧을 사서 Haiku 5.5로 바꾸고 출력을 다시 검토한다. 그때 "heuristic-approx" 노출과 없는 보드 설명도 프롬프트에서 손본다.
 
 ## 단계별 구현
 
