@@ -77,6 +77,31 @@ describe.each([100, 40, 20] as const)("tournament 8-max at %ibb against GTO Wiza
   });
 });
 
+/**
+ * Blind against blind at 40bb, read off GTO Wizard on 2026-11-12: the BB
+ * against the SB's 3bb raise 3-bets to 7.5 (13.5%, 0.7 of it all-in), and the
+ * SB against that 3-bet 4-bets to 15.75 or jams 12.4% of what it raised.
+ */
+describe("tournament 8-max blind against blind at 40bb against GTO Wizard", () => {
+  const toSb = [...foldsTo("BTN"), "BTN:fold"];
+
+  it("the BB answers the SB's raise with a 7.5bb 3-bet", () => {
+    const { hands, raiseTo } = spot(40, [...toSb, "SB:raise"]);
+    expectNear(ofAll(hands), [13.5, 62.4, 24.1]);
+    expect(raiseTo).toBe(7.5);
+  });
+
+  it("the SB answers the BB's 3-bet with a 15.75bb 4-bet, of the range that raised", () => {
+    const open = spot(40, toSb).hands;
+    const { hands, raiseTo } = spot(40, [...toSb, "SB:raise", "BB:raise"]);
+    const width = share(open, (h) => h.raise);
+    const raise = share(hands, (h, i) => raised(h) * open[i].raise) / width;
+    const call = share(hands, (h, i) => h.call * open[i].raise) / width;
+    expectNear([100 * raise, 100 * call, 100 - 100 * (raise + call)], [12.4, 55.8, 31.8]);
+    expect(raiseTo).toBeCloseTo(15.75, 0);
+  });
+});
+
 describe("tournament all-in re-raises", () => {
   const toBtn = foldsTo("BTN");
   const jams = (hands: HandFrequency[]) => share(hands, (h) => h.allin ?? 0) / share(hands, raised);

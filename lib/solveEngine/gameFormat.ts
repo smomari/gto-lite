@@ -71,14 +71,16 @@ export interface ReraiseSizes {
   bbOverSb?: number;
   /** Over a 3-bet or more. */
   fourBetPlus: { ip: number; oop: number };
+  /** The SB's 4-bet over the BB's 3-bet of its own raise. Default `fourBetPlus.oop`. */
+  sbOverBb?: number;
   /**
    * Over an open that someone called: a blind's multiple of the open with one
    * caller, an in-position seat's added to its plain 3-bet, plus `perCaller`
    * for each further caller. Without it a squeeze is sized like a 3-bet.
    */
   squeeze?: { blind: number; perCaller: number };
-  /** Sizes that change with depth, interpolated between these stacks and flat outside them. Overrides threeBet and fourBetPlus. */
-  byStack?: { stackBb: number; threeBet: ReraiseSizes["threeBet"]; fourBetPlus: ReraiseSizes["fourBetPlus"] }[];
+  /** Sizes that change with depth, interpolated between these stacks and flat outside them. Overrides threeBet, fourBetPlus and the blind-vs-blind sizes. */
+  byStack?: ({ stackBb: number } & Pick<ReraiseSizes, "threeBet" | "fourBetPlus" | "bbOverSb" | "sbOverBb">)[];
 }
 
 export interface DepthTuning {
@@ -95,6 +97,8 @@ export interface DepthTuning {
   sbRaiseSpread: number;
   /** Facing a 3-bet over its own first-in raise, the SB keeps this share of what another opener would. */
   sbOpenerKeepFactor: number;
+  /** Multiplies the BB's continuing range against the SB's first-in raise: see GameFormat.blindVsBlind. */
+  bbVsSbContinueFactor: number;
   /** How much a narrower opener narrows what the BB defends: see FacingRaiseParams.openerWidthExponent. */
   closingWidthExponent: number;
   /** How much of its share an in-position cold caller keeps, and its 3-bet width against a blind's. */
@@ -123,6 +127,7 @@ export function tunedAt(format: GameFormat, effectiveStackBb: number): GameForma
     sbFlatFactor: mix("sbFlatFactor"),
     sbRaiseSpread: mix("sbRaiseSpread"),
     sbOpenerKeepFactor: mix("sbOpenerKeepFactor"),
+    blindVsBlind: { continueFactor: mix("bbVsSbContinueFactor"), threeBetWidthRatio: mix("threeBetWidthRatio") },
     closingWidthExponent: mix("closingWidthExponent"),
     coldCallIpFactor: mix("coldCallIpFactor"),
     reraiseKeepBase: mix("reraiseKeepBase"),
@@ -135,13 +140,19 @@ export function tunedAt(format: GameFormat, effectiveStackBb: number): GameForma
 }
 
 /** A format's 3-bet and 4-bet multiples at this effective stack. */
-export function reraiseSizesAt(format: GameFormat, effectiveStackBb: number): Pick<ReraiseSizes, "threeBet" | "fourBetPlus"> {
+export function reraiseSizesAt(
+  format: GameFormat,
+  effectiveStackBb: number,
+): Pick<ReraiseSizes, "threeBet" | "fourBetPlus" | "bbOverSb" | "sbOverBb"> {
   if (!format.reraiseSizes.byStack) return format.reraiseSizes;
   const { lo, hi, t } = anchorsAround(format.reraiseSizes.byStack, effectiveStackBb);
   const mix = (a: number, b: number) => lerp(a, b, t);
+  const mixOptional = (a: number | undefined, b: number | undefined) => (a === undefined || b === undefined ? undefined : mix(a, b));
   return {
     threeBet: { ip: mix(lo.threeBet.ip, hi.threeBet.ip), sbOop: mix(lo.threeBet.sbOop, hi.threeBet.sbOop), bbOop: mix(lo.threeBet.bbOop, hi.threeBet.bbOop) },
     fourBetPlus: { ip: mix(lo.fourBetPlus.ip, hi.fourBetPlus.ip), oop: mix(lo.fourBetPlus.oop, hi.fourBetPlus.oop) },
+    bbOverSb: mixOptional(lo.bbOverSb, hi.bbOverSb),
+    sbOverBb: mixOptional(lo.sbOverBb, hi.sbOverBb),
   };
 }
 
@@ -249,9 +260,9 @@ export interface GameFormat {
  * hand at 20 and 100bb; 40bb, which they don't cover, sits between).
  */
 const TOURNAMENT_TUNING_BY_STACK: DepthTuning[] = [
-  { stackBb: 20, sbThreeBetWidthRatio: 0.62, threeBetWidthRatio: 0.48, coldCallOopMultiplier: 0.55, closingContinueFactor: 1.16, threeBetValueShare: 0.85, sbFlatFactor: 0.1, sbRaiseSpread: 0.5, sbOpenerKeepFactor: 1, closingWidthExponent: 0.1, coldCallIpFactor: 0.6, nonBlindThreeBetFactor: 0.8, reraiseKeepBase: 0.39, fourBetWidthRatio: 0.65, fourBetVsInPositionWidthRatio: 0.8, fourBetVsInPositionBluffShare: 0.4 },
-  { stackBb: 40, sbThreeBetWidthRatio: 0.345, threeBetWidthRatio: 0.325, coldCallOopMultiplier: 0.5, closingContinueFactor: 1.04, threeBetValueShare: RAISE_VALUE_SHARE, sbFlatFactor: 1, sbRaiseSpread: 0.6, sbOpenerKeepFactor: 1, closingWidthExponent: 0.45, coldCallIpFactor: 0.7, nonBlindThreeBetFactor: 0.75, reraiseKeepBase: 0.4, fourBetWidthRatio: 0.55, fourBetVsInPositionWidthRatio: 0.8, fourBetVsInPositionBluffShare: 0.4 },
-  { stackBb: 100, sbThreeBetWidthRatio: THREE_BET_WIDTH_RATIO, threeBetWidthRatio: THREE_BET_WIDTH_RATIO, coldCallOopMultiplier: COLD_CALL_OOP_MULTIPLIER, closingContinueFactor: 1, threeBetValueShare: RAISE_VALUE_SHARE, sbFlatFactor: 1, sbRaiseSpread: 0.75, sbOpenerKeepFactor: 0.4, closingWidthExponent: 0.25, coldCallIpFactor: 0.85, nonBlindThreeBetFactor: 1.15, reraiseKeepBase: 0.41, fourBetWidthRatio: 0.38, fourBetVsInPositionWidthRatio: 0.55, fourBetVsInPositionBluffShare: 0.4 },
+  { stackBb: 20, sbThreeBetWidthRatio: 0.62, threeBetWidthRatio: 0.48, coldCallOopMultiplier: 0.55, closingContinueFactor: 1.16, threeBetValueShare: 0.85, sbFlatFactor: 0.1, sbRaiseSpread: 0.5, sbOpenerKeepFactor: 1, bbVsSbContinueFactor: 1, closingWidthExponent: 0.1, coldCallIpFactor: 0.6, nonBlindThreeBetFactor: 0.8, reraiseKeepBase: 0.39, fourBetWidthRatio: 0.65, fourBetVsInPositionWidthRatio: 0.8, fourBetVsInPositionBluffShare: 0.4 },
+  { stackBb: 40, sbThreeBetWidthRatio: 0.345, threeBetWidthRatio: 0.325, coldCallOopMultiplier: 0.5, closingContinueFactor: 1.04, threeBetValueShare: RAISE_VALUE_SHARE, sbFlatFactor: 1, sbRaiseSpread: 0.6, sbOpenerKeepFactor: 1.4, bbVsSbContinueFactor: 1.19, closingWidthExponent: 0.45, coldCallIpFactor: 0.7, nonBlindThreeBetFactor: 0.75, reraiseKeepBase: 0.4, fourBetWidthRatio: 0.55, fourBetVsInPositionWidthRatio: 0.8, fourBetVsInPositionBluffShare: 0.4 },
+  { stackBb: 100, sbThreeBetWidthRatio: THREE_BET_WIDTH_RATIO, threeBetWidthRatio: THREE_BET_WIDTH_RATIO, coldCallOopMultiplier: COLD_CALL_OOP_MULTIPLIER, closingContinueFactor: 1, threeBetValueShare: RAISE_VALUE_SHARE, sbFlatFactor: 1, sbRaiseSpread: 0.75, sbOpenerKeepFactor: 0.4, bbVsSbContinueFactor: 1, closingWidthExponent: 0.25, coldCallIpFactor: 0.85, nonBlindThreeBetFactor: 1.15, reraiseKeepBase: 0.41, fourBetWidthRatio: 0.38, fourBetVsInPositionWidthRatio: 0.55, fourBetVsInPositionBluffShare: 0.4 },
 ];
 /** In tournaments a 3-bet of a quarter of the stack, or a 4-bet of 40% of it, goes all-in, as GTO Wizard's 20bb and 40bb solutions do. */
 const TOURNAMENT_JAM_THREE_BET_SHARE = 0.25;
@@ -262,12 +273,14 @@ const TOURNAMENT_JAM_FOUR_BET_SHARE = 0.4;
  * Wizard's MTT 8max ChipEV solutions do: the SB to 2.5x at 20bb, 3.5x at 40bb
  * and 4.5x at 100bb, the BB to 3x, 4.25x and 5.25x; the button 4-bets 2.2x at
  * 100bb. In-position 3-bets and out-of-position 4-bets weren't seen there and
- * keep the old 3x and 4x.
+ * keep the old 3x and 4x. Blind against blind at 40bb, the BB 3-bets the SB's
+ * 3bb raise to 7.5 (2.5x) and the SB 4-bets that to 15.75 (2.1x), short of a
+ * jam; at 20 and 100bb they weren't seen and keep 3x and 4x.
  */
-const TOURNAMENT_RERAISE_SIZES_BY_STACK = [
-  { stackBb: 20, threeBet: { ip: 3, sbOop: 2.5, bbOop: 3 }, fourBetPlus: { ip: 3, oop: 4 } },
-  { stackBb: 40, threeBet: { ip: 3, sbOop: 3.5, bbOop: 4.25 }, fourBetPlus: { ip: 2.2, oop: 4 } },
-  { stackBb: 100, threeBet: { ip: 3, sbOop: 4.5, bbOop: 5.25 }, fourBetPlus: { ip: 2.2, oop: 4 } },
+const TOURNAMENT_RERAISE_SIZES_BY_STACK: NonNullable<ReraiseSizes["byStack"]> = [
+  { stackBb: 20, threeBet: { ip: 3, sbOop: 2.5, bbOop: 3 }, fourBetPlus: { ip: 3, oop: 4 }, bbOverSb: 3, sbOverBb: 4 },
+  { stackBb: 40, threeBet: { ip: 3, sbOop: 3.5, bbOop: 4.25 }, fourBetPlus: { ip: 2.2, oop: 4 }, bbOverSb: 2.5, sbOverBb: 2.1 },
+  { stackBb: 100, threeBet: { ip: 3, sbOop: 4.5, bbOop: 5.25 }, fourBetPlus: { ip: 2.2, oop: 4 }, bbOverSb: 3, sbOverBb: 4 },
 ];
 
 export const TOURNAMENT_8: GameFormat = {

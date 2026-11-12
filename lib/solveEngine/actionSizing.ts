@@ -53,18 +53,22 @@ export function computeRawRaiseTo(
   }
   const isIP = postflopSeatIndex(activeSeat) > postflopSeatIndex(potState.lastAggressor);
   const { squeeze } = potState.format.reraiseSizes;
-  const { threeBet, fourBetPlus } = reraiseSizesAt(potState.format, effectiveStackBb);
+  const { threeBet, fourBetPlus, bbOverSb, sbOverBb } = reraiseSizesAt(potState.format, effectiveStackBb);
   const isBlind = activeSeat === "SB" || activeSeat === "BB";
   const callers = potState.raiseDepth === 1 && squeeze ? callersOf(potState, activeSeat).length : 0;
   const multiplier =
     potState.raiseDepth >= 2
-      ? isIP ? fourBetPlus.ip : fourBetPlus.oop
+      ? isIP
+        ? fourBetPlus.ip
+        : potState.raiseDepth === 2 && activeSeat === "SB" && potState.lastAggressor === "BB" && sbOverBb !== undefined
+          ? sbOverBb
+          : fourBetPlus.oop
       : callers > 0
         ? isBlind
           ? squeeze!.blind + (callers - 1) * squeeze!.perCaller
           : threeBet.ip + callers * squeeze!.perCaller
-        : activeSeat === "BB" && potState.lastAggressor === "SB" && potState.format.reraiseSizes.bbOverSb !== undefined
-          ? potState.format.reraiseSizes.bbOverSb
+        : activeSeat === "BB" && potState.lastAggressor === "SB" && bbOverSb !== undefined
+          ? bbOverSb
           : isIP ? threeBet.ip : activeSeat === "SB" ? threeBet.sbOop : threeBet.bbOop;
   // Round for the same reason interpolateOpenRaiseBb does — now that opening
   // sizes can be non-integer bb amounts, multiplying them by an integer
