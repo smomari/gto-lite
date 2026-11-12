@@ -141,6 +141,8 @@ export async function POST(request: Request): Promise<Response> {
     };
     return Response.json(response, { status: 200 });
   } catch (err) {
-    return errorResponse(500, { error: err instanceof Error ? err.message : String(err), code: "INTERNAL" });
+    // The cause stays in the logs: an engine error's text is no use to a visitor and says too much about the server.
+    console.error("solve failed", err);
+    return errorResponse(500, { error: "The solve failed on the server", code: "INTERNAL" });
   }
 }
