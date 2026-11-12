@@ -49,7 +49,7 @@ describe("ICM presets", () => {
 
 describe("pushFoldPayoffs", () => {
   it("leaves the shover no worse off for a steal and no better for a loss", () => {
-    const { shover, caller } = pushFoldPayoffs(icmById("bubble")!, 8, 10, 10, 2.5);
+    const { shover, caller } = pushFoldPayoffs(icmById("bubble")!, 8, 10, 10, 2.5, { shoverBb: 0.5, callerBb: 1 });
     expect(shover.steal).toBeGreaterThan(shover.fold);
     expect(shover.win).toBeGreaterThan(shover.steal);
     expect(shover.lose).toBeLessThan(shover.fold);
@@ -59,7 +59,8 @@ describe("pushFoldPayoffs", () => {
   it("in chips, reproduce the chip-EV solve", () => {
     const S = 10;
     const pot = 2.5;
-    const chips = { shover: { fold: 0, steal: pot, win: S + pot, lose: -S }, caller: { fold: 0, win: S + pot, lose: -S } };
+    // The SB has 9.5 behind and the BB 9; a called shove is 21.
+    const chips = { shover: { fold: 0, steal: pot, win: 21 - 9.5, lose: -9.5 }, caller: { fold: 0, win: 21 - 9, lose: -9 } };
     const plain = solvePushFold(matrix, { effectiveStackBb: S });
     const priced = solvePushFold(matrix, { effectiveStackBb: S, payoffs: chips });
     expect(share(priced.shoveFrequency)).toBeCloseTo(share(plain.shoveFrequency), 2);

@@ -15,12 +15,7 @@ const width = (freq: Float64Array) => 100 * freq.reduce((sum, f, i) => sum + f *
 const index = (hand: string) => ALL_HANDS.indexOf(HAND_BY_LABEL.get(hand)!);
 
 describe("solvePreflop", () => {
-  /**
-   * solvePushFold charges a caller its whole stack and adds the blinds to the
-   * called pot on top of both stacks, where here the blinds are part of the
-   * stacks. The two agree at 15bb and drift apart as stacks get shorter (at 5bb
-   * the BB calls 56% there and 81% here).
-   */
+  /** Both count the blinds as part of the stacks, so they agree at any depth. */
   it("agrees with the push/fold solver on a shove-or-fold game", () => {
     const tree = buildPreflopTree({ format: TOURNAMENT_8, stackBb: 15, seats: ["SB", "BB"], rules: PUSH_FOLD_RULES });
     const solution = solvePreflop(tree, equity, RAW_EQUITY, 1000);

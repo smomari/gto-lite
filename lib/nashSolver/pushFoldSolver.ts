@@ -35,12 +35,16 @@ function allHandsAt(freq: number): FrequencyMap {
 }
 
 export interface PushFoldParams {
-  /** Effective stack in big blinds, assumed equal for hero and villain. */
+  /** Effective stack in big blinds at the start of the hand, blinds included, assumed equal for hero and villain. */
   effectiveStackBb: number;
   smallBlind?: number;
   bigBlind?: number;
-  /** Single BB-posted ante covering the whole table (the modern MTT convention). */
+  /** Single BB-posted ante covering the whole table (the modern MTT convention), paid on top of the stack. */
   bbAnte?: number;
+  /** The blind the shover already posted, part of its stack. Default the small blind: the SB shoving on the BB. */
+  shoverPostedBb?: number;
+  /** The blind the caller already posted, part of its stack. Default the big blind. */
+  callerPostedBb?: number;
   /** Players left to act behind the shover, each of whom can call. Default 1: heads-up. */
   opponentsBehind?: number;
   /** A called shove sees a flop, so it always pays; the blinds pay only without no flop no drop. Default none. */
@@ -93,9 +97,9 @@ const MAX_ITERATIONS = 300;
  * threshold with only a handful of genuinely near-indifferent hands left
  * mixed, matching the shape of real published push/fold charts.
  *
- * Chip EV unless `payoffs` say otherwise; models the pot as both effective stacks plus the two
- * blinds and a single BB-posted ante as dead money — an accepted MVP-level
- * simplification of the exact seats/antes involved in any real hand.
+ * Chip EV unless `payoffs` say otherwise. A blind the shover or caller posted
+ * is part of its stack: folding loses it, and a called shove is both stacks plus
+ * the ante and any third seat's blind. The steal wins every blind and the ante.
  *
  * `opponentsBehind` is what separates UTG from the SB: the shove only takes
  * the dead money if all of them fold. Each calls independently with the same
@@ -111,6 +115,8 @@ export function solvePushFold(
     smallBlind = SMALL_BLIND_BB,
     bigBlind = BIG_BLIND_BB,
     bbAnte = BB_ANTE_BB,
+    shoverPostedBb = smallBlind,
+    callerPostedBb = bigBlind,
     opponentsBehind = 1,
     rake = NO_RAKE_SETTINGS,
     payoffs,
@@ -118,12 +124,16 @@ export function solvePushFold(
   } = params;
   const pot = smallBlind + bigBlind + bbAnte;
   const deadMoney = rake.noFlopNoDrop ? pot : netPot(pot, rake.structure);
-  const potIfCalled = netPot(2 * S + pot, rake.structure);
-  // Without payoffs the chips are the values, priced the way they always were.
+  const potIfCalled = netPot(2 * S + pot - shoverPostedBb - callerPostedBb, rake.structure);
+  // Without payoffs the chips are the values: each risks what it hasn't posted yet.
   const callEv = (equity: number) =>
-    payoffs ? equity * payoffs.caller.win + (1 - equity) * payoffs.caller.lose - payoffs.caller.fold : equity * potIfCalled - S;
+    payoffs
+      ? equity * payoffs.caller.win + (1 - equity) * payoffs.caller.lose - payoffs.caller.fold
+      : equity * potIfCalled - (S - callerPostedBb);
   const shownDownEv = (equity: number) =>
-    payoffs ? equity * payoffs.shover.win + (1 - equity) * payoffs.shover.lose - payoffs.shover.fold : equity * potIfCalled - S;
+    payoffs
+      ? equity * payoffs.shover.win + (1 - equity) * payoffs.shover.lose - payoffs.shover.fold
+      : equity * potIfCalled - (S - shoverPostedBb);
   const stealEv = payoffs ? payoffs.shover.steal - payoffs.shover.fold : deadMoney;
 
   let shoveRange: FrequencyMap = allHandsAt(1);

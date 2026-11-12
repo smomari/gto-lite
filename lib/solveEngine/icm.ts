@@ -71,17 +71,28 @@ export function seatEquities(icm: IcmStructure, tableStacks: readonly number[], 
 
 /**
  * The shover's and the caller's share of the prize pool after each way a
- * shove can end. Both have `remainingBb` behind and `deadMoneyBb` sits in the
- * middle: the folder's blinds go to the other, as if the caller were the BB.
- * The rest of the table and the field keep `stackBb`.
+ * shove can end. Both start the hand with `effectiveBb`, each blind it posted
+ * part of that, and `potBb` (every blind and the ante) sits in the middle: a
+ * folder's blind goes to the other, as if the caller were the BB. The rest of
+ * the table and the field keep `stackBb`.
  */
-export function pushFoldPayoffs(icm: IcmStructure, seats: number, stackBb: number, remainingBb: number, deadMoneyBb: number): PushFoldPayoffs {
+export function pushFoldPayoffs(
+  icm: IcmStructure,
+  seats: number,
+  stackBb: number,
+  effectiveBb: number,
+  potBb: number,
+  posted: { shoverBb: number; callerBb: number },
+): PushFoldPayoffs {
   const others = Array<number>(seats - 2).fill(stackBb);
   const values = (shoverBb: number, callerBb: number) => seatEquities(icm, [shoverBb, callerBb, ...others], stackBb);
-  const shoverFolds = values(remainingBb, remainingBb + deadMoneyBb);
-  const steal = values(remainingBb + deadMoneyBb, remainingBb);
-  const shoverWins = values(2 * remainingBb + deadMoneyBb, 0);
-  const callerWins = values(0, 2 * remainingBb + deadMoneyBb);
+  const shoverBehind = effectiveBb - posted.shoverBb;
+  const callerBehind = effectiveBb - posted.callerBb;
+  const calledPot = shoverBehind + callerBehind + potBb;
+  const shoverFolds = values(shoverBehind, callerBehind + potBb);
+  const steal = values(shoverBehind + potBb, callerBehind);
+  const shoverWins = values(calledPot, 0);
+  const callerWins = values(0, calledPot);
   return {
     shover: { fold: shoverFolds[0], steal: steal[0], win: shoverWins[0], lose: callerWins[0] },
     caller: { fold: steal[1], win: callerWins[1], lose: shoverWins[1] },
