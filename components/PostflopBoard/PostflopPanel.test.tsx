@@ -802,3 +802,64 @@ describe("PostflopPanel", () => {
     }
   });
 });
+
+describe("PostflopPanel opened from a shared link", () => {
+  it("deals the link's cards and takes its actions street by street, then reports the line", async () => {
+    solvePostflopInWorker.mockResolvedValueOnce(checkCheckFlopResult({ P1: 0, P2: 0 }));
+    solvePostflopInWorker.mockResolvedValueOnce(checkCheckTurnResult({ P1: 0, P2: 0 }));
+    const onLineChange = vi.fn();
+    const initialLine = { board: ["As", "Kd", "Qh", "7h"], streets: [["x", "x"], ["x"]] };
+    render(<Harness {...baseProps(20)} initialLine={initialLine} onLineChange={onLineChange} />);
+
+    // The flop is solved and checked through, the turn dealt and checked once: BB is next to act there.
+    await waitFor(() => expect(timeline()).toEqual(["Flop", "BTN:Check", "BB:Check", "Turn", "BTN:Check", "BB:active"]));
+    expect(liveStage()).toHaveAttribute("data-street", "Turn");
+    expect((solvePostflopInWorker.mock.calls[0][0] as PostflopSolveRequest).board).toEqual(["As", "Kd", "Qh"]);
+    expect((solvePostflopInWorker.mock.calls[1][0] as PostflopSolveRequest).board).toEqual(["As", "Kd", "Qh", "7h"]);
+    expect(solvePostflopInWorker).toHaveBeenCalledTimes(2);
+
+    // Nothing was reported while the link played back; then the line it ended on.
+    await waitFor(() => expect(onLineChange).toHaveBeenCalledTimes(1));
+    expect(onLineChange).toHaveBeenLastCalledWith(initialLine);
+  });
+
+  it("hands the hand back after the replay: the user's own action is reported next", async () => {
+    solvePostflopInWorker.mockResolvedValueOnce(checkCheckFlopResult({ P1: 0, P2: 0 }));
+    const onLineChange = vi.fn();
+    render(<Harness {...baseProps(20)} initialLine={{ board: ["As", "Kd", "Qh"], streets: [["x"]] }} onLineChange={onLineChange} />);
+    await waitFor(() => expect(timeline()).toEqual(["Flop", "BTN:Check", "BB:active"]));
+
+    fireEvent.click(screen.getByRole("button", { name: "Check" }));
+    expect(liveStage()).toHaveAttribute("data-street", "Turn");
+    expect(within(liveStage()).getByText(/Pick the turn card/)).toBeInTheDocument();
+    expect(onLineChange).toHaveBeenLastCalledWith({ board: ["As", "Kd", "Qh"], streets: [["x", "x"]] });
+  });
+
+  it("stops at an action the solved street doesn't offer, and says so", async () => {
+    solvePostflopInWorker.mockResolvedValueOnce(checkCheckFlopResult({ P1: 0, P2: 0 }));
+    const onLineChange = vi.fn();
+    render(<Harness {...baseProps(20)} initialLine={{ board: ["As", "Kd", "Qh"], streets: [["x", "b5", "c"]] }} onLineChange={onLineChange} />);
+
+    expect(await screen.findByText(/couldn't be followed any further/)).toBeInTheDocument();
+    expect(timeline()).toEqual(["Flop", "BTN:Check", "BB:active"]);
+    expect(onLineChange).toHaveBeenLastCalledWith({ board: ["As", "Kd", "Qh"], streets: [["x"]] });
+  });
+
+  it("leaves a failed solve to its own error, with the board picker a click away", async () => {
+    solvePostflopInWorker.mockRejectedValueOnce(new Error("Solve failed"));
+    render(<Harness {...baseProps(20)} initialLine={{ board: ["As", "Kd", "Qh"], streets: [["x"]] }} />);
+
+    expect(await screen.findByText(/Solve failed/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Pick a different board" }));
+    expect(within(liveStage()).getByText(/Pick the 3 flop cards/)).toBeInTheDocument();
+  });
+
+  it("opens on the board picker, and reports an empty line, without a board to deal", async () => {
+    const onLineChange = vi.fn();
+    render(<Harness {...baseProps(20)} initialLine={{ board: [], streets: [] }} onLineChange={onLineChange} />);
+    expect(within(liveStage()).getByText(/Pick the 3 flop cards/)).toBeInTheDocument();
+    expect(solvePostflopInWorker).not.toHaveBeenCalled();
+    expect(onLineChange).toHaveBeenLastCalledWith({ board: [], streets: [] });
+  });
+});
+

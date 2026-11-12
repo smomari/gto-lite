@@ -25,6 +25,8 @@ const firstDecision = {
 };
 
 beforeEach(() => {
+  // The page keeps its spot in the address, which outlives a test's render.
+  window.history.replaceState(null, "", "/");
   vi.mocked(solveNode).mockImplementation(async ({ actionPath }) => {
     if (actionPath.length === 0) return firstDecision as never;
     throw new SolveApiError({ code: "HAND_RESOLVED", error: "resolved", reason: "uncontested", actionPath: [], potBb: 1.5, committed: {} } as never);
@@ -208,3 +210,118 @@ describe("Home", () => {
     expect(within(activeSeat()).getByRole("button", { name: "Fold" })).toBeInTheDocument();
   });
 });
+
+describe("Home's address and what the browser remembers", () => {
+  // Node's own localStorage shadows jsdom's and is unusable without a file, so each test gets a plain one.
+  let stored: Map<string, string>;
+  beforeEach(() => {
+    stored = new Map();
+    Object.defineProperty(window, "localStorage", {
+      configurable: true,
+      value: { getItem: (key: string) => stored.get(key) ?? null, setItem: (key: string, value: string) => stored.set(key, value) },
+    });
+  });
+
+  const settingsButton = () => screen.getByRole("button", { name: /Settings/ });
+
+  it("starts at the spot in the address", async () => {
+    window.history.replaceState(null, "", "/?s=40&p=ff");
+    vi.mocked(solveNode).mockImplementation(async ({ actionPath }) => ({ ...firstDecision, heroPosition: "LJ", actionPath }) as never);
+    render(<Home />);
+    await screen.findAllByRole("button", { name: "Fold" });
+    expect(solveNode).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        effectiveStackBb: 40,
+        actionPath: [
+          { actor: "UTG", action: "fold" },
+          { actor: "UTG1", action: "fold" },
+        ],
+      }),
+      expect.anything(),
+    );
+    expect(activeSeat()).toHaveAttribute("data-position", "LJ");
+    expect(settingsButton()).toHaveTextContent("40bb");
+  });
+
+  it("writes each action and setting into the address, keeping what else it carries", async () => {
+    window.history.replaceState(null, "", "/?utm_source=reddit");
+    render(<Home />);
+    await screen.findAllByRole("button", { name: "Fold" });
+    expect(window.location.search).toBe("?utm_source=reddit");
+
+    fireEvent.click(within(activeSeat()).getByRole("button", { name: "Fold" }));
+    await screen.findByRole("button", { name: "New hand" });
+    expect(window.location.search).toBe("?utm_source=reddit&p=f");
+
+    applyStack(40);
+    await screen.findAllByRole("button", { name: "Fold" });
+    expect(window.location.search).toBe("?utm_source=reddit&s=40");
+  });
+
+  it("leaves the address plain for the default table with no action", async () => {
+    window.history.replaceState(null, "", "/?s=40");
+    render(<Home />);
+    await screen.findAllByRole("button", { name: "Fold" });
+    applyStack(100);
+    await screen.findAllByRole("button", { name: "Fold" });
+    expect(`${window.location.pathname}${window.location.search}`).toBe("/");
+  });
+
+  it("remembers the table applied in Settings and starts the next visit there", async () => {
+    const first = render(<Home />);
+    await screen.findAllByRole("button", { name: "Fold" });
+    applyStack(40);
+    await screen.findAllByRole("button", { name: "Fold" });
+    expect(JSON.parse(stored.get("gtoLite.settings")!)).toMatchObject({ stackBb: 40, format: "tournament-8" });
+
+    first.unmount();
+    window.history.replaceState(null, "", "/");
+    render(<Home />);
+    await screen.findAllByRole("button", { name: "Fold" });
+    expect(settingsButton()).toHaveTextContent("40bb");
+    expect(solveNode).toHaveBeenLastCalledWith(expect.objectContaining({ effectiveStackBb: 40 }), expect.anything());
+  });
+
+  it("lets a link's table win over the remembered one, without replacing it", async () => {
+    const remembered = JSON.stringify({ stackBb: 40, format: "cash-6", rake: "live", noFlopNoDrop: true, icm: "chip-ev" });
+    stored.set("gtoLite.settings", remembered);
+    window.history.replaceState(null, "", "/?s=25");
+    render(<Home />);
+    await screen.findAllByRole("button", { name: "Fold" });
+    expect(settingsButton()).toHaveTextContent("Tournament 8-max");
+    expect(settingsButton()).toHaveTextContent("25bb");
+    expect(stored.get("gtoLite.settings")).toBe(remembered);
+  });
+
+  it("shows the how-to line until it is dismissed, and not on the next visit", async () => {
+    const first = render(<Home />);
+    await screen.findAllByRole("button", { name: "Fold" });
+    expect(screen.getByText(/Pick an action under a seat/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Dismiss" }));
+    expect(screen.queryByText(/Pick an action under a seat/)).not.toBeInTheDocument();
+
+    first.unmount();
+    render(<Home />);
+    await screen.findAllByRole("button", { name: "Fold" });
+    expect(screen.queryByText(/Pick an action under a seat/)).not.toBeInTheDocument();
+  });
+
+  it("copies the spot's address from the Share button", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
+    window.history.replaceState(null, "", "/?s=40");
+    render(<Home />);
+    await screen.findAllByRole("button", { name: "Fold" });
+    fireEvent.click(screen.getByRole("button", { name: "Copy a link to this spot" }));
+    expect(await screen.findByText("Link copied")).toBeInTheDocument();
+    expect(writeText).toHaveBeenCalledWith(expect.stringMatching(/\?s=40$/));
+  });
+
+  it("links to the About page from the header and from the source badge", async () => {
+    render(<Home />);
+    await screen.findAllByRole("button", { name: "Fold" });
+    expect(screen.getByRole("link", { name: "About" })).toHaveAttribute("href", "/about");
+    expect(screen.getByRole("link", { name: "Estimated" })).toHaveAttribute("href", "/about#preflop");
+  });
+});
+

@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useEffect, useState } from "react";
+import { Fragment, useEffect, useEffectEvent, useState } from "react";
 import { createPortal } from "react-dom";
 import { BoardPicker } from "./BoardPicker";
 import { CardChip } from "./CardChip";
@@ -21,6 +21,8 @@ import type { HandFrequency } from "@/types/rangeData";
 import { streetLabelForBoardLength } from "./streetLabel";
 import { pickDifferentLabel, streetStartPot, type SolveState, type StreetStage } from "./streetStages";
 import { useStreetStages } from "./useStreetStages";
+import { lineOf, useLineRestore } from "./useLineRestore";
+import type { PostflopLine } from "@/lib/share/spotLink";
 import { useMessages } from "@/lib/i18n/locale";
 
 interface PostflopPanelProps {
@@ -37,6 +39,10 @@ interface PostflopPanelProps {
   icm?: PostflopIcm;
   /** Offers an AI explanation once the hand is over. */
   explain?: ExplainContext;
+  /** A shared link's board and actions, played back once when the panel opens. */
+  initialLine?: PostflopLine;
+  /** The board and actions on screen, each time they change, for the page's address. */
+  onLineChange?: (line: PostflopLine) => void;
   /** Back to the first preflop decision, once a hand is over. */
   onNewHand: () => void;
   /** Where each street's StreetBox is portaled — the end of the seat-bar row, so the whole hand reads as one timeline. */
@@ -55,6 +61,17 @@ export function PostflopPanel(props: PostflopPanelProps) {
   const [selectedHand, setSelectedHand] = useState<string | null>(null);
   const [isolatedActionIndex, setIsolatedActionIndex] = useState<number | null>(null);
   const [expandedPastStage, setExpandedPastStage] = useState<number | null>(null);
+  const restore = useLineRestore(streets, props.initialLine, {
+    confirmBoard: (stageIndex, cards) => confirmBoard(stageIndex, cards, fastFlop),
+    navigate,
+  });
+
+  // A line half played back would overwrite the link it came from, so the address waits for the replay.
+  const lineKey = JSON.stringify(lineOf(streets));
+  const reportLine = useEffectEvent(() => props.onLineChange?.(lineOf(streets)));
+  useEffect(() => {
+    if (!restore.restoring) reportLine();
+  }, [lineKey, restore.restoring]);
 
   // Keep the newest timeline entry (a new street's box, or the seat now to act) in view.
   const boxedStreetCount = streets.filter((s) => s.board.length > 0).length;
@@ -70,23 +87,27 @@ export function PostflopPanel(props: PostflopPanelProps) {
   }
 
   function handleNavigate(stageIndex: number, action: SerializedDecisionAction) {
+    restore.cancel();
     resetGridSelection();
     navigate(stageIndex, action);
   }
 
   function handleResetStreet(stageIndex: number) {
+    restore.cancel();
     resetGridSelection();
     setExpandedPastStage(null);
     resetStreet(stageIndex);
   }
 
   function handlePickDifferentBoard(stageIndex: number) {
+    restore.cancel();
     resetGridSelection();
     setExpandedPastStage(null);
     pickDifferentBoard(stageIndex);
   }
 
   function handleBoardConfirm(stageIndex: number, cards: string[]) {
+    restore.cancel();
     resetGridSelection();
     confirmBoard(stageIndex, cards, fastFlop);
   }
@@ -265,7 +286,13 @@ export function PostflopPanel(props: PostflopPanelProps) {
         data-street={live.streetLabel}
         className="flex flex-col gap-2 lg:min-h-0 lg:flex-1 lg:overflow-y-auto"
       >
-        {live.state.kind === "idle" && (
+        {restore.stopped && (
+          <p role="status" className="text-sm text-ink-muted">
+            {t.postflop.linkStopped}
+          </p>
+        )}
+
+        {live.state.kind === "idle" && !restore.restoring && (
           <BoardPicker
             key={liveIndex}
             count={liveIsFlop ? 3 : 1}
@@ -276,7 +303,7 @@ export function PostflopPanel(props: PostflopPanelProps) {
           />
         )}
 
-        {live.state.kind === "idle" && liveIsFlop && (
+        {live.state.kind === "idle" && !restore.restoring && liveIsFlop && (
           <label className="flex items-center gap-1.5 text-xs text-ink-muted">
             <input type="checkbox" checked={fastFlop} onChange={(e) => setFastFlop(e.target.checked)} />
             {t.postflop.fastFlop}

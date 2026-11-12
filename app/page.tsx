@@ -1,6 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { AboutLink, AppHeader } from "@/components/AppHeader";
+import { FirstVisitHint } from "@/components/FirstVisitHint";
+import { ShareButton } from "@/components/ShareButton";
 import { SettingsButton } from "@/components/Settings/SettingsButton";
 import { SettingsDialog } from "@/components/Settings/SettingsDialog";
 import { LanguageToggle } from "@/components/Settings/LanguageToggle";
@@ -8,33 +11,62 @@ import { SeatActionBar } from "@/components/TableBar/SeatActionBar";
 import { ActionSummaryTiles } from "@/components/ActionSummaryTiles";
 import { SourceBadge } from "@/components/SourceBadge";
 import { RangeGrid } from "@/components/RangeGrid/RangeGrid";
+import { GridSkeleton } from "@/components/RangeGrid/GridSkeleton";
 import { usePreflopSolve } from "@/lib/apiClient/usePreflopSolve";
-import { TOURNAMENT_8, type GameFormat } from "@/lib/solveEngine/gameFormat";
+import type { GameFormat } from "@/lib/solveEngine/gameFormat";
 import { buildFoldPrefixPath } from "@/lib/solveEngine/preview";
 import { replayActionPath } from "@/lib/solveEngine/replay";
-import { DEFAULT_RAKE_SETTINGS, NO_RAKE, type RakeSettings } from "@/lib/solveEngine/rake";
+import { NO_RAKE, type RakeSettings } from "@/lib/solveEngine/rake";
 import { CHIP_EV, isChipEv, type IcmStructure } from "@/lib/solveEngine/icm";
 import { SEAT_ORDER } from "@/lib/actionTree/seatOrder";
 import { PostflopPanel } from "@/components/PostflopBoard/PostflopPanel";
 import { HandResolvedNotice } from "@/components/HandResolvedNotice";
 import { useMessages } from "@/lib/i18n/locale";
+import { EMPTY_LINE, encodeSpot, withSpot, type PostflopLine, type PreflopStep, type Spot } from "@/lib/share/spotLink";
+import { initialSpot, storeSettings } from "@/lib/share/storedSettings";
 import type { ActionType, Position } from "@/types/rangeData";
 
-interface RequestStep {
-  actor: Position;
-  action: ActionType;
+const PAGE = "mx-auto flex min-h-dvh w-full max-w-6xl flex-col gap-2 px-2 py-2 sm:px-4 lg:h-dvh lg:min-h-0 lg:overflow-hidden lg:px-6 lg:py-3";
+const neverChanges = () => () => {};
+
+/**
+ * Where a visit starts depends on the address and on what this browser
+ * remembers, neither of which the server knows: it renders the page's outline,
+ * as does the first client render, and the solver opens once both are read.
+ */
+export default function Home() {
+  const read = useRef<Spot | null>(null);
+  const initial = useSyncExternalStore(
+    neverChanges,
+    () => (read.current ??= initialSpot(window.location.search)),
+    () => null,
+  );
+
+  if (!initial) {
+    return (
+      <div className={PAGE}>
+        <AppHeader>
+          <AboutLink />
+        </AppHeader>
+        <GridSkeleton />
+      </div>
+    );
+  }
+  return <SolverApp initial={initial} />;
 }
 
-export default function Home() {
+function SolverApp({ initial }: { initial: Spot }) {
   const t = useMessages();
-  const [stackBb, setStackBb] = useState(100);
-  const [format, setFormat] = useState<GameFormat>(TOURNAMENT_8);
-  const [rake, setRake] = useState<RakeSettings>(DEFAULT_RAKE_SETTINGS);
-  const [icm, setIcm] = useState<IcmStructure>(CHIP_EV);
+  const [stackBb, setStackBb] = useState(initial.settings.stackBb);
+  const [format, setFormat] = useState<GameFormat>(initial.settings.format);
+  const [rake, setRake] = useState<RakeSettings>(initial.settings.rake);
+  const [icm, setIcm] = useState<IcmStructure>(initial.settings.icm);
   const [settingsOpen, setSettingsOpen] = useState(false);
   /** Bumped to send the same request again. */
   const [attempt, setAttempt] = useState(0);
-  const [requestPath, setRequestPath] = useState<RequestStep[]>([]);
+  const [requestPath, setRequestPath] = useState<PreflopStep[]>(initial.path);
+  /** The board and postflop actions on screen; a panel that opens with one plays it back. */
+  const [postflopLine, setPostflopLine] = useState<PostflopLine>(initial.postflop);
   const [streetBarSlot, setStreetBarSlot] = useState<HTMLDivElement | null>(null);
 
   const table = {
@@ -46,6 +78,20 @@ export default function Home() {
   };
   const { loading, current, handoff, rangeLoadFailed, responses } = usePreflopSolve(table, requestPath, attempt);
 
+  // The address always describes the spot on screen, so copying it shares the spot.
+  const spotQuery = encodeSpot({ settings: { stackBb, format, rake, icm }, path: requestPath, postflop: postflopLine });
+  useEffect(() => {
+    const query = withSpot(window.location.search, spotQuery);
+    const address = `${window.location.pathname}${query ? `?${query}` : ""}`;
+    if (address !== `${window.location.pathname}${window.location.search}`) window.history.replaceState(null, "", address);
+  }, [spotQuery]);
+
+  /** A new preflop line starts its postflop from nothing. */
+  function goTo(path: PreflopStep[]) {
+    setRequestPath(path);
+    setPostflopLine(EMPTY_LINE);
+  }
+
   function handleSettingsApply(nextStackBb: number, nextFormat: GameFormat, nextRake: RakeSettings, nextIcm: IcmStructure) {
     setSettingsOpen(false);
     const sameRake = nextRake.structure === rake.structure && nextRake.noFlopNoDrop === rake.noFlopNoDrop;
@@ -54,21 +100,22 @@ export default function Home() {
     setFormat(nextFormat);
     setRake(nextRake);
     setIcm(nextIcm);
-    setRequestPath([]);
+    storeSettings({ stackBb: nextStackBb, format: nextFormat, rake: nextRake, icm: nextIcm });
+    goTo([]);
   }
 
   function handleNewHand() {
-    setRequestPath([]);
+    goTo([]);
     setAttempt((n) => n + 1);
   }
 
   function handleAction(action: ActionType) {
     if (current?.kind !== "success") return;
-    setRequestPath([...requestPath, { actor: current.data.heroPosition, action }]);
+    goTo([...requestPath, { actor: current.data.heroPosition, action }]);
   }
 
   function handleRevisit(globalIndex: number) {
-    setRequestPath(requestPath.slice(0, globalIndex));
+    goTo(requestPath.slice(0, globalIndex));
   }
 
   function handleQuickAction(target: Position, action: ActionType) {
@@ -76,7 +123,7 @@ export default function Home() {
     const prefixPath = buildFoldPrefixPath(requestPath, current.data.heroPosition, target, stackBb, format);
     if (!prefixPath) return;
 
-    setRequestPath([...prefixPath, { actor: target, action }]);
+    goTo([...prefixPath, { actor: target, action }]);
   }
 
   // The path is known before the server answers, so a request in flight or a
@@ -94,14 +141,13 @@ export default function Home() {
   const postflopActive = !!(p1 && p2);
 
   return (
-    <div className="mx-auto flex min-h-dvh w-full max-w-6xl flex-col gap-2 px-2 py-2 sm:px-4 lg:h-dvh lg:min-h-0 lg:overflow-hidden lg:px-6 lg:py-3">
-      <header className="flex items-center justify-between border-b border-line pb-2">
-        <span className="text-xl font-semibold tracking-tight text-ink">gtoLite</span>
-        <div className="flex items-center gap-2">
-          <LanguageToggle />
-          <SettingsButton format={format} rake={rake.structure} icm={icm} stackBb={stackBb} onClick={() => setSettingsOpen(true)} />
-        </div>
-      </header>
+    <div className={PAGE}>
+      <AppHeader>
+        <ShareButton />
+        <AboutLink />
+        <LanguageToggle />
+        <SettingsButton format={format} rake={rake.structure} icm={icm} stackBb={stackBb} onClick={() => setSettingsOpen(true)} />
+      </AppHeader>
 
       {settingsOpen && (
         <SettingsDialog format={format} rake={rake} icm={icm} stackBb={stackBb} onApply={handleSettingsApply} onClose={() => setSettingsOpen(false)} />
@@ -125,6 +171,8 @@ export default function Home() {
           />
         }
       />
+
+      {requestPath.length === 0 && <FirstVisitHint />}
 
       {current?.kind === "error" && (
         <div role="alert" className="flex flex-wrap items-center gap-3">
@@ -181,6 +229,8 @@ export default function Home() {
                 ip: p2.seat,
                 preflop: { actionPath: current.actionPath, responses, potBb: current.potBb },
               }}
+              initialLine={postflopLine}
+              onLineChange={setPostflopLine}
               streetBarSlot={streetBarSlot}
               onNewHand={handleNewHand}
             />
@@ -203,6 +253,8 @@ export default function Home() {
           </div>
         </section>
       )}
+
+      {!current && <GridSkeleton />}
     </div>
   );
 }

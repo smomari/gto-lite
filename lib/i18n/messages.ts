@@ -14,6 +14,20 @@ const en = {
     retry: "Retry",
     error: (message: string) => `Error: ${message}`,
     combos: (count: string) => `${count} combos`,
+    loading: "Loading…",
+  },
+  header: {
+    about: "About",
+    share: "Share",
+    shareTitle: "Copy a link to this spot",
+    copied: "Link copied",
+    copyFailed: "Couldn't copy — use the address bar",
+    home: "Back to the solver",
+  },
+  hint: {
+    text: "Pick an action under a seat to play the hand forward. The chart shows that seat's range.",
+    learnMore: "How it works",
+    dismiss: "Dismiss",
   },
   settings: {
     title: "Settings",
@@ -31,6 +45,8 @@ const en = {
     icmStage: (label: string) => `ICM ${label}`,
   },
   formats: { "tournament-8": "Tournament 8-max", "cash-8": "Cash 8-max", "cash-6": "Cash 6-max" } satisfies Record<GameFormatId, string>,
+  /** For the header on a phone, where the full name doesn't fit beside the other buttons. */
+  formatsShort: { "tournament-8": "MTT 8", "cash-8": "Cash 8", "cash-6": "Cash 6" } satisfies Record<GameFormatId, string>,
   rakes: {
     none: { label: "No rake", stakes: "" },
     "online-high": { label: "Online high", stakes: "NL500+" },
@@ -54,6 +70,8 @@ const en = {
   preflop: {
     nash: "Nash",
     estimated: "Estimated",
+    nashTitle: "Solved as a push/fold Nash equilibrium.",
+    estimatedTitle: "Estimated from charts tuned to solver output, not an exact solve. Open About for details.",
     pot: (bb: string) => `Pot ${bb}bb`,
     toCall: (bb: string) => ` · to call ${bb}bb`,
     undoHere: "Click to undo back to this point",
@@ -85,6 +103,7 @@ const en = {
     facing: (bb: string) => ` · facing ${bb}bb`,
     streetDetails: "Show this street's details",
     allInNote: (bb: string) => `All-in — hand is already decided, pot ${bb}bb runs out to showdown automatically.`,
+    linkStopped: "This link's line couldn't be followed any further: the solver no longer offers one of its actions. Continue from here.",
   },
   solve: {
     runningCfr: "Running CFR",
@@ -129,6 +148,12 @@ const en = {
     globalLimit: "Today's AI explanations are all used up. Try again tomorrow.",
     cutOff: "The explanation was cut off. Try again.",
   },
+  errorPage: {
+    title: "Something went wrong",
+    body: "The page hit an unexpected error. Trying again usually fixes it.",
+    notFoundTitle: "Page not found",
+    notFoundBody: "There's nothing at this address.",
+  },
   /** A message from the solver or the server, shown after "Error:". */
   errorMessage: (message: string) => message,
 };
@@ -147,6 +172,7 @@ const KO_ACTIONS: [RegExp, string][] = [
 ];
 
 const KO_ERRORS: Record<string, string> = {
+  "The solve failed on the server": "서버에서 계산에 실패했습니다",
   "This line is never reached at equilibrium.": "균형 전략에서는 이 라인에 도달하지 않습니다.",
   "This browser can't run the postflop solver: it needs WebAssembly SIMD (Chrome 91+, Firefox 89+, Safari 16.4+).":
     "이 브라우저에서는 포스트플랍 솔버를 실행할 수 없습니다. WebAssembly SIMD가 필요합니다(Chrome 91+, Firefox 89+, Safari 16.4+).",
@@ -159,6 +185,20 @@ const ko: Messages = {
     retry: "다시 시도",
     error: (message) => `오류: ${message}`,
     combos: (count) => `${count} 콤보`,
+    loading: "불러오는 중…",
+  },
+  header: {
+    about: "소개",
+    share: "공유",
+    shareTitle: "이 스팟의 링크 복사",
+    copied: "링크 복사됨",
+    copyFailed: "복사하지 못했습니다. 주소창의 주소를 쓰세요",
+    home: "솔버로 돌아가기",
+  },
+  hint: {
+    text: "좌석 아래의 액션을 눌러 핸드를 진행하세요. 표에는 그 좌석의 레인지가 나옵니다.",
+    learnMore: "계산 방식 보기",
+    dismiss: "닫기",
   },
   settings: {
     title: "설정",
@@ -176,6 +216,7 @@ const ko: Messages = {
     icmStage: (label) => `ICM ${label}`,
   },
   formats: { "tournament-8": "토너먼트 8인", "cash-8": "캐시 8인", "cash-6": "캐시 6인" },
+  formatsShort: { "tournament-8": "토너 8인", "cash-8": "캐시 8인", "cash-6": "캐시 6인" },
   rakes: {
     none: { label: "레이크 없음", stakes: "" },
     "online-high": { label: "온라인 하이", stakes: "NL500+" },
@@ -201,6 +242,8 @@ const ko: Messages = {
   preflop: {
     nash: "내시",
     estimated: "추정",
+    nashTitle: "푸시/폴드 내시 균형으로 푼 값입니다.",
+    estimatedTitle: "솔버 결과에 맞춘 차트로 추정한 값이며, 정확한 솔브가 아닙니다. 자세한 내용은 소개 페이지에 있습니다.",
     pot: (bb) => `팟 ${bb}bb`,
     toCall: (bb) => ` · 콜 ${bb}bb`,
     undoHere: "눌러서 이 시점으로 되돌리기",
@@ -232,6 +275,7 @@ const ko: Messages = {
     facing: (bb) => ` · ${bb}bb 상대`,
     streetDetails: "이 스트리트 상세 보기",
     allInNote: (bb) => `올인 — 이미 결정된 핸드라 팟 ${bb}bb는 자동으로 쇼다운까지 진행됩니다.`,
+    linkStopped: "이 링크의 라인을 끝까지 따라가지 못했습니다. 솔버에 그 액션이 더 이상 없습니다. 여기서부터 이어서 보세요.",
   },
   solve: {
     runningCfr: "CFR 실행 중",
@@ -274,6 +318,12 @@ const ko: Messages = {
     userLimit: "오늘의 AI 설명을 모두 썼습니다. 한국 시간 자정에 다시 채워집니다.",
     globalLimit: "오늘의 AI 설명이 모두 소진됐습니다. 내일 다시 시도하세요.",
     cutOff: "설명이 중간에 끊겼습니다. 다시 시도하세요.",
+  },
+  errorPage: {
+    title: "문제가 생겼습니다",
+    body: "예상하지 못한 오류가 났습니다. 다시 시도하면 대부분 해결됩니다.",
+    notFoundTitle: "페이지를 찾을 수 없습니다",
+    notFoundBody: "이 주소에는 아무것도 없습니다.",
   },
   errorMessage: (message) => KO_ERRORS[message] ?? message,
 };

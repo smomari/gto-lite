@@ -19,7 +19,7 @@ export function LanguageToggle() {
   }, [locale]);
 
   return (
-    <div role="group" aria-label={t.language} className="flex overflow-hidden rounded border border-line-strong text-sm">
+    <div role="group" aria-label={t.language} className="flex shrink-0 overflow-hidden rounded border border-line-strong text-sm">
       {OPTIONS.map((option) => (
         <button
           key={option.locale}

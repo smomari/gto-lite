@@ -9,12 +9,20 @@ const DEFAULT_LOCALE: Locale = "en";
 let current: Locale | null = null;
 const listeners = new Set<() => void>();
 
+/** The remembered choice; without one, Korean for a browser set to Korean. */
+export function pickLocale(stored: string | null, browserLanguage: string | undefined): Locale {
+  if (stored === "ko" || stored === "en") return stored;
+  return browserLanguage?.toLowerCase().startsWith("ko") ? "ko" : DEFAULT_LOCALE;
+}
+
 function readStored(): Locale {
+  let stored: string | null = null;
   try {
-    return window.localStorage.getItem(STORAGE_KEY) === "ko" ? "ko" : DEFAULT_LOCALE;
+    stored = window.localStorage.getItem(STORAGE_KEY);
   } catch {
-    return DEFAULT_LOCALE;
+    // Private modes may refuse storage: go by the browser's language.
   }
+  return pickLocale(stored, window.navigator.language);
 }
 
 function subscribe(listener: () => void) {

@@ -41,6 +41,8 @@ export function useStreetStages(inputs: StreetSolveInputs) {
       const stage = prev[stageIndex];
       if (stage.currentNode?.type !== "decision") return prev;
       const actionIndex = stage.currentNode.actions.indexOf(action);
+      // An action of a node already left: a second call for the same step.
+      if (actionIndex < 0) return prev;
       const updatedStage: StreetStage = {
         ...stage,
         currentNode: action.child,
