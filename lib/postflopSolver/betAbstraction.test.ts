@@ -3,13 +3,13 @@ import { initialPostflopPotState, applyPostflopAction } from "./potState";
 import { computePostflopAvailableActions, LOOKAHEAD_BET_SIZING } from "./betAbstraction";
 
 describe("computePostflopAvailableActions — opening decision (no bet yet)", () => {
-  it("flop offers check, 50%/100% pot bets, and allin, but no fold/call/raise", () => {
+  it("flop offers check, 33%/50%/100% pot bets, and allin, but no fold/call/raise", () => {
     const state = initialPostflopPotState(7.5);
     const actions = computePostflopAvailableActions(state, "P1", 97, "flop");
     expect(actions.fold).toBe(false);
     expect(actions.check).toBe(true);
     expect(actions.call).toBeNull();
-    expect(actions.bet).toEqual([{ toBb: 7.5 * 0.5 }, { toBb: 7.5 * 1.0 }]);
+    expect(actions.bet).toEqual([{ toBb: 7.5 * 0.33 }, { toBb: 7.5 * 0.5 }, { toBb: 7.5 * 1.0 }]);
     expect(actions.raise).toEqual([]);
     expect(actions.allin).toEqual({ toBb: 97 });
   });

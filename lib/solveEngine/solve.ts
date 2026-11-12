@@ -19,6 +19,7 @@ import { aggressiveFrequencies } from "./postflopHandoff";
 import { callersOf, type PotState, type SeatDecision } from "./potState";
 import { NO_RAKE_SETTINGS, rakeShare, type RakeSettings } from "./rake";
 import { shouldUseNash } from "./classify";
+import { BIG_BLIND_BB, SMALL_BLIND_BB } from "./constants";
 import { CHIP_EV, equalStackBubbleFactor, type IcmStructure } from "./icm";
 import { getPlayabilityRanking, getPushFoldResult } from "./solveCache";
 
@@ -169,6 +170,11 @@ function handsFacingRaise(ctx: SpotContext): ctx is SpotContext & { heroRange: F
   return !!ctx.heroRange && !!ctx.villainRange && shareOfCombos(ctx.heroRange) > 0 && shareOfCombos(ctx.villainRange) > 0;
 }
 
+/** The blind a seat posts before the cards, which is part of its stack. */
+function postedBlindBb(seat: Position): number {
+  return seat === "SB" ? SMALL_BLIND_BB : seat === "BB" ? BIG_BLIND_BB : 0;
+}
+
 function solveShoveSpot(ctx: SpotContext): SolvedNode {
   const { matrix, potState, rake, villainRange } = ctx;
   // A fresh shove is the game the Nash solver models; anything after more
@@ -188,11 +194,17 @@ function solveShoveSpot(ctx: SpotContext): SolvedNode {
   }
   const shover = ctx.lastAggressor ?? ctx.activeSeat;
   const opponentsBehind = Math.max(1, SEAT_ORDER.length - 1 - seatIndex(shover));
-  const result = getPushFoldResult(matrix, ctx.remainingStackBb, opponentsBehind, ctx.format.bbAnteBb, rake, {
-    structure: ctx.icm,
-    seats: ctx.seats,
-    stackBb: ctx.effectiveStackBb,
-  });
+  // Facing the shove, hero is the caller; before it, the caller is taken to be the BB.
+  const caller = ctx.hasOpener ? ctx.activeSeat : shover === "BB" ? "SB" : "BB";
+  const result = getPushFoldResult(
+    matrix,
+    ctx.effectiveStackBb,
+    opponentsBehind,
+    ctx.format.bbAnteBb,
+    rake,
+    { structure: ctx.icm, seats: ctx.seats, stackBb: ctx.effectiveStackBb },
+    { shoverBb: postedBlindBb(shover), callerBb: postedBlindBb(caller) },
+  );
   return {
     source: "nash-shove-fold",
     hands: ctx.hasOpener ? callFrequencyToHands(result.callFrequency) : shoveFrequencyToHands(result.shoveFrequency),

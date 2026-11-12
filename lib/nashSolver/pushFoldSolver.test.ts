@@ -78,6 +78,8 @@ describe("solvePushFold (synthetic matrix)", () => {
 
 describe("solvePushFold (real 20bb equity matrix — directional regression)", () => {
   const matrix = loadEquityMatrix();
+  /** Percent of all combos. */
+  const shareOf = (freq: Map<string, number>) => (100 * ALL_HANDS.reduce((sum, h) => sum + h.combos * (freq.get(h.hand) ?? 0), 0)) / 1326;
   const result = solvePushFold(matrix, { effectiveStackBb: 20 });
 
   it("always shoves AA", () => {
@@ -111,7 +113,7 @@ describe("solvePushFold (real 20bb equity matrix — directional regression)", (
   });
 
   it("stops at its iteration cap on a spot that cycles instead of converging", () => {
-    const cycling = solvePushFold(matrix, { effectiveStackBb: 28, opponentsBehind: 7 });
+    const cycling = solvePushFold(matrix, { effectiveStackBb: 21, opponentsBehind: 7, shoverPostedBb: 0 });
     expect(cycling.converged).toBe(false);
     expect(cycling.iterations).toBe(300);
     expect(cycling.shoveFrequency.get("AA")!).toBeGreaterThan(CLEARLY_SHOVES);
@@ -123,6 +125,17 @@ describe("solvePushFold (real 20bb equity matrix — directional regression)", (
       expect(freq).toBeGreaterThanOrEqual(0);
       expect(freq).toBeLessThanOrEqual(1);
     }
+  });
+
+  it("matches published heads-up Nash at 10bb without an ante: the SB shoves 57.5%, the BB calls 36.4%", () => {
+    const { shoveFrequency, callFrequency } = solvePushFold(matrix, { effectiveStackBb: 10, bbAnte: 0 });
+    expect(shareOf(shoveFrequency)).toBeCloseTo(57.5, 0);
+    expect(shareOf(callFrequency)).toBeCloseTo(36.4, 0);
+  });
+
+  it("counts the blinds each posted as part of its stack, so the SB doesn't win its own blind back from a call", () => {
+    // Pricing the called pot as both stacks plus every blind shoved 77% here.
+    expect(shareOf(solvePushFold(matrix, { effectiveStackBb: 10, bbAnte: 1 }).shoveFrequency)).toBeCloseTo(71.8, 0);
   });
 
   it("calls tighter when the pot pays rake, and rake on the blinds only matters without no flop no drop", () => {

@@ -27,13 +27,13 @@ function countDecisionNodes(node: PostflopTreeNode): number {
   return 1 + node.actions.reduce((sum, a) => sum + countDecisionNodes(a.child), 0);
 }
 
-describe("buildStreetTree — flop (2 bet sizes, 1 raise size)", () => {
-  it("root is P1's decision with check + 2 bets + allin, no fold (nothing to fold to yet)", () => {
+describe("buildStreetTree — flop (3 bet sizes, 1 raise size)", () => {
+  it("root is P1's decision with check + 3 bets + allin, no fold (nothing to fold to yet)", () => {
     const tree = buildStreetTree(7.5, 97, "flop");
     expect(tree.type).toBe("decision");
     if (tree.type !== "decision") return;
     expect(tree.actor).toBe("P1");
-    expect(actionCounts(tree)).toEqual({ check: 1, bet: 2, allin: 1 });
+    expect(actionCounts(tree)).toEqual({ check: 1, bet: 3, allin: 1 });
   });
 
   it("check-check closes the street at a showdown terminal", () => {
@@ -99,9 +99,9 @@ describe("buildStreetTree — flop (2 bet sizes, 1 raise size)", () => {
     expect(fold).toEqual(expect.objectContaining({ type: "terminal-fold", winner: "P1" }));
   });
 
-  it("stays small and bounded: 16 decision nodes for 2 bet sizes + 1 raise size", () => {
+  it("stays small and bounded: 22 decision nodes for 3 bet sizes + 1 raise size", () => {
     const tree = buildStreetTree(7.5, 97, "flop");
-    expect(countDecisionNodes(tree)).toBe(16);
+    expect(countDecisionNodes(tree)).toBe(22);
   });
 
   it("collapses every bet size into allin-only when the stack is too short", () => {
