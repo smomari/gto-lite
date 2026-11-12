@@ -1,61 +1,73 @@
-# GTO Lite — Preflop Range Viewer
+**English** | [한국어](README.ko.md)
 
-토너먼트 8인, 캐시 6인, 캐시 8인 프리플랍 레인지 뷰어. 169개 핸드(13×13 매트릭스)를 그리드로 렌더링하고, 전체
-테이블 스택(2~100bb)을 설정한 뒤 각 포지션(UTG, UTG1, LJ, HJ, CO, BTN, SB, BB)의 액션을
-순서대로 클릭해서 실제 포커 액션 시퀀스(재오픈 포함)를 만들면, 현재 차례인 포지션의
-Fold/Call/Raise/Allin 빈도를 색상 바로 보여준다.
+# gtoLite
 
-## 개발 서버 실행
+Poker ranges and a postflop solver in your browser. Free, no sign-up.
 
-```bash
-npm run dev
-```
+**Try it: [gto-lite-beryl.vercel.app](https://gto-lite-beryl.vercel.app)**
 
-[http://localhost:3000](http://localhost:3000) 접속.
+![A flop solved in gtoLite: the button's strategy on K72 rainbow after the big blind checks](docs/screenshot.jpg)
 
-## 아키텍처
+## What it does
 
-레인지는 정적 파일이 아니라 **요청마다 서버에서 즉시 계산**된다 (`POST /api/solve`) — 게임 형식 × 레이크 ×
-연속 스택 × 자유로운 액션 시퀀스는 조합이 너무 많아 미리 생성해둘 수 없기 때문.
+- **Preflop ranges** for tournament 8-max and cash 6-max / 8-max, at any stack from 2 to 100 big blinds. Click an action under each seat to play the hand forward (re-raises included); the 13×13 chart shows how often the seat to act folds, calls, raises or goes all-in with each hand.
+- **ICM** for tournaments: ranges priced in prize money at six stages, from early play to the final table.
+- **Rake** presets for cash games, from online micro-stakes to live.
+- **Postflop solving** once two players are left: pick a flop and a CFR solver, compiled to WebAssembly, works out both strategies on your device. Continue through the turn and river the same way.
+- **AI explanation** of a finished hand, written from that hand's solver numbers (3 a day per person).
+- **Share links**: the address always describes the spot on screen, board and actions included.
+- English and Korean.
 
-- `lib/solveEngine/potState.ts` + `rotation.ts` + `replay.ts` — 액션 시퀀스를 실제 포커 규칙
-  (재오픈 포함)으로 검증/재생하며 팟/콜금액/다음 차례를 추적.
-- `lib/solveEngine/actionSizing.ts` — 레이즈 사이즈 자동 계산(오픈 사이즈는 `gameFormat.ts`, 리레이즈는
-  포스트플랍에서 마지막 공격자보다 뒤에 행동(IP)하면 이전 베팅의 3배, 앞(OOP)이면 4배 — SB는 항상 OOP, BB는 SB 상대로만 IP).
-- SB는 16bb 이상에서 림프할 수 있고, BB는 그 뒤에서 체크하거나 3.5bb로 레이즈한다. BB 체크로 프리플랍이 끝난다.
-- `lib/solveEngine/classify.ts` — 스택이 얕거나(≤15bb) 팟 대비 남은 스택이 적으면 푸시/폴드 구간으로, 아니면 근사 레인지 엔진
-  (`lib/heuristicRanges/`)으로 라우팅. 푸시/폴드 구간의 새 쇼브는 Nash 솔버(`lib/nashSolver/pushFoldSolver.ts`)로 풀고,
-  액션이 더 있었던 스팟은 실제 팟과 상대 범위로 콜을 판단한다.
-- 자기 범위가 있는 좌석이 재레이즈를 맞으면 `lib/heuristicRanges/vsReraise.ts`로 간다. 범위 전체의 에쿼티가 콜 가격을 얼마나 넘는지로
-  계속할 비율을 정하고, 플레이어빌리티가 높은 핸드부터 채운다. 핸드별 EV 기준은 쓰지 않는다: 올인 에쿼티가 좁은 구간에 몰려 있어
-  작은 변화에도 거의 전부 또는 거의 0으로 뒤집히기 때문이다. 실현율과 계속 비율 상수는 추정치다.
-- 16~25bb 첫 액션은 레이즈 위주이고, 스택이 얕을수록 범위 중간 핸드의 일부가 올인으로 바뀐다.
-- `lib/equity/loadEquityMatrix.ts` — 169×169 all-in equity 매트릭스(오프라인 생성, 커밋됨)를
-  읽어 위 두 엔진에 공급.
+## How the numbers are made, and their limits
 
-앤티는 BB가 1bb를 추가로 내는 방식(BB 앤티)으로 계산한다. Chip-EV만 반영(ICM 제외).
+The [About page](https://gto-lite-beryl.vercel.app/about) has the full account. In short:
 
-게임 형식은 `lib/solveEngine/gameFormat.ts`에 정의한다. 캐시는 앤티가 없고, 오픈은 2.5bb(SB 3bb)이며, SB는 레이즈 또는
-폴드만 한다. 6인은 UTG와 UTG1이 없는 8인 테이블로 처리해 오픈 폭 표를 함께 쓴다. 캐시 폭 표는 공개 차트 사이의 초기값이다.
+- Most preflop ranges are **estimates**: range charts and rules tuned so their overall frequencies match solver output at 20, 40 and 100bb. At 15bb or less they are an exact all-in-or-fold Nash solve.
+- Postflop is a real solve of a simplified game: heads-up only, a fixed menu of bet sizes, one raise per street. Against a solve of the complete tree with the same bet sizes, the default flop solve gives up about 1.7% of the pot on average.
+- Everyone at the table has the same stack.
 
-레이크 프리셋은 `lib/solveEngine/rake.ts`에 있다. 포스트플랍과 Nash 푸시/폴드는 실제 보상에 레이크를 넣어 계산한다(폴드는 콜되지
-않은 베팅을 돌려준 뒤의 팟에만 걷는다). 폭 표 구간은 규칙으로 조정한다: 오픈 폭과 레이즈에 대한 계속 폭을 `config.ts`의 민감도 상수로
-줄인다. 이 상수는 검증되지 않은 값이다.
+Read the output as a starting point for study, not as the last word of a full solver.
 
-## Equity 매트릭스 재생성
+## Development
 
 ```bash
-npm run generate:equity   # 169x169 all-in equity 매트릭스 (data/equity/, 커밋됨)
+npm install
+npm run dev     # http://localhost:3000
+npm run test
+npm run lint
 ```
 
-## C++/WASM 솔버 빌드
+Everything except the AI explanation works with no configuration. The explanation needs an Upstash Redis store (`KV_REST_API_URL`, `KV_REST_API_TOKEN`), a signing secret (`EXPLAIN_SECRET`) and Vercel AI Gateway access, in `.env.local`. Without them its button reports that it is unavailable.
 
-포스트플랍 솔버의 계산 핵심은 C++(`native/solver/`)로 작성하고, Emscripten으로 WASM(SIMD)으로
-빌드한다. 트리 구성·핸드 평가·UI는 TypeScript. 빌드 산출물(`lib/postflopSolver/wasm/solver.*.mjs`,
-wasm이 내장된 단일 파일 ES 모듈, 브라우저·Node × 1스레드·pthread 4종)은 **커밋한다** — Vercel 빌드에는 Emscripten이 없기 때문. 그래서
-C++ 소스를 고치지 않는 한 Emscripten 없이도 개발·빌드·테스트가 된다.
+`NEXT_PUBLIC_SITE_URL` sets the address used in link previews, the sitemap and `robots.txt`. On Vercel it falls back to the project's production address.
 
-C++을 고칠 때만 Emscripten이 필요하다(버전은 `native/EMSDK_VERSION`에 고정):
+## Architecture
+
+Preflop ranges are not static files. Each one is **computed on the server per request** (`POST /api/solve`): game format × rake × ICM stage × stack × free-form action sequence has too many combinations to generate ahead of time.
+
+- `lib/solveEngine/potState.ts`, `rotation.ts`, `replay.ts` validate and replay an action sequence under real poker rules (action re-opening included), tracking the pot, the price to call and who acts next.
+- `lib/solveEngine/actionSizing.ts` sizes raises. Open sizes and re-raise multiples by depth and position are in `gameFormat.ts`.
+- `lib/solveEngine/classify.ts` routes a spot: shallow stacks (≤15bb) or little stack left against the pot go to push/fold, everything else to the estimated range engine in `lib/heuristicRanges/`. A fresh shove in the push/fold zone is solved by the Nash solver (`lib/nashSolver/pushFoldSolver.ts`); a spot with earlier action is priced against the real pot and the opponent's range.
+- A seat with a range of its own that faces a re-raise goes through `lib/heuristicRanges/vsReraise.ts`: the share it continues with comes from how far the range's equity clears the price of the call, filled from the most playable hands down.
+- `lib/solveEngine/icm.ts` prices tournament decisions in prize money (1,000 players, 150 paid, equal stacks).
+- `lib/solveEngine/rake.ts` holds the rake presets. Postflop and Nash push/fold put rake into the real payoffs; chart ranges are narrowed by sensitivity constants in `lib/heuristicRanges/config.ts`, which are unverified.
+- `lib/equity/loadEquityMatrix.ts` reads the 169×169 all-in equity matrix (generated offline, committed) that the engines share.
+- `lib/share/spotLink.ts` writes a spot into the address and reads it back; `lib/i18n/` holds both languages.
+- `lib/explain/` builds a hand summary from the solver's output and streams the AI explanation, with daily limits.
+
+The ante is a 1bb big-blind ante in tournaments. Cash games have none, open to 2.5bb (3bb from the SB), and the SB raises or folds. 6-max is the 8-max table without UTG and UTG1.
+
+### Regenerating the equity matrix
+
+```bash
+npm run generate:equity   # 169x169 all-in equity matrix (data/equity/, committed)
+```
+
+### The C++/WASM solver
+
+The postflop solver's core is C++ (`native/solver/`), built to WASM with SIMD by Emscripten. Tree building, hand evaluation and the UI are TypeScript. The build output (`lib/postflopSolver/wasm/solver.*.mjs`: single-file ES modules with the wasm inlined, for browser and Node, single-threaded and pthread) is **committed**, because Vercel's build has no Emscripten. Unless you change the C++ sources, you can develop, build and test without it.
+
+To change the C++ you need Emscripten at the version pinned in `native/EMSDK_VERSION`:
 
 ```bash
 git clone https://github.com/emscripten-core/emsdk.git ~/emsdk
@@ -64,37 +76,25 @@ cd ~/emsdk && ./emsdk install 6.0.13 && ./emsdk activate 6.0.13
 
 ```bash
 npm run build:wasm    # native/solver → lib/postflopSolver/wasm/solver.{web,web-threads,node,node-threads}.mjs
-npm run check:wasm    # 커밋된 산출물이 소스와 같은지 (다시 빌드해서 비교)
-npm run test:native   # C++ 테스트 — 같은 SIMD 코드를 AddressSanitizer + UBSan으로 빌드해 Node에서 실행
+npm run check:wasm    # the committed output matches the sources (rebuilds and compares)
+npm run test:native   # C++ tests: the same SIMD code under AddressSanitizer + UBSan, run in Node
 ```
 
-C++ 엔진(`native/solver/engine.cpp`)은 정규화하지 않은 반사실 가치로 카드 제거를 정확히 반영하고,
-턴·리버 카드가 나뉘는 찬스 노드를 지원하며, 두 플레이어를 번갈아 업데이트한다. `lib/postflopSolver/reference/`는 같은 정의를 단순하게 옮긴
-테스트 전용 TypeScript 구현(정답 기준)이다. 포스트플랍 솔브에는 WebAssembly SIMD가 필요하다(Chrome 91·
-Firefox 89·Safari 16.4 이상). 지원하지 않는 브라우저에는 안내 오류를 표시한다.
+The engine (`native/solver/engine.cpp`) accounts for card removal exactly with unnormalised counterfactual values, supports chance nodes for the turn and river, and updates the two players alternately. `lib/postflopSolver/reference/` is a plain TypeScript version of the same definitions, used only by tests as the ground truth. Postflop solving needs WebAssembly SIMD (Chrome 91, Firefox 89, Safari 16.4 or later); other browsers get an explanatory error.
 
-플랍·턴 솔브는 다음 스트리트를 샘플 카드와 축소 메뉴로 내다보고, 카드가 정해지면 원래 메뉴로 다시 푼다.
-턴은 리버 전체를 본다. 플랍은 레인지에 맞춰 고른 턴 16장×리버 6장까지 내다보고, "Fast flop"을 켜면 턴 10장까지만
-본다(BTN vs BB 기준 약 4초 → 약 1.1초). 코어가 4개 이하면 Fast flop이 기본으로 켜진다.
-내다보기 솔브는 엔진 하나를 pthread 풀이 공유하며 리프를 큐에서 가져가 푼다. 스레드에는 SharedArrayBuffer가
-필요해 `next.config.ts`의 COOP/COEP 헤더에 의존하고, 헤더가 없으면 1스레드로 돈다.
+A flop or turn solve looks ahead to later streets with sampled cards and a reduced betting menu, and solves each street again in full once its card is known. The turn sees every river. The flop sees up to 16 turn cards × 6 river cards chosen for the ranges, or 10 turn cards with "Fast flop" (on by default with 4 cores or fewer). Lookahead solves share one engine across a pthread pool. Threads need SharedArrayBuffer, which depends on the COOP/COEP headers in `next.config.ts`; without them the solve runs on one thread.
 
 ```bash
-npm run bench:postflop     # 고정 스팟의 속도와 수렴 비교
-npm run accuracy:postflop  # 턴·리버 전체 기준 솔브 대비 내다보기 방식별 손실 (약 30분)
+npm run bench:postflop     # speed and convergence on fixed spots
+npm run accuracy:postflop  # loss of each lookahead method against a full turn-and-river solve (slow)
 ```
 
-`accuracy:postflop`은 트리가 커서 `NODE_OPTIONS=--max-old-space-size=12000`을 함께 준다.
+`accuracy:postflop` builds large trees: run it with `NODE_OPTIONS=--max-old-space-size=12000`.
 
-## 테스트
+## Licensing
 
-```bash
-npm run test
-```
+There is no license: the source is public to read, and no permission to copy or reuse it is granted.
 
-## 라이선스 관련 제약 (중요)
+The project **never ships a real GTO solver in its runtime or deployment image** (for example [TexasSolver](https://github.com/bupticybee/TexasSolver), AGPL-v3). AGPL requires publishing source when software is offered as a network service, so such solvers are used only as one-off offline tools on a developer's machine. Do not add solver code or binaries to `package.json` or to any server code path.
 
-이 프로젝트는 실제 GTO 솔버(예: [TexasSolver](https://github.com/bupticybee/TexasSolver), AGPL-v3)를
-**절대 런타임/배포 이미지에 포함하지 않는다.** AGPL은 네트워크 서비스로 제공 시 소스 공개 의무가
-발생하므로, 그런 솔버는 개발자 로컬에서 **오프라인 1회성 도구로만** 사용한다. 솔버 코드/바이너리를
-`package.json` 의존성이나 서버 코드 경로에 추가하지 말 것.
+gtoLite is an independent study project, not affiliated with any poker site or solver company.
