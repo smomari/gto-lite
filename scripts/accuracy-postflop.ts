@@ -1,10 +1,10 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { ALL_HANDS } from "../lib/handRange/handList";
-import { LOOKAHEAD_BET_SIZING, streetForBoardLength, type StreetBetSizing } from "../lib/postflopSolver/betAbstraction";
+import { LOOKAHEAD_BET_SIZING, offersOpeningAllin, streetForBoardLength, type StreetBetSizing } from "../lib/postflopSolver/betAbstraction";
 import { expandToCombos, filterBlockedCombos } from "../lib/postflopSolver/combos";
 import { clusteredNextCards, stratifiedNextCards } from "../lib/postflopSolver/nextCardSampling";
-import { EVERY_CANDIDATE, flopMenu, offersOpeningAllin, pickFlopSizes, type OpenSizes } from "../lib/postflopSolver/flopSizing";
+import { EVERY_CANDIDATE, flopMenu, pickFlopSizes, type OpenSizes } from "../lib/postflopSolver/flopSizing";
 import { totalPot, type PostflopPlayer } from "../lib/postflopSolver/potState";
 import { buildHandTree, buildStreetTree, dealEveryCard, type DecisionNode, type HandTreeOptions, type PostflopTreeNode, type StreetSizing } from "../lib/postflopSolver/treeBuilder";
 import type { CfrSolution } from "../lib/postflopSolver/cfr";
@@ -308,7 +308,7 @@ function sizePickExperiment(solver: SolverModule) {
     const tables = flopTables(runout);
     const features = (card: string) => runout.turnFeatures(card, hero, villain);
     const spr = spot.stack / spot.startPot;
-    const allinOpen = offersOpeningAllin(spot.startPot, spot.stack);
+    const allinOpen = offersOpeningAllin("flop", spot.startPot, spot.stack);
     const every = EVERY_CANDIDATE;
     const build = (sizing: StreetSizing | undefined, options: HandTreeOptions) =>
       buildHandTree(spot.startPot, spot.stack, spot.board, { ...options, firstStreetSizing: sizing });

@@ -25,21 +25,10 @@ const SIZE_PAIRS = [
 /** A player betting less often than this keeps one size: how sizes barely used rank is noise. */
 export const RARE_BET = 0.1;
 
-/**
- * An opening all-in is offered with a stack of at most this many pots. At 1.9
- * pots on JT5 two-tone a 3-bettor shoves 64% of the time, and a menu without
- * it lost 2.2% of the pot where one with it lost 0.4%; at 3.6 pots it is 2%.
- */
-export const ALLIN_OPEN_MAX_SPR = 3;
-
 /** Each player's opening bet sizes. */
 export type OpenSizes = Record<PostflopPlayer, number[]>;
 
 export const EVERY_CANDIDATE: OpenSizes = { P1: FLOP_BET_CANDIDATES, P2: FLOP_BET_CANDIDATES };
-
-export function offersOpeningAllin(startPot: number, effectiveStackBb: number): boolean {
-  return effectiveStackBb <= ALLIN_OPEN_MAX_SPR * startPot;
-}
 
 /** The flop menu with each player's own opening sizes. Facing a bet it is BET_SIZING's: its raises, or all-in. */
 export function flopMenu(open: OpenSizes, allinOpen: boolean): (state: PostflopPotState, actor: PostflopPlayer) => StreetBetSizing {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { computePostflopAvailableActions } from "./betAbstraction";
-import { EVERY_CANDIDATE, flopMenu, offersOpeningAllin, pickSizes } from "./flopSizing";
+import { EVERY_CANDIDATE, flopMenu, pickSizes } from "./flopSizing";
 import { applyPostflopAction, initialPostflopPotState } from "./potState";
 
 const use = (third: number, half: number, threeQuarters: number, pot: number) =>
@@ -61,12 +61,5 @@ describe("flopMenu", () => {
   it("names every candidate for both players", () => {
     expect(EVERY_CANDIDATE.P1).toEqual([0.33, 0.5, 0.75, 1.0]);
     expect(EVERY_CANDIDATE.P2).toEqual(EVERY_CANDIDATE.P1);
-  });
-});
-
-describe("offersOpeningAllin", () => {
-  it("is for stacks of at most three pots", () => {
-    expect(offersOpeningAllin(20, 60)).toBe(true);
-    expect(offersOpeningAllin(20, 61)).toBe(false);
   });
 });

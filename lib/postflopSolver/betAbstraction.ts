@@ -45,6 +45,27 @@ export const LOOKAHEAD_BET_SIZING: Record<PostflopStreet, StreetBetSizing> = {
   river: { betPotFractions: [0.75], raisePotFractions: [], allin: "when-no-size-fits" },
 };
 
+/**
+ * An opening all-in is offered with a stack of at most this many pots at the
+ * start of the street being solved. On the flop at 1.9 pots on JT5 two-tone a
+ * 3-bettor shoves 64% of the time, and a menu without it lost 2.2% of the pot
+ * where one with it lost 0.4%; at 3.6 pots it is 2%. A turn at 3.6 pots or
+ * more shoves 0.3% at most. A river shoves from deeper, its ranges being as
+ * polar as they get: on four 3-bet and single-raised rivers, up to 18% of a
+ * range at 3.6 pots, 7% at 5, 4% at 6, 0.6% at 8 and none at 12.
+ */
+export const ALLIN_OPEN_MAX_SPR: Record<PostflopStreet, number> = { flop: 3, turn: 3, river: 8 };
+
+export function offersOpeningAllin(street: PostflopStreet, startPot: number, effectiveStackBb: number): boolean {
+  return effectiveStackBb <= ALLIN_OPEN_MAX_SPR[street] * startPot;
+}
+
+/** A street's BET_SIZING menu, with the opening all-in only when `allinOpen` or when no size fits. Facing a bet it is unchanged. */
+export function streetMenu(street: PostflopStreet, allinOpen: boolean): (state: PostflopPotState, actor: PostflopPlayer) => StreetBetSizing {
+  const opening: StreetBetSizing = { ...BET_SIZING[street], allin: allinOpen ? "always" : "when-no-size-fits" };
+  return (state, actor) => (state.currentBetToCall > state.committed[actor] ? BET_SIZING[street] : opening);
+}
+
 /** How many times a bet may be raised, this street. Beyond this, only fold/call remain. */
 export const RAISE_CAP = 1;
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { initialPostflopPotState, applyPostflopAction } from "./potState";
-import { computePostflopAvailableActions, LOOKAHEAD_BET_SIZING } from "./betAbstraction";
+import { BET_SIZING, computePostflopAvailableActions, LOOKAHEAD_BET_SIZING, offersOpeningAllin, streetMenu } from "./betAbstraction";
 
 describe("computePostflopAvailableActions — opening decision (no bet yet)", () => {
   it("flop offers check, 33%/50%/75%/100% pot bets, and allin, but no fold/call/raise", () => {
@@ -105,5 +105,44 @@ describe("computePostflopAvailableActions — lookahead menu (all-in only when n
     const actions = computePostflopAvailableActions(facing, "P2", 97, "river", river);
     expect(actions.raise).toEqual([]);
     expect(actions.allin).toEqual({ toBb: 97 });
+  });
+});
+
+describe("streetMenu — the opening all-in only on a shallow stack", () => {
+  const start = initialPostflopPotState(10);
+  const open = (allinOpen: boolean, stack: number) => computePostflopAvailableActions(start, "P1", stack, "turn", streetMenu("turn", allinOpen)(start, "P1"));
+
+  it("opens with the street's three sizes and no all-in when deep", () => {
+    const actions = open(false, 100);
+    expect(actions.bet.map((b) => Number(b.toBb.toFixed(1)))).toEqual([3.3, 6.6, 10]);
+    expect(actions.allin).toBeNull();
+  });
+
+  it("opens with the all-in too when shallow", () => {
+    expect(open(true, 30).allin).toEqual({ toBb: 30 });
+  });
+
+  it("keeps the all-in when no size fits under the stack", () => {
+    const actions = open(false, 3);
+    expect(actions.bet).toEqual([]);
+    expect(actions.allin).toEqual({ toBb: 3 });
+  });
+
+  it("facing a bet is the street's own menu: both raises and the all-in", () => {
+    const facing = applyPostflopAction(start, "P1", "bet", { effectiveStackBb: 100, betToBb: 6.6 });
+    const menu = streetMenu("turn", false)(facing, "P2");
+    expect(menu).toBe(BET_SIZING.turn);
+    const actions = computePostflopAvailableActions(facing, "P2", 100, "turn", menu);
+    expect(actions.raise).toHaveLength(2);
+    expect(actions.allin).toEqual({ toBb: 100 });
+  });
+
+  it("counts a stack of three pots as shallow on the flop and turn, and of eight on the river", () => {
+    for (const street of ["flop", "turn"] as const) {
+      expect(offersOpeningAllin(street, 20, 60)).toBe(true);
+      expect(offersOpeningAllin(street, 20, 61)).toBe(false);
+    }
+    expect(offersOpeningAllin("river", 20, 160)).toBe(true);
+    expect(offersOpeningAllin("river", 20, 161)).toBe(false);
   });
 });

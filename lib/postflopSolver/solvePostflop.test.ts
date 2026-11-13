@@ -216,7 +216,7 @@ describe("solvePostflopStreet — a flop's bet sizes", () => {
     result.session?.dispose();
   });
 
-  it("leaves the turn's menu alone", async () => {
+  it("leaves the turn's bet sizes alone", async () => {
     const phases = new Set<string>();
     const result = solvePostflopStreet(
       { ...flop(100), board: ["Kh", "7s", "2d", "9c"] },
@@ -227,4 +227,31 @@ describe("solvePostflopStreet — a flop's bet sizes", () => {
     expect(betFractions(result.tree as DecisionNode)).toEqual([0.33, 0.66, 1]);
     result.session?.dispose();
   });
+
+  for (const [street, board] of [
+    ["turn", ["Kh", "7s", "2d", "9c"]],
+    ["river", ["Kh", "7s", "2d", "9c", "3h"]],
+  ] as const) {
+    it(`opens the ${street} without an all-in on a deep stack, and with one on a shallow one`, async () => {
+      const solver = await loadNodeSolverModule();
+      const deep = solvePostflopStreet({ ...flop(100), board: [...board] }, { solver });
+      const root = deep.tree as DecisionNode;
+      const afterCheck = root.actions[0].child as DecisionNode;
+      for (const node of [root, afterCheck]) expect(node.actions.map((a) => a.action)).toEqual(["check", "bet", "bet", "bet"]);
+      // Facing a bet, both raises and the all-in are still there.
+      const facing = root.actions[1].child as DecisionNode;
+      expect(facing.actions.map((a) => a.action)).toEqual(["fold", "call", "raise", "raise", "allin"]);
+      deep.session?.dispose();
+
+      // Three pots is shallow on either street; five only on the river.
+      const five = solvePostflopStreet({ ...flop(50), board: [...board] }, { solver });
+      expect((five.tree as DecisionNode).actions.some((a) => a.action === "allin")).toBe(street === "river");
+      five.session?.dispose();
+
+      const shallow = solvePostflopStreet({ ...flop(30), board: [...board] }, { solver });
+      const shallowRoot = shallow.tree as DecisionNode;
+      for (const node of [shallowRoot, shallowRoot.actions[0].child as DecisionNode]) expect(node.actions.at(-1)!.action).toBe("allin");
+      shallow.session?.dispose();
+    });
+  }
 });

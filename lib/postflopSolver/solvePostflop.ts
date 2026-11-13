@@ -3,8 +3,8 @@ import type { PostflopSolvePhase } from "@/types/postflopSolver";
 import type { BoardCards, ComboRange } from "./types";
 import { expandToCombos, filterBlockedCombos } from "./combos";
 import { buildEquityTable, type EquityTable } from "./terminalEquity";
-import { LOOKAHEAD_BET_SIZING, streetForBoardLength, type PostflopStreet } from "./betAbstraction";
-import { EVERY_CANDIDATE, flopMenu, offersOpeningAllin, pickFlopSizes } from "./flopSizing";
+import { LOOKAHEAD_BET_SIZING, offersOpeningAllin, streetForBoardLength, streetMenu, type PostflopStreet } from "./betAbstraction";
+import { EVERY_CANDIDATE, flopMenu, pickFlopSizes } from "./flopSizing";
 import { clusteredNextCards, stratifiedNextCards } from "./nextCardSampling";
 import { buildHandTree, buildStreetTree, type HandTreeOptions, type PostflopTreeNode } from "./treeBuilder";
 import type { CfrSolution } from "./cfr";
@@ -197,11 +197,13 @@ function solveWithTables(
       : solveNativeSession(engine.solver, inputFor(tree), cfrOptions, progress);
   };
 
-  // A flop first finds the bet sizes this spot uses, on the quick lookahead
-  // with every candidate, and is then solved with two of them per player.
-  let flopSizing: HandTreeOptions["firstStreetSizing"];
+  // A turn or river is solved on its whole menu, less an opening all-in no
+  // deep stack makes. A flop first finds the bet sizes this spot uses, on the
+  // quick lookahead with every candidate, and is then solved with two of them
+  // per player.
+  const allinOpen = offersOpeningAllin(street, input.startPot, input.effectiveStackBb);
+  let firstStreetSizing: HandTreeOptions["firstStreetSizing"] = street === "flop" ? undefined : streetMenu(street, allinOpen);
   if (street === "flop") {
-    const allinOpen = offersOpeningAllin(input.startPot, input.effectiveStackBb);
     const everySize = buildHandTree(input.startPot, input.effectiveStackBb, input.board, {
       ...lookaheadOptions("flop", true)!,
       firstStreetSizing: flopMenu(EVERY_CANDIDATE, allinOpen),
@@ -209,15 +211,15 @@ function solveWithTables(
     // Nothing to pick when both players are already all-in.
     if (everySize.type === "decision") {
       const pass = solveLookahead(everySize, "sizes");
-      flopSizing = flopMenu(pickFlopSizes(everySize, pass.solution, heroRange, villainRange), allinOpen);
+      firstStreetSizing = flopMenu(pickFlopSizes(everySize, pass.solution, heroRange, villainRange), allinOpen);
       pass.dispose();
     }
   }
 
   const lookahead = lookaheadOptions(street, input.fast, runout ? (card) => runout.turnFeatures(card, heroRange, villainRange) : undefined);
   const tree = lookahead
-    ? buildHandTree(input.startPot, input.effectiveStackBb, input.board, { ...lookahead, firstStreetSizing: flopSizing })
-    : buildStreetTree(input.startPot, input.effectiveStackBb, street);
+    ? buildHandTree(input.startPot, input.effectiveStackBb, input.board, { ...lookahead, firstStreetSizing })
+    : buildStreetTree(input.startPot, input.effectiveStackBb, street, firstStreetSizing);
   let session: NativeSolveSession | undefined;
   let solution: CfrSolution;
   if (lookahead) {

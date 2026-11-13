@@ -73,8 +73,13 @@ type StreetClose = (closing: PostflopPotState, stackLeft: number) => PostflopTre
  * capped at one raise, so the tree stays small and fully enumerable up front
  * rather than needing lazy/streaming construction.
  */
-export function buildStreetTree(startPot: number, effectiveStackBb: number, street: PostflopStreet): PostflopTreeNode {
-  return buildFrom(initialPostflopPotState(startPot), "P1", effectiveStackBb, street, BET_SIZING[street]);
+export function buildStreetTree(
+  startPot: number,
+  effectiveStackBb: number,
+  street: PostflopStreet,
+  sizing: StreetSizing = BET_SIZING[street],
+): PostflopTreeNode {
+  return buildFrom(initialPostflopPotState(startPot), "P1", effectiveStackBb, street, sizing);
 }
 
 /** A street's bet menu: one for every decision, or one chosen per decision (e.g. sizes picked for each player's opening bet). */

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { streetMenu } from "./betAbstraction";
 import { buildHandTree, buildStreetTree, type PostflopTreeNode } from "./treeBuilder";
 
 function findAction(node: PostflopTreeNode, action: string): PostflopTreeNode {
@@ -132,6 +133,19 @@ describe("buildStreetTree — turn/river (3 bet sizes, 2 raise sizes)", () => {
   it("stays bounded: 28 decision nodes for 3 bet sizes + 2 raise sizes", () => {
     const tree = buildStreetTree(10, 97, "turn");
     expect(countDecisionNodes(tree)).toBe(28);
+  });
+});
+
+describe("buildStreetTree — a menu chosen per decision", () => {
+  it("drops the opening all-in on a deep stack and keeps it facing a bet", () => {
+    const tree = buildStreetTree(10, 100, "river", streetMenu("river", false));
+    expect(actionCounts(tree)).toEqual({ check: 1, bet: 3 });
+    expect(actionCounts(findAction(tree, "check"))).toEqual({ check: 1, bet: 3 });
+    expect(actionCounts(findAction(tree, "bet"))).toEqual({ fold: 1, call: 1, raise: 2, allin: 1 });
+  });
+
+  it("is the street's whole menu by default", () => {
+    expect(actionCounts(buildStreetTree(10, 100, "river"))).toEqual({ check: 1, bet: 3, allin: 1 });
   });
 });
 
