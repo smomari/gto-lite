@@ -13,17 +13,21 @@ interface SolveProgressProps {
 
 export function SolveProgress({ phase, done, total, exploitabilityPercent, targetExploitabilityPercent }: SolveProgressProps) {
   const t = useMessages();
-  if (phase === "cfr") {
+  if (phase !== "equity") {
+    // A flop's first pass is a solve too, but its reading isn't the shown solve's, so it isn't printed.
+    const label = phase === "sizes" ? t.solve.pickingSizes : t.solve.runningCfr;
     return (
-      <div role="progressbar" aria-label={t.solve.runningCfr} className="flex flex-col gap-1">
+      <div role="progressbar" aria-label={label} className="flex flex-col gap-1">
         <div className="flex justify-between text-xs text-ink-muted">
-          <span>{t.solve.runningCfr}…</span>
-          <span>
-            {exploitabilityPercent !== undefined
-              ? t.solve.exploitability(exploitabilityPercent.toFixed(2))
-              : t.solve.measuring}
-            {targetExploitabilityPercent !== undefined && t.solve.target(targetExploitabilityPercent.toFixed(2))}
-          </span>
+          <span>{label}…</span>
+          {phase === "cfr" && (
+            <span>
+              {exploitabilityPercent !== undefined
+                ? t.solve.exploitability(exploitabilityPercent.toFixed(2))
+                : t.solve.measuring}
+              {targetExploitabilityPercent !== undefined && t.solve.target(targetExploitabilityPercent.toFixed(2))}
+            </span>
+          )}
         </div>
         <div className="h-1 w-full overflow-hidden rounded-[1px] bg-raised">
           <div className="h-full w-full animate-pulse bg-accent" />

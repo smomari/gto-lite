@@ -107,6 +107,7 @@ const en = {
   },
   solve: {
     runningCfr: "Running CFR",
+    pickingSizes: "Picking bet sizes",
     exploitability: (pct: string) => `exploitability ${pct}% pot`,
     measuring: "measuring…",
     target: (pct: string) => ` (target ${pct}%)`,
@@ -279,6 +280,7 @@ const ko: Messages = {
   },
   solve: {
     runningCfr: "CFR 실행 중",
+    pickingSizes: "벳 사이즈 고르는 중",
     exploitability: (pct) => `익스플로이터빌리티 팟의 ${pct}%`,
     measuring: "측정 중…",
     target: (pct) => ` (목표 ${pct}%)`,

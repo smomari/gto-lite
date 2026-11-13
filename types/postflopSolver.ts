@@ -7,7 +7,8 @@ import type { CheckdownEquitySummary } from "@/lib/postflopSolver/checkdownEquit
 
 export type { CheckdownEquitySummary };
 
-export type PostflopSolvePhase = "equity" | "cfr";
+/** "sizes" is a flop's first pass, which picks its bet sizes (flopSizing.ts). */
+export type PostflopSolvePhase = "equity" | "sizes" | "cfr";
 
 /** Which of a hand's fold/call/raise/allin frequencies defines a player's range entering the street. */
 export type ActionWeightKey = "fold" | "call" | "raise" | "allin";

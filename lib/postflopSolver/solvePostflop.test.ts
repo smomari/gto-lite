@@ -2,6 +2,7 @@
 import { describe, expect, it } from "vitest";
 import { ALL_HANDS } from "@/lib/handRange/handList";
 import type { HandFrequency } from "@/types/rangeData";
+import { FLOP_BET_CANDIDATES } from "./flopSizing";
 import { solvePostflopStreet } from "./solvePostflop";
 import type { DecisionNode } from "./treeBuilder";
 import { computeCheckdownEquities } from "./checkdownEquity";
@@ -166,5 +167,64 @@ describe("solvePostflopStreet", () => {
       { solver: await loadNodeSolverModule() },
     );
     expect(result.tree.type).toBe("terminal-showdown");
+  });
+});
+
+describe("solvePostflopStreet — a flop's bet sizes", () => {
+  const flop = (effectiveStackBb: number) => ({
+    kind: "canonical" as const,
+    board: ["Kh", "7s", "2d"],
+    heroHandFrequencies: narrowHands(["KK", "AA", "QQ", "JTs", "65s"]),
+    heroActionWeight: (hf: HandFrequency) => hf.call,
+    villainHandFrequencies: narrowHands(["77", "98s", "AKs", "QJs", "44"]),
+    villainActionWeight: (hf: HandFrequency) => hf.call,
+    startPot: 10,
+    effectiveStackBb,
+    maxIterations: 100,
+  });
+  const betFractions = (node: DecisionNode) =>
+    node.actions.filter((a) => a.action === "bet").map((a) => Number((a.child.state.committed[node.actor] / 10).toFixed(2)));
+
+  it("opens with at most two of the candidate sizes for each player, after a pass that picks them", async () => {
+    const phases: string[] = [];
+    const result = solvePostflopStreet(flop(100), { solver: await loadNodeSolverModule() }, (phase) => {
+      if (phases.at(-1) !== phase) phases.push(phase);
+    });
+    expect(phases).toEqual(["equity", "sizes", "cfr"]);
+
+    const root = result.tree as DecisionNode;
+    const afterCheck = root.actions[0].child as DecisionNode;
+    for (const node of [root, afterCheck]) {
+      const sizes = betFractions(node);
+      expect(sizes.length).toBeGreaterThanOrEqual(1);
+      expect(sizes.length).toBeLessThanOrEqual(2);
+      for (const size of sizes) expect(FLOP_BET_CANDIDATES).toContain(size);
+      // 10 pots deep: no opening all-in.
+      expect(node.actions.some((a) => a.action === "allin")).toBe(false);
+    }
+    // Facing a bet, the pot raise and the all-in are still there.
+    const facing = afterCheck.actions.find((a) => a.action === "bet")!.child as DecisionNode;
+    expect(facing.actions.map((a) => a.action)).toEqual(["fold", "call", "raise", "allin"]);
+    result.session?.dispose();
+  });
+
+  it("adds the opening all-in on a stack of three pots or less", async () => {
+    const result = solvePostflopStreet(flop(25), { solver: await loadNodeSolverModule() });
+    const root = result.tree as DecisionNode;
+    expect(root.actions.at(-1)!.action).toBe("allin");
+    expect((root.actions[0].child as DecisionNode).actions.at(-1)!.action).toBe("allin");
+    result.session?.dispose();
+  });
+
+  it("leaves the turn's menu alone", async () => {
+    const phases = new Set<string>();
+    const result = solvePostflopStreet(
+      { ...flop(100), board: ["Kh", "7s", "2d", "9c"] },
+      { solver: await loadNodeSolverModule() },
+      (phase) => phases.add(phase),
+    );
+    expect(phases.has("sizes")).toBe(false);
+    expect(betFractions(result.tree as DecisionNode)).toEqual([0.33, 0.66, 1]);
+    result.session?.dispose();
   });
 });

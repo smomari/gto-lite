@@ -16,13 +16,14 @@ export interface StreetBetSizing {
  * Phase A's bet-size menu, one step up from Phase 1's single fixed size.
  * Sizes follow the scheme actually used by the open-source shark-2.0 solver:
  * the flop (the most expensive street to solve, since it's revisited for
- * every possible turn/river) gets fewer raise sizes than turn/river. Its
+ * every possible turn/river) gets fewer raise sizes than turn/river. Its bet
+ * sizes are candidates: a flop solve keeps two per player (flopSizing.ts). A
  * third of a pot is the size GTO Wizard bets most on dry flops (BTN against
- * the BB on K72r: 72% of the range at 33%); without it the 50% stood in for it
- * and bet a third less often.
+ * the BB on K72r: 72% of the range at 33%), and three quarters what a 3-bettor
+ * bets most on JT5 two-tone.
  */
 export const BET_SIZING: Record<PostflopStreet, StreetBetSizing> = {
-  flop: { betPotFractions: [0.33, 0.5, 1.0], raisePotFractions: [1.0] },
+  flop: { betPotFractions: [0.33, 0.5, 0.75, 1.0], raisePotFractions: [1.0] },
   turn: { betPotFractions: [0.33, 0.66, 1.0], raisePotFractions: [0.5, 1.0] },
   river: { betPotFractions: [0.33, 0.66, 1.0], raisePotFractions: [0.5, 1.0] },
 };

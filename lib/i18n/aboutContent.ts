@@ -1,4 +1,5 @@
 import { BET_SIZING } from "@/lib/postflopSolver/betAbstraction";
+import { ALLIN_OPEN_MAX_SPR } from "@/lib/postflopSolver/flopSizing";
 import type { Locale } from "./messages";
 
 export interface AboutSection {
@@ -70,7 +71,7 @@ const en: AboutContent = {
       heading: "What it doesn't do",
       items: [
         "Postflop is heads-up only. Pots with three or more players stop at the flop.",
-        "Bet sizes are fixed: {flopSizes} of the pot on the flop, {laterSizes} on later streets, plus all-in.",
+        "Bet sizes come from a short menu. On the flop a quick first pass picks the two that fit the spot for each player, out of {flopSizes} of the pot; a player who rarely bets there gets one. Later streets use {laterSizes}. All-in is always among the raises, and among the bets on the turn and river or when the stack is at most {allinPots} pots.",
         "Only one raise per street. A raise can be called or folded to, not re-raised.",
         "Short stacks shove or fold. There is no limp or min-raise at 15 big blinds or less, so those ranges shove wider than a solver that mixes them.",
         "Everyone at the table has the same stack.",
@@ -154,7 +155,7 @@ const ko: AboutContent = {
       heading: "하지 못하는 것",
       items: [
         "포스트플랍은 2명일 때만 풉니다. 3명 이상이 남은 팟은 플랍에서 멈춥니다.",
-        "벳 사이즈가 정해져 있습니다. 플랍은 팟의 {flopSizes}, 이후 스트리트는 {laterSizes}이고 여기에 올인이 더해집니다.",
+        "벳 사이즈는 짧은 메뉴에서 나옵니다. 플랍은 먼저 빠르게 한 번 풀어서 팟의 {flopSizes} 가운데 그 스팟에 맞는 두 가지를 플레이어마다 고릅니다. 거기서 거의 벳하지 않는 쪽은 하나만 받습니다. 이후 스트리트는 {laterSizes}를 씁니다. 올인은 레이즈에는 항상 있고, 벳에는 턴과 리버에서, 또는 스택이 팟의 {allinPots}배 이하일 때 있습니다.",
         "스트리트마다 레이즈는 한 번입니다. 레이즈에는 콜이나 폴드만 할 수 있고 다시 레이즈할 수 없습니다.",
         "짧은 스택은 올인 아니면 폴드입니다. 15bb 이하에는 림프와 민레이즈가 없어서, 이를 섞는 솔버보다 올인 범위가 넓습니다.",
         "테이블의 모든 플레이어가 같은 스택을 갖습니다.",
@@ -206,6 +207,7 @@ export function aboutContent(locale: Locale): AboutContent {
   const fill = (text: string) =>
     text
       .replace("{flopSizes}", sizeList(BET_SIZING.flop.betPotFractions, locale))
-      .replace("{laterSizes}", sizeList(BET_SIZING.turn.betPotFractions, locale));
+      .replace("{laterSizes}", sizeList(BET_SIZING.turn.betPotFractions, locale))
+      .replace("{allinPots}", String(ALLIN_OPEN_MAX_SPR));
   return { ...content, sections: content.sections.map((section) => ({ ...section, items: section.items?.map(fill) })) };
 }

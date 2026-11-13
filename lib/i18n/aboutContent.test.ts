@@ -3,6 +3,7 @@ import { USER_DAILY_LIMIT } from "@/lib/explain/usage";
 import { NASH_FLAT_STACK_THRESHOLD_BB } from "@/lib/solveEngine/constants";
 import { DEFAULT_TARGET_EXPLOITABILITY_PERCENT } from "@/lib/postflopSolver/cfr";
 import { BET_SIZING } from "@/lib/postflopSolver/betAbstraction";
+import { ALLIN_OPEN_MAX_SPR } from "@/lib/postflopSolver/flopSizing";
 import { aboutContent } from "./aboutContent";
 
 const en = aboutContent("en");
@@ -29,7 +30,8 @@ describe("aboutContent", () => {
       for (const size of flop) expect(text(content)).toContain(size);
       expect(text(content)).not.toMatch(/[{}]/);
     }
-    expect(text(en)).toContain(`${flop.slice(0, -1).join(", ")} or ${flop.at(-1)} of the pot on the flop`);
+    expect(text(en)).toContain(`out of ${flop.slice(0, -1).join(", ")} or ${flop.at(-1)} of the pot`);
+    expect(text(en)).toContain(`at most ${ALLIN_OPEN_MAX_SPR} pots`);
   });
 
   it("quotes the limits the code enforces", () => {

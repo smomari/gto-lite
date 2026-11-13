@@ -44,12 +44,12 @@ describe("serializeTree", () => {
     for (const row of serialized.strategy) {
       expect(row.reduce((s, x) => s + x, 0)).toBeCloseTo(1, 6);
     }
-    // Flop has 3 bet sizes, so "bet" appears three times among the root's actions.
+    // A flop street tree has every candidate size, so "bet" appears four times among the root's actions.
     const actionCounts = serialized.actions.reduce<Record<string, number>>((acc, a) => {
       acc[a.action] = (acc[a.action] ?? 0) + 1;
       return acc;
     }, {});
-    expect(actionCounts).toEqual({ check: 1, bet: 3, allin: 1 });
+    expect(actionCounts).toEqual({ check: 1, bet: 4, allin: 1 });
   });
 
   it("labels bet/allin actions with their size in bb", () => {

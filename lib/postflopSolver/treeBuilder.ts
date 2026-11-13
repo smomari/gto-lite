@@ -77,9 +77,14 @@ export function buildStreetTree(startPot: number, effectiveStackBb: number, stre
   return buildFrom(initialPostflopPotState(startPot), "P1", effectiveStackBb, street, BET_SIZING[street]);
 }
 
+/** A street's bet menu: one for every decision, or one chosen per decision (e.g. sizes picked for each player's opening bet). */
+export type StreetSizing = StreetBetSizing | ((state: PostflopPotState, actor: PostflopPlayer) => StreetBetSizing);
+
 export interface HandTreeOptions {
   /** Which cards come next at each street change, and their weights. Default: every card. */
   dealNextCards?: DealNextCards;
+  /** Bet menu for the first street. Default: BET_SIZING. */
+  firstStreetSizing?: StreetSizing;
   /** Bet menus for the streets after the first one (e.g. betAbstraction.ts's LOOKAHEAD_BET_SIZING). Default: BET_SIZING. */
   laterStreetSizing?: Record<PostflopStreet, StreetBetSizing>;
   /** The last street to include; one closing before the river past it ends in a showdown (valued by its runout equity). Default: river. */
@@ -110,7 +115,7 @@ function buildStreetsFrom(
   isFirstStreet: boolean,
 ): PostflopTreeNode {
   const street = streetForBoardLength(board.length);
-  const sizing = (!isFirstStreet && options.laterStreetSizing?.[street]) || BET_SIZING[street];
+  const sizing = (isFirstStreet ? options.firstStreetSizing : options.laterStreetSizing?.[street]) ?? BET_SIZING[street];
   const dealNextCards = options.dealNextCards ?? dealEveryCard;
   const onStreetClose: StreetClose | undefined =
     street === "river" || street === options.lastStreet
@@ -136,7 +141,7 @@ function buildFrom(
   actor: PostflopPlayer,
   effectiveStackBb: number,
   street: PostflopStreet,
-  sizing: StreetBetSizing,
+  sizing: StreetSizing,
   onStreetClose?: StreetClose,
 ): PostflopTreeNode {
   /** A closed street: the next street if there's stack behind and one follows, else a showdown. */
@@ -145,7 +150,8 @@ function buildFrom(
     return (stackLeft > 0 ? onStreetClose?.(next, stackLeft) : undefined) ?? { type: "terminal-showdown", state: next };
   };
 
-  const available = computePostflopAvailableActions(state, actor, effectiveStackBb, street, sizing);
+  const menu = typeof sizing === "function" ? sizing(state, actor) : sizing;
+  const available = computePostflopAvailableActions(state, actor, effectiveStackBb, street, menu);
   const actions: DecisionNode["actions"] = [];
 
   if (available.fold) {

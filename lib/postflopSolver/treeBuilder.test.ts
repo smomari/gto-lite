@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildStreetTree, type PostflopTreeNode } from "./treeBuilder";
+import { buildHandTree, buildStreetTree, type PostflopTreeNode } from "./treeBuilder";
 
 function findAction(node: PostflopTreeNode, action: string): PostflopTreeNode {
   if (node.type !== "decision") throw new Error("not a decision node");
@@ -27,13 +27,13 @@ function countDecisionNodes(node: PostflopTreeNode): number {
   return 1 + node.actions.reduce((sum, a) => sum + countDecisionNodes(a.child), 0);
 }
 
-describe("buildStreetTree — flop (3 bet sizes, 1 raise size)", () => {
-  it("root is P1's decision with check + 3 bets + allin, no fold (nothing to fold to yet)", () => {
+describe("buildStreetTree — flop (4 bet sizes, 1 raise size)", () => {
+  it("root is P1's decision with check + 4 bets + allin, no fold (nothing to fold to yet)", () => {
     const tree = buildStreetTree(7.5, 97, "flop");
     expect(tree.type).toBe("decision");
     if (tree.type !== "decision") return;
     expect(tree.actor).toBe("P1");
-    expect(actionCounts(tree)).toEqual({ check: 1, bet: 3, allin: 1 });
+    expect(actionCounts(tree)).toEqual({ check: 1, bet: 4, allin: 1 });
   });
 
   it("check-check closes the street at a showdown terminal", () => {
@@ -99,9 +99,9 @@ describe("buildStreetTree — flop (3 bet sizes, 1 raise size)", () => {
     expect(fold).toEqual(expect.objectContaining({ type: "terminal-fold", winner: "P1" }));
   });
 
-  it("stays small and bounded: 22 decision nodes for 3 bet sizes + 1 raise size", () => {
+  it("stays small and bounded: 28 decision nodes for 4 bet sizes + 1 raise size", () => {
     const tree = buildStreetTree(7.5, 97, "flop");
-    expect(countDecisionNodes(tree)).toBe(22);
+    expect(countDecisionNodes(tree)).toBe(28);
   });
 
   it("collapses every bet size into allin-only when the stack is too short", () => {
@@ -132,5 +132,20 @@ describe("buildStreetTree — turn/river (3 bet sizes, 2 raise sizes)", () => {
   it("stays bounded: 28 decision nodes for 3 bet sizes + 2 raise sizes", () => {
     const tree = buildStreetTree(10, 97, "turn");
     expect(countDecisionNodes(tree)).toBe(28);
+  });
+});
+
+describe("buildHandTree — a first-street menu chosen per decision", () => {
+  it("gives each player the sizes the menu names for them", () => {
+    const tree = buildHandTree(10, 100, ["Kh", "7s", "2d"], {
+      lastStreet: "flop",
+      firstStreetSizing: (state, actor) =>
+        state.currentBetToCall > state.committed[actor]
+          ? { betPotFractions: [], raisePotFractions: [1.0] }
+          : { betPotFractions: actor === "P1" ? [0.33] : [0.5, 1.0], raisePotFractions: [], allin: "when-no-size-fits" },
+    });
+    expect(actionCounts(tree)).toEqual({ check: 1, bet: 1 });
+    expect(actionCounts(findAction(tree, "check"))).toEqual({ check: 1, bet: 2 });
+    expect(actionCounts(findAction(tree, "bet"))).toEqual({ fold: 1, call: 1, raise: 1, allin: 1 });
   });
 });

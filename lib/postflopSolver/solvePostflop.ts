@@ -4,6 +4,7 @@ import type { BoardCards, ComboRange } from "./types";
 import { expandToCombos, filterBlockedCombos } from "./combos";
 import { buildEquityTable, type EquityTable } from "./terminalEquity";
 import { LOOKAHEAD_BET_SIZING, streetForBoardLength, type PostflopStreet } from "./betAbstraction";
+import { EVERY_CANDIDATE, flopMenu, offersOpeningAllin, pickFlopSizes } from "./flopSizing";
 import { clusteredNextCards, stratifiedNextCards } from "./nextCardSampling";
 import { buildHandTree, buildStreetTree, type HandTreeOptions, type PostflopTreeNode } from "./treeBuilder";
 import type { CfrSolution } from "./cfr";
@@ -56,7 +57,9 @@ export type PostflopSolveInput =
  * Against 10 stratified turns, 16 clustered ones took a BTN-vs-BB spot from
  * 1.76% to 1.27%, narrowed SRPs from 2.65% to 2.06% and 3-bet pots from 3.44% to
  * 2.09%, better on all 10 boards, and 3.35% to 1.59% on 3 boards held back from
- * tuning. 12 cards made one worse. A BTN-vs-BB flop takes about 4s in the browser.
+ * tuning. 12 cards made one worse. Those figures are from the 50/100% flop menu. With
+ * the sizes picked first (flopSizing), a BTN-vs-BB flop takes 2.6 to 3.7s in
+ * Node on nine threads, the pick included.
  */
 export const FLOP_LOOKAHEAD = { turnCards: 16, riverCards: 6 };
 
@@ -175,14 +178,8 @@ function solveWithTables(
   // Flop and turn solves look ahead past their own street (lookaheadOptions),
   // so they're solved against later play instead of checkdown equity.
   const street = streetForBoardLength(input.board.length);
-  const lookahead = lookaheadOptions(street, input.fast, runout ? (card) => runout.turnFeatures(card, heroRange, villainRange) : undefined);
-  const tree = lookahead
-    ? buildHandTree(input.startPot, input.effectiveStackBb, input.board, lookahead)
-    : buildStreetTree(input.startPot, input.effectiveStackBb, street);
   const cfrOptions = { maxIterations: input.maxIterations, targetExploitabilityPercent: input.targetExploitabilityPercent };
-  const cfrProgress = (done: number, total: number, exploitabilityPercent?: number) =>
-    onProgress?.("cfr", done, total, exploitabilityPercent);
-  const nativeInput = {
+  const inputFor = (tree: PostflopTreeNode) => ({
     tree,
     board: input.board,
     heroRange,
@@ -191,18 +188,45 @@ function solveWithTables(
     rake: input.rake,
     icm: input.icm && { ...input.icm, remainingBb: input.effectiveStackBb },
     equityTableFor: runout ? (board: string[]) => (board.length === 4 ? runout.turnTable(board[3]) : undefined) : undefined,
+  });
+  const threads = engine.threads ?? 1;
+  const solveLookahead = (tree: PostflopTreeNode, phase: PostflopSolvePhase) => {
+    const progress = (done: number, total: number, exploitabilityPercent?: number) => onProgress?.(phase, done, total, exploitabilityPercent);
+    return threads > 1
+      ? solveThreadedSession(engine.solver, inputFor(tree), cfrOptions, progress, threads)
+      : solveNativeSession(engine.solver, inputFor(tree), cfrOptions, progress);
   };
+
+  // A flop first finds the bet sizes this spot uses, on the quick lookahead
+  // with every candidate, and is then solved with two of them per player.
+  let flopSizing: HandTreeOptions["firstStreetSizing"];
+  if (street === "flop") {
+    const allinOpen = offersOpeningAllin(input.startPot, input.effectiveStackBb);
+    const everySize = buildHandTree(input.startPot, input.effectiveStackBb, input.board, {
+      ...lookaheadOptions("flop", true)!,
+      firstStreetSizing: flopMenu(EVERY_CANDIDATE, allinOpen),
+    });
+    // Nothing to pick when both players are already all-in.
+    if (everySize.type === "decision") {
+      const pass = solveLookahead(everySize, "sizes");
+      flopSizing = flopMenu(pickFlopSizes(everySize, pass.solution, heroRange, villainRange), allinOpen);
+      pass.dispose();
+    }
+  }
+
+  const lookahead = lookaheadOptions(street, input.fast, runout ? (card) => runout.turnFeatures(card, heroRange, villainRange) : undefined);
+  const tree = lookahead
+    ? buildHandTree(input.startPot, input.effectiveStackBb, input.board, { ...lookahead, firstStreetSizing: flopSizing })
+    : buildStreetTree(input.startPot, input.effectiveStackBb, street);
   let session: NativeSolveSession | undefined;
   let solution: CfrSolution;
   if (lookahead) {
-    const threads = engine.threads ?? 1;
-    session =
-      threads > 1
-        ? solveThreadedSession(engine.solver, nativeInput, cfrOptions, cfrProgress, threads)
-        : solveNativeSession(engine.solver, nativeInput, cfrOptions, cfrProgress);
+    session = solveLookahead(tree, "cfr");
     solution = session.solution;
   } else {
-    solution = runNativeCfr(engine.solver, nativeInput, cfrOptions, cfrProgress);
+    solution = runNativeCfr(engine.solver, inputFor(tree), cfrOptions, (done, total, exploitabilityPercent) =>
+      onProgress?.("cfr", done, total, exploitabilityPercent),
+    );
   }
   const exploitability = solution.finalExploitability!;
 
