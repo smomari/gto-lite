@@ -13,8 +13,7 @@ export interface StreetBetSizing {
 }
 
 /**
- * Phase A's bet-size menu, one step up from Phase 1's single fixed size.
- * Sizes follow the scheme actually used by the open-source shark-2.0 solver:
+ * The bet-size menu of the street being solved. Sizes follow the scheme actually used by the open-source shark-2.0 solver:
  * the flop (the most expensive street to solve, since it's revisited for
  * every possible turn/river) gets fewer raise sizes than turn/river. Its bet
  * sizes are candidates: a flop solve keeps two per player (flopSizing.ts). A
@@ -125,11 +124,9 @@ function computeRaiseTo(state: PostflopPotState, actor: PostflopPlayer, fraction
 }
 
 /**
- * Phase A's bet abstraction: multiple bet sizes (per street) when opening
- * the action, plus a single round of raising (also multiple sizes) when
- * facing a bet — capped at RAISE_CAP re-raises, after which only fold/call
- * remain (mirroring Phase 1's original "no re-raising" facing-a-bet menu,
- * now reached one aggressive action later).
+ * What a player may do under the bet abstraction: the menu's bet sizes when
+ * opening the action, and its raise sizes when facing a bet, until the bet
+ * has been raised RAISE_CAP times; after that only fold and call remain.
  */
 export function computePostflopAvailableActions(
   state: PostflopPotState,

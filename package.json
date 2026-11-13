@@ -1,6 +1,6 @@
 {
   "name": "gto-lite",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -12,7 +12,6 @@
     "generate:equity": "tsx scripts/generate-equity-matrix.ts",
     "bench:postflop": "tsx scripts/bench-postflop.ts",
     "accuracy:postflop": "tsx scripts/accuracy-postflop.ts",
-    "proto:preflop": "tsx scripts/preflop-proto.ts",
     "build:wasm": "native/build-wasm.sh",
     "check:wasm": "native/check-wasm.sh",
     "test:native": "native/test-wasm.sh"
@@ -22,7 +21,7 @@
     "@vercel/analytics": "2.0.1",
     "ai": "^7.0.166",
     "botid": "^1.5.13",
-    "next": "16.4.3",
+    "next": "16.4.6",
     "phe": "^0.6.0",
     "react": "19.2.8",
     "react-dom": "19.2.8",
@@ -38,7 +37,7 @@
     "@types/react-dom": "^19",
     "@vitejs/plugin-react": "^6.1.0",
     "eslint": "^9",
-    "eslint-config-next": "16.4.3",
+    "eslint-config-next": "16.4.6",
     "jsdom": "^30.0.1",
     "poker-evaluator": "^2.1.1",
     "tailwindcss": "^4",

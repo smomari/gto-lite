@@ -63,7 +63,7 @@ export type PostflopSolveInput =
  */
 export const FLOP_LOOKAHEAD = { turnCards: 16, riverCards: 6 };
 
-/** The opt-in quicker flop lookahead: stratified turns, then a checkdown. The same flop takes 1.1s. */
+/** The opt-in quicker flop lookahead: stratified turns, then a checkdown. */
 export const FLOP_FAST_LOOKAHEAD = { turnCards: 10, riverCards: 0 };
 
 /**
@@ -127,7 +127,7 @@ function anyPairDealable(heroRange: ComboRange, villainRange: ComboRange): boole
 }
 
 /**
- * Top-level Phase 1 orchestrator for one street: `kind: "canonical"` expands
+ * Solves one street: `kind: "canonical"` expands
  * preflop-shaped `HandFrequency[]` into combos (the flop's own starting
  * range); `kind: "combos"` takes an already-computed combo-level range
  * carried forward from a prior street (e.g. the turn's reach-weighted range,

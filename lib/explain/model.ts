@@ -4,10 +4,9 @@ import type { HandSummary } from "./summarySchema";
 import type { ExplanationPart } from "./handlers";
 
 /**
- * Through Vercel AI Gateway. Gemini 2.5 Flash for now because Gateway's free
- * credits cover it: $0.30 / $2.50 per million input / output tokens, about
- * $0.006 an explanation. The plan is anthropic/claude-haiku-5.5 ($0.10 /
- * $0.50) once paid credits are bought; the free tier doesn't offer it.
+ * Through Vercel AI Gateway. Gemini 2.5 Flash, because Gateway's free credits
+ * cover it: $0.30 / $2.50 per million input / output tokens, about $0.006 an
+ * explanation. The free tier doesn't offer Claude models.
  */
 export const EXPLAIN_MODEL = "google/gemini-2.5-flash";
 /** Covers the explanation (about 1,500 tokens) and low-effort thinking, which bills as output. */

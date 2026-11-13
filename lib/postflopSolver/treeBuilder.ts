@@ -68,8 +68,8 @@ export const dealEveryCard: DealNextCards = (board) => {
 type StreetClose = (closing: PostflopPotState, stackLeft: number) => PostflopTreeNode | undefined;
 
 /**
- * Builds the full decision tree for one street under Phase A's bet
- * abstraction (betAbstraction.ts): a handful of bet/raise sizes per street,
+ * Builds the full decision tree for one street under the bet abstraction
+ * (betAbstraction.ts): a handful of bet/raise sizes per street,
  * capped at one raise, so the tree stays small and fully enumerable up front
  * rather than needing lazy/streaming construction.
  */

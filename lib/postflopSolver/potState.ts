@@ -1,8 +1,8 @@
 /**
  * 2-player postflop pot ledger for a single street. Much simpler than the
  * preflop 8-seat rotation (lib/solveEngine/rotation.ts): postflop is always
- * exactly 2 live players by the time it's reached (Phase 1 doesn't support
- * multiway), so a dedicated rotation state machine isn't needed;
+ * exactly 2 live players by the time it's reached (multiway pots aren't
+ * solved), so a dedicated rotation state machine isn't needed;
  * treeBuilder.ts walks the (small, fixed-shape) turn order directly.
  */
 
