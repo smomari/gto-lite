@@ -16,6 +16,8 @@ import { loadEquityMatrix } from "@/lib/equity/loadEquityMatrix";
 
 const VERSION = "1.0.0";
 const VALID_ACTIONS: ActionType[] = ["fold", "call", "raise", "allin"];
+/** More actions than any hand has: eight seats, each acting a handful of times before the stacks are in. */
+const MAX_ACTION_PATH = 64;
 
 function errorResponse(status: number, body: SolveErrorBody): Response {
   return Response.json(body, { status });
@@ -50,6 +52,9 @@ function validateRequest(body: unknown): ValidationResult {
   const path = b.actionPath;
   if (!Array.isArray(path)) {
     return { ok: false, error: { error: "actionPath must be an array", code: "INVALID_ACTION_PATH" } };
+  }
+  if (path.length > MAX_ACTION_PATH) {
+    return { ok: false, error: { error: `actionPath has more than ${MAX_ACTION_PATH} actions`, code: "INVALID_ACTION_PATH" } };
   }
 
   const cleaned: Pick<{ actor: Position; action: ActionType }, "actor" | "action">[] = [];

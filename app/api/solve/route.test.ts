@@ -32,6 +32,15 @@ describe("POST /api/solve", () => {
     expect(body.availableActions.raise).toEqual({ toBb: 2.5 });
   });
 
+  it("rejects an action path longer than any hand", async () => {
+    const actionPath = Array.from({ length: 65 }, () => ({ actor: "UTG", action: "fold" }));
+    const res = await POST(makeRequest({ effectiveStackBb: 100, actionPath }));
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.code).toBe("INVALID_ACTION_PATH");
+    expect(body.error).toContain("more than 64");
+  });
+
   it("rejects an unknown format", async () => {
     const res = await POST(makeRequest({ effectiveStackBb: 100, actionPath: [], format: "cash-9" }));
     expect(res.status).toBe(400);

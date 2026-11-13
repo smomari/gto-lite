@@ -11,7 +11,24 @@ interface SolveProgressProps {
   targetExploitabilityPercent?: number;
 }
 
-export function SolveProgress({ phase, done, total, exploitabilityPercent, targetExploitabilityPercent }: SolveProgressProps) {
+/**
+ * Whether this page can't share memory with its workers, as in some in-app
+ * browsers: the solver then runs on one thread (wasm/loadWeb.ts), several
+ * times slower. Unknown outside a browser.
+ */
+const oneThreadOnly = () => typeof crossOriginIsolated !== "undefined" && !crossOriginIsolated;
+
+export function SolveProgress(props: SolveProgressProps) {
+  const t = useMessages();
+  return (
+    <div className="flex flex-col gap-1.5">
+      <ProgressBar {...props} />
+      {oneThreadOnly() && <p className="text-xs text-ink-faint">{t.solve.oneThread}</p>}
+    </div>
+  );
+}
+
+function ProgressBar({ phase, done, total, exploitabilityPercent, targetExploitabilityPercent }: SolveProgressProps) {
   const t = useMessages();
   if (phase !== "equity") {
     // A flop's first pass is a solve too, but its reading isn't the shown solve's, so it isn't printed.
