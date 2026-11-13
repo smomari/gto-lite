@@ -1,10 +1,12 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { ALL_HANDS } from "../lib/handRange/handList";
-import { LOOKAHEAD_BET_SIZING, streetForBoardLength } from "../lib/postflopSolver/betAbstraction";
+import { LOOKAHEAD_BET_SIZING, streetForBoardLength, type StreetBetSizing } from "../lib/postflopSolver/betAbstraction";
 import { expandToCombos, filterBlockedCombos } from "../lib/postflopSolver/combos";
 import { clusteredNextCards, stratifiedNextCards } from "../lib/postflopSolver/nextCardSampling";
-import { buildHandTree, buildStreetTree, dealEveryCard, type DecisionNode, type HandTreeOptions, type PostflopTreeNode } from "../lib/postflopSolver/treeBuilder";
+import { EVERY_CANDIDATE, flopMenu, offersOpeningAllin, pickFlopSizes, type OpenSizes } from "../lib/postflopSolver/flopSizing";
+import { totalPot, type PostflopPlayer } from "../lib/postflopSolver/potState";
+import { buildHandTree, buildStreetTree, dealEveryCard, type DecisionNode, type HandTreeOptions, type PostflopTreeNode, type StreetSizing } from "../lib/postflopSolver/treeBuilder";
 import type { CfrSolution } from "../lib/postflopSolver/cfr";
 import type { EquityTable } from "../lib/postflopSolver/terminalEquity";
 import type { ComboRange } from "../lib/postflopSolver/types";
@@ -230,9 +232,166 @@ function afterCheckFrequencies(solved: Solved, villain: ComboRange): string {
   return check.actions.map((a, k) => `${a.action} ${percent(freq[k])}`).join(" · ");
 }
 
+// --size-pick: would a flop menu picked for the spot do as well as a fixed one?
+// The reference is the complete tree on every candidate size plus all-in. A
+// method's flop strategy is locked into it with the sizes it lacks at zero; the
+// locked player answers freely where the opponent uses a size the method lacks.
+//   cur3    the fixed 33/50/100% and all-in the app had before
+//   all4    every candidate, no picking
+//   pick2   what the app does (flopSizing.ts): a fast flop (K10) on every candidate picks each player's sizes, then the default solve on those
+//   oracle2 the same pick made from the reference instead, run when it differs: what a perfect pick would give
+/** The fixed flop menu the app had before it picked sizes. */
+const FIXED_THREE: StreetBetSizing = { betPotFractions: [0.33, 0.5, 1.0], raisePotFractions: [1.0] };
+
+const SHALLOW_SPOTS: Spot[] = [
+  { name: "shallow-1.9-dry", board: ["Kh", "7s", "2d"], startPot: 17, stack: 31.5, oop: THREE_BET_OOP, ip: THREE_BET_IP },
+  { name: "shallow-1.9-twotone", board: ["Jh", "Th", "5c"], startPot: 17, stack: 31.5, oop: THREE_BET_OOP, ip: THREE_BET_IP },
+  { name: "shallow-1.2-twotone", board: ["Jh", "Th", "5c"], startPot: 20, stack: 24, oop: THREE_BET_OOP, ip: THREE_BET_IP },
+];
+
+/** An opening decision's play as text, e.g. "check 40.0 · 33% 50.0 · 75% 10.0". */
+function openingText(node: DecisionNode, solution: CfrSolution, range: ComboRange): string {
+  const freq = rootFrequencies(node, solution, range);
+  return node.actions
+    .map(({ action, child }, k) => `${action === "bet" ? `${Math.round((100 * child.state.committed[node.actor]) / totalPot(node.state))}%` : action} ${percent(freq[k])}`)
+    .join(" · ");
+}
+
+/** Both players' opening play on the flop (the root, and the decision after its check), and the sizes the app would keep from it. */
+function describeOpenings(solved: Solved, hero: ComboRange, villain: ComboRange) {
+  const root = solved.tree as DecisionNode;
+  return {
+    oop: openingText(root, solved.session.solution, hero),
+    ip: openingText(root.actions[0].child as DecisionNode, solved.session.solution, villain),
+    picks: pickFlopSizes(solved.tree, solved.session.solution, hero, villain),
+  };
+}
+
+const actionKey = (node: DecisionNode, k: number) => `${node.actions[k].action}:${node.actions[k].child.state.committed[node.actor].toFixed(4)}`;
+
+/** One player's root-street strategy from `tree`, as locks on the reference's decisions that `tree` also has; reference actions `tree` lacks get zero. */
+function mappedLocks(reference: PostflopTreeNode, tree: PostflopTreeNode, strategyOf: StrategyOf, actor: PostflopPlayer): StrategyLock[] {
+  const locks: StrategyLock[] = [];
+  const walk = (a: PostflopTreeNode, b: PostflopTreeNode) => {
+    if (a.type !== "decision" || b.type !== "decision") return;
+    const referenceIndex = new Map(a.actions.map((_, k) => [actionKey(a, k), k]));
+    const to = b.actions.map((_, j) => {
+      const k = referenceIndex.get(actionKey(b, j));
+      if (k === undefined) throw new Error(`the reference has no ${actionKey(b, j)}`);
+      return k;
+    });
+    if (a.actor === actor) {
+      const strategy = strategyOf(b).map((row) => {
+        const mapped = new Array<number>(a.actions.length).fill(0);
+        row.forEach((p, j) => (mapped[to[j]] += p));
+        return mapped;
+      });
+      locks.push({ node: a, strategy });
+    }
+    to.forEach((k, j) => walk(a.actions[k].child, b.actions[j].child));
+  };
+  walk(reference, tree);
+  return locks;
+}
+
+const sizesText = (sizes: number[]) => sizes.map((f) => Math.round(f * 100)).join("/");
+const picksText = (picks: OpenSizes) => `OOP ${sizesText(picks.P1)} · IP ${sizesText(picks.P2)}`;
+
+function sizePickExperiment(solver: SolverModule) {
+  const wanted = argList("--spots") ?? [];
+  let noiseChecked = false;
+  for (const spot of [...SPOTS, ...SHALLOW_SPOTS].filter((s) => s.board.length === 3 && wanted.includes(s.name))) {
+    const hero = rangeOf(spot.oop, spot.board);
+    const villain = rangeOf(spot.ip, spot.board);
+    console.error(`${spot.name}: ${hero.length}x${villain.length} combos`);
+    const runout = RunoutEquity.create(solver, hero, villain, spot.board);
+    const tables = flopTables(runout);
+    const features = (card: string) => runout.turnFeatures(card, hero, villain);
+    const spr = spot.stack / spot.startPot;
+    const allinOpen = offersOpeningAllin(spot.startPot, spot.stack);
+    const every = EVERY_CANDIDATE;
+    const build = (sizing: StreetSizing | undefined, options: HandTreeOptions) =>
+      buildHandTree(spot.startPot, spot.stack, spot.board, { ...options, firstStreetSizing: sizing });
+
+    if (process.argv.includes("--time-only")) {
+      // No reference (a real-range one with every candidate passes WASM's 4GB): how long each method takes and what it plays.
+      console.log(`\n## ${spot.name} ${spot.board.join(" ")} (${hero.length}x${villain.length} combos, stack ${spr.toFixed(1)} pots)`);
+      console.log("method | pick sec | solve sec | total sec | sizes | OOP | IP after check");
+      const time = (name: string, sizing: StreetSizing | undefined, sizes: string, pickSec = 0) => {
+        const solved = solve(solver, tables, spot, hero, villain, everyCard, APP_TARGET_PERCENT, build(sizing, methodOptions("C16xM6", features)!));
+        const openings = describeOpenings(solved, hero, villain);
+        console.log([name, pickSec.toFixed(1), solved.sec.toFixed(1), (pickSec + solved.sec).toFixed(1), sizes, openings.oop, openings.ip].join(" | "));
+        solved.session.dispose();
+      };
+      time("cur3", FIXED_THREE, "33/50/100 + all-in");
+      time("old2", { betPotFractions: [0.5, 1.0], raisePotFractions: [1.0] }, "50/100 + all-in");
+      time("all4", flopMenu(every, allinOpen), `33/50/75/100${allinOpen ? " + all-in" : ""}`);
+      const fast = solve(solver, tables, spot, hero, villain, everyCard, APP_TARGET_PERCENT, build(flopMenu(every, allinOpen), methodOptions("K10", features)!));
+      const picks = describeOpenings(fast, hero, villain).picks;
+      fast.session.dispose();
+      time("pick2", flopMenu(picks, allinOpen), `${picksText(picks)}${allinOpen ? " + all-in" : ""}`, fast.sec);
+      runout.dispose();
+      continue;
+    }
+
+    const reference = solve(solver, tables, spot, hero, villain, everyCard, REFERENCE_TARGET_PERCENT, build(flopMenu(every, true), everyCard));
+    const refReport = reference.session.solution.finalExploitability!;
+    const refOpenings = describeOpenings(reference, hero, villain);
+    console.log(`\n## ${spot.name} ${spot.board.join(" ")} (${hero.length}x${villain.length} combos, stack ${spr.toFixed(1)} pots)`);
+    console.log(`reference: ${reference.sec.toFixed(0)}s, ${reference.session.solution.iterations} iterations, ${refReport.percentOfPot.toFixed(3)}% exploitable, ${countNodes(reference.tree)} nodes`);
+    console.log(`reference OOP: ${refOpenings.oop}`);
+    console.log(`reference IP after check: ${refOpenings.ip}`);
+    console.log(`pick from the reference: ${picksText(refOpenings.picks)}`);
+    const rootStreet = new Map<DecisionNode, number[][]>();
+    (function keep(node: PostflopTreeNode) {
+      if (node.type !== "decision") return;
+      rootStreet.set(node, reference.session.solution.getAverageStrategy(node));
+      node.actions.forEach(({ child }) => keep(child));
+    })(reference.tree);
+    reference.session.dispose();
+
+    const losses = (tree: PostflopTreeNode, strategyOf: StrategyOf) =>
+      (["P1", "P2"] as const).map((actor) => {
+        const locked = solve(solver, tables, spot, hero, villain, everyCard, LOCKED_TARGET_PERCENT, reference.tree, mappedLocks(reference.tree, tree, strategyOf, actor));
+        const report = locked.session.solution.finalExploitability!;
+        locked.session.dispose();
+        return (100 * (actor === "P1" ? refReport.p1ActualBb - report.p1ActualBb : refReport.p2ActualBb - report.p2ActualBb)) / spot.startPot;
+      });
+
+    console.log("method | pick sec | solve sec | total sec | sizes | OOP loss (% pot) | IP loss (% pot) | loss sum | OOP | IP after check");
+    if (!noiseChecked) {
+      const [oop, ip] = losses(reference.tree, (node) => rootStreet.get(node)!);
+      console.log(["reference", "", "", "", "", oop.toFixed(2), ip.toFixed(2), (oop + ip).toFixed(2), "", ""].join(" | "));
+      noiseChecked = true;
+    }
+    const run = (name: string, sizing: StreetSizing | undefined, sizes: string, pickSec = 0) => {
+      console.error(name);
+      const solved = solve(solver, tables, spot, hero, villain, everyCard, APP_TARGET_PERCENT, build(sizing, methodOptions("C16xM6", features)!));
+      const openings = describeOpenings(solved, hero, villain);
+      const [oop, ip] = losses(solved.tree, (node) => solved.session.solution.getAverageStrategy(node));
+      console.log(
+        [name, pickSec.toFixed(1), solved.sec.toFixed(1), (pickSec + solved.sec).toFixed(1), sizes, oop.toFixed(2), ip.toFixed(2), (oop + ip).toFixed(2), openings.oop, openings.ip].join(" | "),
+      );
+      solved.session.dispose();
+    };
+
+    run("cur3", FIXED_THREE, "33/50/100 + all-in");
+    run("all4", flopMenu(every, allinOpen), `33/50/75/100${allinOpen ? " + all-in" : ""}`);
+    console.error("pick (K10)");
+    const fast = solve(solver, tables, spot, hero, villain, everyCard, APP_TARGET_PERCENT, build(flopMenu(every, allinOpen), methodOptions("K10", features)!));
+    const picks = describeOpenings(fast, hero, villain).picks;
+    fast.session.dispose();
+    run("pick2", flopMenu(picks, allinOpen), `${picksText(picks)}${allinOpen ? " + all-in" : ""}`, fast.sec);
+    if (picksText(picks) !== picksText(refOpenings.picks)) run("oracle2", flopMenu(refOpenings.picks, allinOpen), `${picksText(refOpenings.picks)}${allinOpen ? " + all-in" : ""}`);
+    runout.dispose();
+  }
+  process.exit(0);
+}
+
 async function main() {
   const wanted = argList("--spots");
   const solver = await loadNodeThreadedSolverModule(THREADS);
+  if (process.argv.includes("--size-pick")) return sizePickExperiment(solver);
   for (const spot of SPOTS.filter((s) => (wanted ? wanted.includes(s.name) : !s.name.startsWith("real-")))) {
     const isFlop = spot.board.length === 3;
     const { hero, villain } = isFlop ? { hero: rangeOf(spot.oop, spot.board), villain: rangeOf(spot.ip, spot.board) } : checkedDownRanges(solver, spot);
