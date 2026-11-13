@@ -14,10 +14,10 @@ export const FIRST_IN_WIDTHS_BY_STACK = [
 ];
 /**
  * Cash opens at 100bb, UTG..SB, flat at every stack. The SB limps some and
- * raises some, as GTO Wizard's 6max NL10 does (raise 34%, limp 15%), so its
+ * raises some, as the reference solver's 6max NL10 does (raise 34%, limp 15%), so its
  * raise-or-fold width is its raising part. 6-max shares this table:
  * its LJ has the same seats behind it as an 8-max LJ folded to. A starting
- * point between conflicting public charts, its button set to GTO Wizard's
+ * point between conflicting public charts, its button set to the reference solver's
  * 6max NL10 (40%), not a solved result.
  */
 export const CASH_FIRST_IN_WIDTHS = [{ stackBb: 100, widths: [0.12, 0.14, 0.17, 0.21, 0.28, 0.4, 0.34], sbPlay: 0.49, sbRaise: 0.34 }];
@@ -29,7 +29,7 @@ export const CASH_FIRST_IN_WIDTHS = [{ stackBb: 100, widths: [0.12, 0.14, 0.17, 
  * flop to win. With no flop no drop off, stealing the blinds pays rake too.
  */
 export const RAKE_OPEN_SENSITIVITY = 1.5;
-/** Flats keep exp(−RAKE_CONTINUE_FALLOFF × rakeShare) of their width: set so the BB defends a button open as GTO Wizard's NL10 does. */
+/** Flats keep exp(−RAKE_CONTINUE_FALLOFF × rakeShare) of their width: set so the BB defends a button open as the reference solver's NL10 does. */
 export const RAKE_CONTINUE_FALLOFF = 10.1;
 /**
  * Between the push/fold stacks and JAM_MAX_STACK_BB, a share of each first-in
@@ -52,7 +52,7 @@ export const RAISE_KEEP_SHARE = 0.3;
 export const EQUITY_REALIZATION_IP = 0.9;
 export const EQUITY_REALIZATION_OOP = 0.75;
 export const RERAISE_KEEP_BASE = 0.5;
-/** Cash keeps less: GTO Wizard's NL10 button continues 29% of its range against a 13.5bb BB 3-bet, bluffs included. */
+/** Cash keeps less: the reference solver's NL10 button continues 29% of its range against a 13.5bb BB 3-bet, bluffs included. */
 export const CASH_RERAISE_KEEP_BASE = 0.27;
 export const RERAISE_KEEP_PER_EQUITY = 1.5;
 export const RERAISE_KEEP_MIN = 0.15;
@@ -70,12 +70,12 @@ export const COLD_CALL_OOP_MULTIPLIER = 0.6;
 export const THREE_BET_WIDTH_RATIO = 0.3;
 /** Without an ante, flats get worse and more of the continuing range 3-bets. */
 export const CASH_COLD_CALL_BASE = 0.43;
-/** Set with CASH_COLD_CALL_BASE so the button flats a cutoff open 2.4% and the SB a button open 2.7%, as GTO Wizard's NL10 does. */
+/** Set with CASH_COLD_CALL_BASE so the button flats a cutoff open 2.4% and the SB a button open 2.7%, as the reference solver's NL10 does. */
 export const CASH_COLD_CALL_OOP_MULTIPLIER = 0.85;
 /**
  * How much a narrower opener narrows what the BB defends in cash: it defends
- * as (opener's width / the button's)^this, the button's open defended as GTO
- * Wizard's NL10 does. Set from the public solver ranges in
+ * as (opener's width / the button's)^this, the button's open defended as the reference
+ * solver's NL10 does. Set from the public solver ranges in
  * referenceRanges.test.ts, whose BB defends an early open about that much less.
  */
 export const CASH_CLOSING_WIDTH_EXPONENT = 0.7;
@@ -84,7 +84,7 @@ export const CASH_THREE_BET_WIDTH_RATIO = 0.325;
 export const CASH_NON_BLIND_THREE_BET_WIDTH_RATIO = 0.4;
 /**
  * Overcalling behind a caller: each one cuts the flats to this share, harder
- * when the caller is in position on hero (GTO Wizard NL10: the BB overcalls a
+ * when the caller is in position on hero (reference NL10: the BB overcalls a
  * cutoff open and button call 8.4%, a button open and SB call 20.2%).
  */
 export const CASH_OVERCALL_FACTOR_IP_CALLER = 0.27;
@@ -95,14 +95,14 @@ export const CASH_OVERCALL_FACTOR_OOP_CALLER = 0.62;
  */
 export const CASH_SQUEEZE_KEEP_FACTOR = 0.55;
 export const CASH_CALLER_SQUEEZE_KEEP_FACTOR = 0.85;
-/** A cold caller facing a squeeze re-raises at most this share of what it keeps (GTO Wizard NL10 button: 3.5 shove, 23.7 call). */
+/** A cold caller facing a squeeze re-raises at most this share of what it keeps (reference NL10 button: 3.5 shove, 23.7 call). */
 export const CASH_CALLED_RERAISE_SHARE_CAP = 0.15;
 export const RAISE_VALUE_SHARE = 0.6;
-/** Cash 4-bets: a share of the 3-bettor's range, 40% of it bluffs, from GTO Wizard's NL10 button facing a BB 3-bet (15% of its range). */
+/** Cash 4-bets: a share of the 3-bettor's range, 40% of it bluffs, from the reference solver's NL10 button facing a BB 3-bet (15% of its range). */
 export const CASH_FOUR_BET_WIDTH_RATIO = 0.48;
 export const CASH_FOUR_BET_BLUFF_SHARE = 0.4;
 /**
- * Blind against blind in cash, from GTO Wizard's NL10 (2026-11-04): the BB
+ * Blind against blind in cash, from the reference solver's NL10 (2026-11-04): the BB
  * defends the SB's 3.5bb raise 42.7% (17.3 of it a 3-bet) — wider than the
  * opener-width rule gives, being in position on it; the SB 4-bets 25.9% of what
  * reached the BB's 3-bet, calls 9.4; the button facing the SB's 11bb 3-bet keeps

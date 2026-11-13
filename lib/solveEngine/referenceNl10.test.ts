@@ -9,9 +9,9 @@ import { replayActionPath } from "./replay";
 import { solveActiveSeat } from "./solve";
 
 /**
- * The cash charts are tuned to a handful of aggregate frequencies from GTO
- * Wizard's 6max NL10 100bb solution (2.5bb opens, cold calls allowed), read off
- * its screen on 2026-11-03 (the blind-against-blind spots on 2026-11-04): raise (including all-in) / call / fold, % of all
+ * The cash charts are tuned to a handful of aggregate frequencies from a commercial
+ * solver's 6max NL10 100bb solution (the reference solver below; 2.5bb opens, cold calls allowed), read
+ * on 2026-11-03 (the blind-against-blind spots on 2026-11-04): raise (including all-in) / call / fold, % of all
  * hands, or of the hands that reached the spot where noted. The default rake
  * preset (Online low, 5%/5bb) is NL10's. These tests keep the tuning in place.
  */
@@ -58,7 +58,7 @@ function expectNear(got: number[], want: number[]) {
 const toCo = steps("LJ:fold", "HJ:fold");
 const toBtn = steps("LJ:fold", "HJ:fold", "CO:fold");
 
-describe("cash 6-max against GTO Wizard NL10", () => {
+describe("cash 6-max against reference NL10", () => {
   it.each([
     ["LJ", [], 17.5],
     ["HJ", ["LJ:fold"], 21.7],

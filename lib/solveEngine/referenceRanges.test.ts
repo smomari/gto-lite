@@ -9,11 +9,11 @@ import { replayActionPath } from "./replay";
 import { solveActiveSeat } from "./solve";
 
 /**
- * Spots GTO Wizard wasn't asked about, held to the aggregate frequencies of a
+ * Spots the reference solver wasn't asked about, held to the aggregate frequencies of a
  * second set of solver ranges: the public per-hand charts in
  * github.com/jensbaagaard/poker-practice (data/openSourcePokerData, Cash_100_GTO
- * and MTT_{100,40,20}_GTO, read 2026-11-04). Where its trees match GTO
- * Wizard's they agree within 2–3pp. Its sizes differ a little from ours (2.3bb
+ * and MTT_{100,40,20}_GTO, read 2026-11-04). Where its trees match the reference
+ * solver's they agree within 2–3pp. Its sizes differ a little from ours (2.3bb
  * tournament opens, 3.5x/4.5x 3-bets at 100bb, 3x/5x at cash), hence the
  * looser tolerance. Raise (incl. all-in) / call / fold, % of all hands, or of
  * the hands that reached the spot where noted.

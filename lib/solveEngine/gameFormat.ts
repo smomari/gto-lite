@@ -234,7 +234,7 @@ export interface GameFormat {
 }
 
 /**
- * Tournament tuning by depth, set against GTO Wizard's MTT 8max ChipEV
+ * Tournament tuning by depth, set against the reference solver's MTT 8max ChipEV
  * solutions at 20bb, 40bb and 100bb: 3-bets widen and the SB stops flatting
  * as stacks shorten, the BB defends wider, and facing a 3-bet a seat keeps a
  * different share of its range. 100bb is the old tuning, which already fit.
@@ -248,7 +248,7 @@ export interface GameFormat {
  * shallower, and 3-bets its own share of the opener's width rather than a
  * blind's (coldCallIpFactor, nonBlindThreeBetFactor: fit to the public ranges'
  * flats and 3-bets at each depth); the SB's out-of-position share, tuned to
- * GTO Wizard, is left alone.
+ * the reference solver, is left alone.
  *
  * An opener out of position on a 3-bet 4-bets wider, bluffs and all: calling out
  * of position is worth little (the public ranges 4-bet 17–20% of what reached
@@ -264,13 +264,13 @@ const TOURNAMENT_TUNING_BY_STACK: DepthTuning[] = [
   { stackBb: 40, sbThreeBetWidthRatio: 0.345, threeBetWidthRatio: 0.325, coldCallOopMultiplier: 0.5, closingContinueFactor: 1.04, threeBetValueShare: RAISE_VALUE_SHARE, sbFlatFactor: 1, sbRaiseSpread: 0.6, sbOpenerKeepFactor: 1.4, bbVsSbContinueFactor: 1.19, closingWidthExponent: 0.45, coldCallIpFactor: 0.7, nonBlindThreeBetFactor: 0.75, reraiseKeepBase: 0.4, fourBetWidthRatio: 0.55, fourBetVsInPositionWidthRatio: 0.8, fourBetVsInPositionBluffShare: 0.4 },
   { stackBb: 100, sbThreeBetWidthRatio: THREE_BET_WIDTH_RATIO, threeBetWidthRatio: THREE_BET_WIDTH_RATIO, coldCallOopMultiplier: COLD_CALL_OOP_MULTIPLIER, closingContinueFactor: 1, threeBetValueShare: RAISE_VALUE_SHARE, sbFlatFactor: 1, sbRaiseSpread: 0.75, sbOpenerKeepFactor: 0.4, bbVsSbContinueFactor: 1, closingWidthExponent: 0.25, coldCallIpFactor: 0.85, nonBlindThreeBetFactor: 1.15, reraiseKeepBase: 0.41, fourBetWidthRatio: 0.38, fourBetVsInPositionWidthRatio: 0.55, fourBetVsInPositionBluffShare: 0.4 },
 ];
-/** In tournaments a 3-bet of a quarter of the stack, or a 4-bet of 40% of it, goes all-in, as GTO Wizard's 20bb and 40bb solutions do. */
+/** In tournaments a 3-bet of a quarter of the stack, or a 4-bet of 40% of it, goes all-in, as the reference solver's 20bb and 40bb solutions do. */
 const TOURNAMENT_JAM_THREE_BET_SHARE = 0.25;
 const TOURNAMENT_JAM_FOUR_BET_SHARE = 0.4;
 
 /**
- * Tournament blinds 3-bet a button open bigger the deeper it gets, as GTO
- * Wizard's MTT 8max ChipEV solutions do: the SB to 2.5x at 20bb, 3.5x at 40bb
+ * Tournament blinds 3-bet a button open bigger the deeper it gets, as the reference
+ * solver's MTT 8max ChipEV solutions do: the SB to 2.5x at 20bb, 3.5x at 40bb
  * and 4.5x at 100bb, the BB to 3x, 4.25x and 5.25x; the button 4-bets 2.2x at
  * 100bb. In-position 3-bets and out-of-position 4-bets weren't seen there and
  * keep the old 3x and 4x. Blind against blind at 40bb, the BB 3-bets the SB's

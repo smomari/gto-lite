@@ -8,9 +8,9 @@ import { replayActionPath } from "./replay";
 import { solveActiveSeat } from "./solve";
 
 /**
- * The tournament charts are tuned to aggregate frequencies from GTO Wizard's
- * MTT 8max ChipEV solutions (symmetric stacks, a 1bb ante in a 2.5bb pot,
- * like ours), read off its screen on 2026-11-03 at 100bb, 40bb and 20bb:
+ * The tournament charts are tuned to aggregate frequencies from a commercial solver's
+ * MTT 8max ChipEV solutions (the reference solver below; symmetric stacks, a 1bb
+ * ante in a 2.5bb pot, like ours), read on 2026-11-03 at 100bb, 40bb and 20bb:
  * raise (including all-in) / call / fold, % of all hands, or of the hands
  * that reached the spot where noted. These tests keep the tuning in place.
  */
@@ -43,14 +43,14 @@ function expectNear(got: number[], want: number[]) {
   got.forEach((value, i) => expect(Math.abs(value - want[i])).toBeLessThanOrEqual(TOLERANCE));
 }
 
-const GTO_WIZARD = {
+const REFERENCE = {
   100: { opens: [16.9, 23.2, 28.5, 37.1, 54.4], sb: [9.0, 81.4, 9.6], sbVsBtn: [15.3, 15.4, 69.3], bbVsBtn: [14.4, 62.8, 22.8], btnVs3bet: [6.4, 36.6, 57.0] },
   40: { opens: [17.5, 24.3, 28.8, 38.0, 52.0], sb: [25.2, 60.1, 14.8], sbVsBtn: [17.9, 13.1, 69.0], bbVsBtn: [16.9, 71.2, 11.9], btnVs3bet: [11.1, 38.1, 50.8] },
   20: { opens: [17.2, 22.0, 25.9, 31.8, 41.5], sb: [30.6, 54.2, 15.1], sbVsBtn: [25.8, 0.8, 73.4], bbVsBtn: [19.9, 67.8, 12.3], btnVs3bet: [19.7, 37.6, 42.6] },
 };
 
-describe.each([100, 40, 20] as const)("tournament 8-max at %ibb against GTO Wizard", (stack) => {
-  const want = GTO_WIZARD[stack];
+describe.each([100, 40, 20] as const)("tournament 8-max at %ibb against the reference solver", (stack) => {
+  const want = REFERENCE[stack];
   const toBtn = foldsTo("BTN");
 
   it("opens", () => {
@@ -78,11 +78,11 @@ describe.each([100, 40, 20] as const)("tournament 8-max at %ibb against GTO Wiza
 });
 
 /**
- * Blind against blind at 40bb, read off GTO Wizard on 2026-11-12: the BB
+ * Blind against blind at 40bb, read from the reference solver on 2026-11-12: the BB
  * against the SB's 3bb raise 3-bets to 7.5 (13.5%, 0.7 of it all-in), and the
  * SB against that 3-bet 4-bets to 15.75 or jams 12.4% of what it raised.
  */
-describe("tournament 8-max blind against blind at 40bb against GTO Wizard", () => {
+describe("tournament 8-max blind against blind at 40bb against the reference solver", () => {
   const toSb = [...foldsTo("BTN"), "BTN:fold"];
 
   it("the BB answers the SB's raise with a 7.5bb 3-bet", () => {

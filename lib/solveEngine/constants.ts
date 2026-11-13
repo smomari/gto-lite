@@ -15,7 +15,7 @@ export const NASH_SPR_THRESHOLD = 1;
 /**
  * Opening raise-to size (bb) scales linearly with effective stack depth:
  * flat at/below OPEN_RAISE_SCALING_MIN_STACK_BB, reaching its deepest value
- * at STACK_MAX_BB (the app's max supported depth). Set to GTO Wizard's MTT
+ * at STACK_MAX_BB (the app's max supported depth). Set to the reference solver's MTT
  * 8max ChipEV solutions: 2bb from every seat at 40bb and below (3bb from the
  * SB), and at 100bb 2.1bb from UTG to HJ, 2.2bb from CO, 2.5bb from BTN and
  * 3.5bb from the SB.
@@ -42,7 +42,7 @@ export const REACTIVE_RAISE_IP_MULTIPLIER = 3; // raiser acts after the last agg
 export const REACTIVE_RAISE_OOP_MULTIPLIER = 4; // raiser acts before the last aggressor postflop
 
 /**
- * Cash re-raise sizes, as GTO Wizard's 6max NL10 100bb solution uses them:
+ * Cash re-raise sizes, as the reference solver's 6max NL10 100bb solution uses them:
  * the button 3-bets a cutoff or UTG open to 8bb, the SB a button open to 11bb
  * and the BB to 13.5bb; the button 4-bets a BB 3-bet to 28.5bb, and UTG a
  * button 3-bet to 21.5bb.
@@ -50,7 +50,7 @@ export const REACTIVE_RAISE_OOP_MULTIPLIER = 4; // raiser acts before the last a
 export const CASH_THREE_BET_IP_MULTIPLIER = 3.2;
 export const CASH_THREE_BET_SB_MULTIPLIER = 4.4;
 export const CASH_THREE_BET_BB_MULTIPLIER = 5.4;
-export const CASH_THREE_BET_BB_OVER_SB_MULTIPLIER = 3; // GTO Wizard NL10: 10.5 over the SB's 3.5
+export const CASH_THREE_BET_BB_OVER_SB_MULTIPLIER = 3; // reference NL10: 10.5 over the SB's 3.5
 export const CASH_FOUR_BET_IP_MULTIPLIER = 2.11;
 export const CASH_FOUR_BET_OOP_MULTIPLIER = 2.69;
 /** Either blind squeezes a cutoff open and button call to 14bb there; further callers and in-position squeezes are estimates. */

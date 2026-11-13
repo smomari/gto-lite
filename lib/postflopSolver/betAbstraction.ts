@@ -17,7 +17,7 @@ export interface StreetBetSizing {
  * the flop (the most expensive street to solve, since it's revisited for
  * every possible turn/river) gets fewer raise sizes than turn/river. Its bet
  * sizes are candidates: a flop solve keeps two per player (flopSizing.ts). A
- * third of a pot is the size GTO Wizard bets most on dry flops (BTN against
+ * third of a pot is the size a commercial solver bets most on dry flops (BTN against
  * the BB on K72r: 72% of the range at 33%), and three quarters what a 3-bettor
  * bets most on JT5 two-tone.
  */
