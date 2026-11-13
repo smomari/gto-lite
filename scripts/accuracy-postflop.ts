@@ -364,9 +364,11 @@ function sizePickExperiment(solver: SolverModule) {
       console.log(["reference", "", "", "", "", oop.toFixed(2), ip.toFixed(2), (oop + ip).toFixed(2), "", ""].join(" | "));
       noiseChecked = true;
     }
-    const run = (name: string, sizing: StreetSizing | undefined, sizes: string, pickSec = 0) => {
+    const only = argList("--methods");
+    const run = (name: string, sizing: StreetSizing | undefined, sizes: string, pickSec = 0, lookahead = "C16xM6") => {
+      if (only && !only.includes(name)) return;
       console.error(name);
-      const solved = solve(solver, tables, spot, hero, villain, everyCard, APP_TARGET_PERCENT, build(sizing, methodOptions("C16xM6", features)!));
+      const solved = solve(solver, tables, spot, hero, villain, everyCard, APP_TARGET_PERCENT, build(sizing, methodOptions(lookahead, features)!));
       const openings = describeOpenings(solved, hero, villain);
       const [oop, ip] = losses(solved.tree, (node) => solved.session.solution.getAverageStrategy(node));
       console.log(
@@ -382,6 +384,8 @@ function sizePickExperiment(solver: SolverModule) {
     const picks = describeOpenings(fast, hero, villain).picks;
     fast.session.dispose();
     run("pick2", flopMenu(picks, allinOpen), `${picksText(picks)}${allinOpen ? " + all-in" : ""}`, fast.sec);
+    // The app's Fast flop: the same picks, solved on the quick lookahead.
+    run("pick2-fast", flopMenu(picks, allinOpen), `${picksText(picks)}${allinOpen ? " + all-in" : ""}`, fast.sec, "K10");
     if (picksText(picks) !== picksText(refOpenings.picks)) run("oracle2", flopMenu(refOpenings.picks, allinOpen), `${picksText(refOpenings.picks)}${allinOpen ? " + all-in" : ""}`);
     runout.dispose();
   }

@@ -23,7 +23,7 @@
 자세한 내용은 [소개 페이지](https://gto-lite-beryl.vercel.app/about)에 있습니다. 요약하면:
 
 - 프리플랍 레인지는 대부분 **추정치**입니다. 레인지 차트와 규칙을 20, 40, 100bb에서 솔버 결과의 전체 빈도에 맞춰 조정했습니다. 15bb 이하는 올인 아니면 폴드인 게임을 정확히 푼 내시 균형입니다.
-- 포스트플랍은 단순화한 게임을 실제로 풉니다: 2명만, 정해진 벳 사이즈, 스트리트당 레이즈 한 번. 같은 벳 사이즈로 트리 전체를 푼 결과와 비교하면 기본 플랍 솔브의 손실은 평균 팟의 약 1.7%입니다.
+- 포스트플랍은 단순화한 게임을 실제로 풉니다: 2명만, 짧은 벳 사이즈 메뉴(플랍은 플레이어마다 그 스팟에 맞는 두 가지), 스트리트당 레이즈 한 번. 후보 사이즈를 모두 넣고 트리 전체를 푼 결과와 비교하면 기본 플랍 솔브의 손실은 평균 팟의 약 1.7%입니다.
 - 테이블의 모든 플레이어가 같은 스택을 갖습니다.
 
 완전한 솔버의 최종 답이 아니라 공부의 출발점으로 읽어 주세요.
@@ -87,6 +87,9 @@ npm run test:native   # C++ 테스트: 같은 SIMD 코드를 AddressSanitizer + 
 ```bash
 npm run bench:postflop     # 고정 스팟의 속도와 수렴 비교
 npm run accuracy:postflop  # 턴·리버 전체 솔브 대비 내다보기 방식별 손실 (오래 걸림)
+npm run accuracy:postflop -- --size-pick --spots srp-dry,3bet-dry  # 플랍에서 고른 벳 사이즈를 후보 전부와 비교
+npx tsx scripts/explain-sample.mts   # 예시 핸드로 AI 설명에 넘기는 요약을 출력
+npx tsx scripts/icm-risk-weight.mts  # 스택이 남는 콜의 ICM 위험 가중치를 잰 측정
 ```
 
 `accuracy:postflop`은 트리가 커서 `NODE_OPTIONS=--max-old-space-size=12000`과 함께 실행합니다.

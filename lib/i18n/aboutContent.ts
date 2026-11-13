@@ -61,7 +61,7 @@ const en: AboutContent = {
       id: "accuracy",
       heading: "How accurate it is",
       paragraphs: [
-        "Postflop: measured against a solve of the complete tree with the same bet sizes, the default flop solve gives up about 1.7% of the pot on average (0.8% to 2.8% across the test boards). Fast flop gives up about 5%.",
+        "Postflop: measured against a solve of the complete tree with every candidate bet size, the default flop solve gives up about 1.7% of the pot on average, both players together (0.2% to 2.5% across seven test spots). Fast flop gives up about 3.3% (0.9% to 6.6%).",
         "Preflop: hand by hand against public solver ranges, opening ranges agree on 87–94% of hands, ranges facing an open on 85–89%, and ranges facing a 3-bet on 73–75%. Spots the charts were tuned on are within about 3 percentage points of solver frequencies; others can be further off.",
         "Read the output as a strong starting point for study, not as the last word of a full solver.",
       ],
@@ -145,7 +145,7 @@ const ko: AboutContent = {
       id: "accuracy",
       heading: "정확도",
       paragraphs: [
-        "포스트플랍: 같은 벳 사이즈로 트리 전체를 푼 결과와 비교하면, 기본 플랍 솔브의 손실은 평균 팟의 약 1.7%입니다(테스트 보드에 따라 0.8~2.8%). 빠른 플랍은 약 5%입니다.",
+        "포스트플랍: 후보 벳 사이즈를 모두 넣고 트리 전체를 푼 결과와 비교하면, 기본 플랍 솔브의 손실은 두 플레이어를 합쳐 평균 팟의 약 1.7%입니다(테스트 스팟 7개에서 0.2~2.5%). 빠른 플랍은 약 3.3%입니다(0.9~6.6%).",
         "프리플랍: 공개된 솔버 레인지와 핸드별로 비교하면 오픈 레인지는 87~94%, 오픈에 대응하는 레인지는 85~89%, 3벳에 대응하는 레인지는 73~75%의 핸드가 일치합니다. 차트를 맞춘 스팟은 솔버 빈도와 약 3%p 안에 들어오고, 그 밖의 스팟은 더 벗어날 수 있습니다.",
         "완전한 솔버의 최종 답이 아니라, 공부를 시작하기 좋은 기준으로 읽어 주세요.",
       ],

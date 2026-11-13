@@ -23,7 +23,7 @@ Poker ranges and a postflop solver in your browser. Free, no sign-up.
 The [About page](https://gto-lite-beryl.vercel.app/about) has the full account. In short:
 
 - Most preflop ranges are **estimates**: range charts and rules tuned so their overall frequencies match solver output at 20, 40 and 100bb. At 15bb or less they are an exact all-in-or-fold Nash solve.
-- Postflop is a real solve of a simplified game: heads-up only, a fixed menu of bet sizes, one raise per street. Against a solve of the complete tree with the same bet sizes, the default flop solve gives up about 1.7% of the pot on average.
+- Postflop is a real solve of a simplified game: heads-up only, a short menu of bet sizes (on the flop, the two that fit the spot for each player), one raise per street. Against a solve of the complete tree with every candidate size, the default flop solve gives up about 1.7% of the pot on average.
 - Everyone at the table has the same stack.
 
 Read the output as a starting point for study, not as the last word of a full solver.
@@ -87,6 +87,9 @@ A flop or turn solve looks ahead to later streets with sampled cards and a reduc
 ```bash
 npm run bench:postflop     # speed and convergence on fixed spots
 npm run accuracy:postflop  # loss of each lookahead method against a full turn-and-river solve (slow)
+npm run accuracy:postflop -- --size-pick --spots srp-dry,3bet-dry  # the flop's picked bet sizes against every size
+npx tsx scripts/explain-sample.mts   # the summaries the AI explanation is written from, for sample hands
+npx tsx scripts/icm-risk-weight.mts  # the measurement behind the ICM risk weight of calls that keep a stack
 ```
 
 `accuracy:postflop` builds large trees: run it with `NODE_OPTIONS=--max-old-space-size=12000`.
