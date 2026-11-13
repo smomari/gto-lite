@@ -109,6 +109,12 @@ function SolverApp({ initial }: { initial: Spot }) {
     setAttempt((n) => n + 1);
   }
 
+  /** The name in the header: back to the first seat, with the settings as they are. */
+  function handleStartOver() {
+    setSettingsOpen(false);
+    handleNewHand();
+  }
+
   function handleAction(action: ActionType) {
     if (current?.kind !== "success") return;
     goTo([...requestPath, { actor: current.data.heroPosition, action }]);
@@ -142,7 +148,7 @@ function SolverApp({ initial }: { initial: Spot }) {
 
   return (
     <div className={PAGE}>
-      <AppHeader>
+      <AppHeader onHome={handleStartOver}>
         <ShareButton />
         <AboutLink />
         <LanguageToggle />

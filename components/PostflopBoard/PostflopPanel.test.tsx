@@ -522,6 +522,21 @@ describe("PostflopPanel", () => {
     expect(screen.getByRole("button", { name: "New hand" })).toBeInTheDocument();
   });
 
+  it("a finished hand offers its three ways on in one row of equal buttons", async () => {
+    solvePostflopInWorker.mockResolvedValueOnce(allinCallFlopResult(10));
+    renderPanel(10);
+
+    pickFlopBoard();
+    await screen.findByRole("button", { name: "Allin 10.0bb" });
+    expect(screen.getByTestId("street-links").className).not.toContain("grid");
+    fireEvent.click(screen.getByRole("button", { name: "Allin 10.0bb" }));
+    fireEvent.click(screen.getByRole("button", { name: "Call" }));
+
+    const links = within(screen.getByTestId("hand-summary")).getByTestId("street-links");
+    expect(links.className).toContain("sm:grid-cols-3");
+    expect(within(links).getAllByRole("button").map((b) => b.textContent)).toEqual(["New hand", "Reset to start of street", "Pick a different board"]);
+  });
+
   async function reachTurnCheckCheck() {
     solvePostflopInWorker.mockResolvedValueOnce(checkCheckFlopResult({ P1: 0, P2: 0 }));
     renderPanel(20);

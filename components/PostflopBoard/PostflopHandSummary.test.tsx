@@ -64,9 +64,20 @@ describe("PostflopHandSummary", () => {
     expect(screen.queryByText(/Average equity/)).not.toBeInTheDocument();
   });
 
-  it("shows what to do next after the street list", () => {
-    render(<PostflopHandSummary outcome={{ kind: "showdown" }} {...props} actions={<button>New hand</button>} />);
-    expect(screen.getByRole("button", { name: "New hand" })).toBeInTheDocument();
+  it("shows what to do next and the explanation before the range charts", () => {
+    render(
+      <PostflopHandSummary
+        outcome={{ kind: "showdown" }}
+        {...props}
+        actions={<button>New hand</button>}
+        explanation={<button>Explain this hand</button>}
+      />,
+    );
+    const before = (a: HTMLElement, b: HTMLElement) => Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+    const newHand = screen.getByRole("button", { name: "New hand" });
+    const explain = screen.getByRole("button", { name: "Explain this hand" });
+    expect(before(newHand, explain)).toBe(true);
+    expect(before(explain, screen.getByTestId("summary-range-hero"))).toBe(true);
   });
 
   it("switches between the two ranges on small screens", () => {

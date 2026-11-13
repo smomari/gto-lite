@@ -9,10 +9,11 @@ const NAME = "shrink-0 text-xl font-semibold tracking-tight text-ink";
 
 /**
  * The bar across the top of every page. `homeLink` makes the name a way back
- * to the solver; on the solver itself it stays plain text, where following it
- * would drop the hand on screen.
+ * to the solver. On the solver itself `onHome` makes it a button that starts
+ * over with the settings kept; a link there would reload them from storage
+ * and drop what the address says.
  */
-export function AppHeader({ homeLink, children }: { homeLink?: boolean; children?: ReactNode }) {
+export function AppHeader({ homeLink, onHome, children }: { homeLink?: boolean; onHome?: () => void; children?: ReactNode }) {
   const t = useMessages();
   return (
     <header className="flex items-center justify-between gap-2 border-b border-line pb-2">
@@ -20,6 +21,10 @@ export function AppHeader({ homeLink, children }: { homeLink?: boolean; children
         <Link href="/" className={NAME} aria-label={`${SITE_NAME} — ${t.header.home}`}>
           {SITE_NAME}
         </Link>
+      ) : onHome ? (
+        <button type="button" onClick={onHome} className={`${NAME} cursor-pointer`} aria-label={`${SITE_NAME} — ${t.header.startOver}`}>
+          {SITE_NAME}
+        </button>
       ) : (
         <span className={NAME}>{SITE_NAME}</span>
       )}

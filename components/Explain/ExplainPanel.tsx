@@ -121,7 +121,7 @@ export function ExplainPanel({ buildSummary }: ExplainPanelProps) {
 
   const showButton = run.kind === "idle" || run.kind === "error";
   return (
-    <section data-testid="explain-panel" className="flex flex-col gap-3 rounded-lg border border-line bg-surface p-4">
+    <section data-testid="explain-panel" className={`flex flex-col gap-3 rounded-lg border border-line bg-surface ${run.kind === "idle" ? "px-3 py-2" : "p-4"}`}>
       <div className="flex flex-wrap items-center gap-3">
         <p className="text-sm font-semibold text-accent">
           <span aria-hidden="true">✦ </span>{t.explain.title}

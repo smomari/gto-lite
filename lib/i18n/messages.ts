@@ -23,6 +23,7 @@ const en = {
     copied: "Link copied",
     copyFailed: "Couldn't copy — use the address bar",
     home: "Back to the solver",
+    startOver: "Start over",
   },
   hint: {
     text: "Pick an action under a seat to play the hand forward. The chart shows that seat's range.",
@@ -195,6 +196,7 @@ const ko: Messages = {
     copied: "링크 복사됨",
     copyFailed: "복사하지 못했습니다. 주소창의 주소를 쓰세요",
     home: "솔버로 돌아가기",
+    startOver: "처음으로",
   },
   hint: {
     text: "좌석 아래의 액션을 눌러 핸드를 진행하세요. 표에는 그 좌석의 레인지가 나옵니다.",

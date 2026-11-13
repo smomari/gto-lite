@@ -53,6 +53,9 @@ interface PostflopPanelProps {
 const FAST_FLOP_MAX_CORES = 4;
 
 const SECONDARY_BUTTON = "rounded border border-line-strong px-3 py-1 text-sm text-ink hover:bg-raised pointer-coarse:min-h-11";
+/** A finished hand's three ways on share one row, each the same size. */
+const ENDED_BUTTON = "rounded px-3 py-1.5 text-center text-sm pointer-coarse:min-h-11";
+const ENDED_SECONDARY = `${ENDED_BUTTON} border border-line-strong text-ink hover:bg-raised`;
 
 export function PostflopPanel(props: PostflopPanelProps) {
   const t = useMessages();
@@ -130,12 +133,12 @@ export function PostflopPanel(props: PostflopPanelProps) {
     const allIn = currentNode.type === "terminal-showdown" && stackLeft <= 0;
     const handOver = currentNode.type === "terminal-fold" || currentNode.type === "terminal-showdown";
     const links = (
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+      <div data-testid="street-links" className={handOver ? "grid grid-cols-1 gap-2 sm:grid-cols-3" : "flex flex-wrap items-center gap-x-3 gap-y-2"}>
         {handOver && (
           <button
             type="button"
             onClick={props.onNewHand}
-            className="w-full rounded bg-accent px-3 py-1.5 text-sm font-medium text-canvas pointer-coarse:min-h-11"
+            className={`${ENDED_BUTTON} bg-accent font-medium text-canvas`}
           >
             {t.common.newHand}
           </button>
@@ -143,14 +146,14 @@ export function PostflopPanel(props: PostflopPanelProps) {
         <button
           type="button"
           onClick={() => handleResetStreet(i)}
-          className={SECONDARY_BUTTON}
+          className={handOver ? ENDED_SECONDARY : SECONDARY_BUTTON}
         >
           {t.postflop.resetStreet}
         </button>
         <button
           type="button"
           onClick={() => handlePickDifferentBoard(i)}
-          className={SECONDARY_BUTTON}
+          className={handOver ? ENDED_SECONDARY : SECONDARY_BUTTON}
         >
           {pickDifferentLabel(stage, t)}
         </button>

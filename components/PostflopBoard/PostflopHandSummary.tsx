@@ -38,9 +38,9 @@ interface PostflopHandSummaryProps {
   streets: HandSummaryStreet[];
   hero: PlayerRanges;
   villain: PlayerRanges;
-  /** Where to go next; kept beside the street list so it stays on screen above long range charts. */
+  /** Where to go next; right under the result, so it is on screen before the range charts. */
   actions?: ReactNode;
-  /** Full width under the ranges and the line. */
+  /** Under the actions, for the same reason. */
   explanation?: ReactNode;
 }
 
@@ -99,6 +99,9 @@ export function PostflopHandSummary({ outcome, board, potBb, rakeBb, equity, str
 
       {outcome.kind === "allin" && <p className="text-xs text-ink-muted">{outcome.note}</p>}
 
+      {actions}
+      {explanation}
+
       {equity && (
         <div className="border-y border-line py-3">
           <div className="mb-2 flex justify-between">
@@ -147,21 +150,17 @@ export function PostflopHandSummary({ outcome, board, potBb, rakeBb, equity, str
           </div>
         ))}
 
-        <div className="flex flex-col gap-3">
-          <div>
-            <p className="mb-1.5 text-xs font-semibold text-ink">{t.summary.howItWent}</p>
-            {streets.map((street) => (
-              <div key={street.label} className="grid grid-cols-[44px_1fr_auto] items-baseline gap-2 border-t border-line py-2 text-xs">
-                <span className="font-semibold text-ink">{street.label}</span>
-                <span className="text-ink-muted">{street.actions.join(" · ") || "—"}</span>
-                <span className="font-mono tabular-nums text-ink-faint">{t.summary.pot(street.potBb.toFixed(1))}</span>
-              </div>
-            ))}
-          </div>
-          {actions}
+        <div>
+          <p className="mb-1.5 text-xs font-semibold text-ink">{t.summary.howItWent}</p>
+          {streets.map((street) => (
+            <div key={street.label} className="grid grid-cols-[44px_1fr_auto] items-baseline gap-2 border-t border-line py-2 text-xs">
+              <span className="font-semibold text-ink">{street.label}</span>
+              <span className="text-ink-muted">{street.actions.join(" · ") || "—"}</span>
+              <span className="font-mono tabular-nums text-ink-faint">{t.summary.pot(street.potBb.toFixed(1))}</span>
+            </div>
+          ))}
         </div>
       </div>
-      {explanation}
     </div>
   );
 }

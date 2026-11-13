@@ -180,6 +180,34 @@ describe("Home", () => {
     expect(solveNode).toHaveBeenLastCalledWith(expect.objectContaining({ actionPath: [], format: "cash-8", rake: "live", noFlopNoDrop: true }), expect.anything());
   });
 
+  it("the name in the header starts over from the first decision, keeping the stack", async () => {
+    render(<Home />);
+    applyStack(40);
+    await screen.findAllByRole("button", { name: "Fold" });
+    fireEvent.click(within(activeSeat()).getByRole("button", { name: "Fold" }));
+    await screen.findByRole("button", { name: "New hand" });
+
+    fireEvent.click(screen.getByRole("button", { name: /Start over/ }));
+
+    await screen.findAllByRole("button", { name: "Fold" });
+    expect(activeSeat()).toHaveAttribute("data-position", "UTG");
+    expect(screen.queryByRole("button", { name: "New hand" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Settings/ })).toHaveTextContent("40bb");
+    expect(window.location.search).toBe("?s=40");
+  });
+
+  it("the name in the header closes Settings without applying it", async () => {
+    render(<Home />);
+    await screen.findAllByRole("button", { name: "Fold" });
+    openSettings();
+    fireEvent.change(screen.getByRole("spinbutton"), { target: { value: "40" } });
+
+    fireEvent.click(screen.getByRole("button", { name: /Start over/ }));
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Settings/ })).toHaveTextContent("100bb");
+  });
+
   it("Apply without a change keeps the hand; a new stack restarts it", async () => {
     render(<Home />);
     await screen.findAllByRole("button", { name: "Fold" });
