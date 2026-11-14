@@ -1,7 +1,7 @@
 // Plays representative hands through the real solvers and prints each hand's explain summary and its size.
 // Each decision takes the line's most frequent non-fold action, so hands reach the river.
-// With --model, also asks that model (a Gateway model id, or "default") for each explanation; needs AI_GATEWAY_API_KEY.
-// Usage: npx tsx scripts/explain-sample.mts [--json] [--model default|<provider/model>] [--lang ko|en]
+// With --model, also asks that model (a Claude model id, or "default") for each explanation; needs ANTHROPIC_API_KEY.
+// Usage: npx tsx scripts/explain-sample.mts [--json] [--model default|<model id>] [--lang ko|en]
 import { loadEquityMatrix } from "@/lib/equity/loadEquityMatrix";
 import { replayActionPath } from "@/lib/solveEngine/replay";
 import { solveActiveSeat } from "@/lib/solveEngine/solve";
@@ -123,9 +123,9 @@ for (const spot of SPOTS) {
   if (printJson) console.log(JSON.stringify(summary, null, 1));
   if (modelArg) {
     const result = streamExplanation(summary, language, modelArg === "default" ? {} : { model: modelArg });
-    for await (const text of result.textStream) process.stdout.write(text);
-    const usage = await result.usage;
-    console.log(`\n[${await result.finishReason}] input ${usage.inputTokens}, output ${usage.outputTokens} (reasoning ${usage.outputTokenDetails?.reasoningTokens ?? "?"})\n`);
+    result.on("text", (text) => process.stdout.write(text));
+    const message = await result.finalMessage();
+    console.log(`\n[${message.stop_reason}] input ${message.usage.input_tokens}, output ${message.usage.output_tokens} (thinking ${message.usage.output_tokens_details?.thinking_tokens ?? "?"})\n`);
   }
 }
 process.exit(0);

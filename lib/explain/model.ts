@@ -1,37 +1,42 @@
-import { streamText } from "ai";
+import Anthropic from "@anthropic-ai/sdk";
 import { explainInstructions, explainPrompt, type ExplainLanguage } from "./prompt";
 import type { HandSummary } from "./summarySchema";
 import type { ExplanationPart } from "./handlers";
 
 /**
- * Through Vercel AI Gateway. Gemini 2.5 Flash, because Gateway's free credits
- * cover it: $0.30 / $2.50 per million input / output tokens, about $0.006 an
- * explanation. The free tier doesn't offer Claude models.
+ * Claude Haiku 5.5 through the Claude API (ANTHROPIC_API_KEY): $0.10 / $0.50
+ * per million input / output tokens, about a tenth of a cent an explanation.
  */
-export const EXPLAIN_MODEL = "google/gemini-2.5-flash";
-/** Covers the explanation (about 1,500 tokens) and low-effort thinking, which bills as output. */
+export const EXPLAIN_MODEL = "claude-haiku-5-5";
+/** The explanation runs to about 1,500 tokens. */
 const MAX_OUTPUT_TOKENS = 3000;
 const TIMEOUT_MS = 60_000;
 
 export function streamExplanation(summary: HandSummary, language: ExplainLanguage, options: { model?: string; abortSignal?: AbortSignal } = {}) {
-  return streamText({
-    model: options.model ?? EXPLAIN_MODEL,
-    instructions: explainInstructions(language),
-    prompt: explainPrompt(summary),
-    maxOutputTokens: MAX_OUTPUT_TOKENS,
-    reasoning: "low",
-    timeout: TIMEOUT_MS,
-    abortSignal: options.abortSignal,
-  });
+  // Made per call: the client reads the key when it's built, and a server without one should fail the request, not the import.
+  return new Anthropic().messages.stream(
+    {
+      model: options.model ?? EXPLAIN_MODEL,
+      system: explainInstructions(language),
+      messages: [{ role: "user", content: explainPrompt(summary) }],
+      max_tokens: MAX_OUTPUT_TOKENS,
+      thinking: { type: "disabled" },
+    },
+    { timeout: TIMEOUT_MS, signal: options.abortSignal },
+  );
 }
 
 /** The model's stream as the parts the explain handler reads. A reply cut off at the token limit is still a complete one. */
 export async function* explanationParts(summary: HandSummary, language: ExplainLanguage, abortSignal: AbortSignal): AsyncGenerator<ExplanationPart> {
-  const result = streamExplanation(summary, language, { abortSignal });
-  for await (const part of result.stream) {
-    if (part.type === "text-delta") yield { type: "text", text: part.text };
-    else if (part.type === "error") yield { type: "error", error: part.error };
-    else if (part.type === "abort") return;
-    else if (part.type === "finish") yield { type: "finish", complete: part.finishReason === "stop" || part.finishReason === "length" };
+  try {
+    let stopReason: Anthropic.StopReason | null = null;
+    for await (const event of streamExplanation(summary, language, { abortSignal })) {
+      if (event.type === "content_block_delta" && event.delta.type === "text_delta") yield { type: "text", text: event.delta.text };
+      else if (event.type === "message_delta") stopReason = event.delta.stop_reason;
+    }
+    yield { type: "finish", complete: stopReason === "end_turn" || stopReason === "max_tokens" };
+  } catch (error) {
+    if (error instanceof Anthropic.APIUserAbortError || abortSignal.aborted) return;
+    yield { type: "error", error };
   }
 }

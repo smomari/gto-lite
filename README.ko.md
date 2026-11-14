@@ -37,7 +37,7 @@ npm run test
 npm run lint
 ```
 
-AI 설명을 뺀 모든 기능은 설정 없이 동작합니다. AI 설명에는 Upstash Redis 저장소(`KV_REST_API_URL`, `KV_REST_API_TOKEN`), 서명용 비밀값(`EXPLAIN_SECRET`), Vercel AI Gateway 접근 권한이 `.env.local`에 있어야 합니다. 없으면 버튼이 사용할 수 없다고 알려 줍니다.
+AI 설명을 뺀 모든 기능은 설정 없이 동작합니다. AI 설명에는 Upstash Redis 저장소(`KV_REST_API_URL`, `KV_REST_API_TOKEN`), 서명용 비밀값(`EXPLAIN_SECRET`), Claude API 키(`ANTHROPIC_API_KEY`)가 `.env.local`에 있어야 합니다. 없으면 버튼이 사용할 수 없다고 알려 줍니다.
 
 `NEXT_PUBLIC_SITE_URL`은 링크 미리보기, 사이트맵, `robots.txt`에 쓰는 주소입니다. Vercel에서는 값이 없으면 프로젝트의 프로덕션 주소를 씁니다.
 

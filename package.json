@@ -17,9 +17,9 @@
     "test:native": "native/test-wasm.sh"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^1.8.0",
     "@upstash/redis": "^1.41.0",
     "@vercel/analytics": "2.0.1",
-    "ai": "^7.0.166",
     "botid": "^1.5.13",
     "next": "16.4.6",
     "phe": "^0.6.0",

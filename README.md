@@ -37,7 +37,7 @@ npm run test
 npm run lint
 ```
 
-Everything except the AI explanation works with no configuration. The explanation needs an Upstash Redis store (`KV_REST_API_URL`, `KV_REST_API_TOKEN`), a signing secret (`EXPLAIN_SECRET`) and Vercel AI Gateway access, in `.env.local`. Without them its button reports that it is unavailable.
+Everything except the AI explanation works with no configuration. The explanation needs an Upstash Redis store (`KV_REST_API_URL`, `KV_REST_API_TOKEN`), a signing secret (`EXPLAIN_SECRET`) and a Claude API key (`ANTHROPIC_API_KEY`), in `.env.local`. Without them its button reports that it is unavailable.
 
 `NEXT_PUBLIC_SITE_URL` sets the address used in link previews, the sitemap and `robots.txt`. On Vercel it falls back to the project's production address.
 
