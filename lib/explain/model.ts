@@ -17,7 +17,7 @@ export function streamExplanation(summary: HandSummary, language: ExplainLanguag
   return new Anthropic().messages.stream(
     {
       model: options.model ?? EXPLAIN_MODEL,
-      system: explainInstructions(language),
+      system: explainInstructions(language, summary.streets.map((s) => s.street)),
       messages: [{ role: "user", content: explainPrompt(summary) }],
       max_tokens: MAX_OUTPUT_TOKENS,
       thinking: { type: "disabled" },

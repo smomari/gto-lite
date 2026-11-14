@@ -1,9 +1,9 @@
-import type { HandSummary } from "./summarySchema";
+import type { HandSummary, StreetSummary } from "./summarySchema";
 
 export type ExplainLanguage = "ko" | "en";
 
 /** Bumped whenever the instructions change, so cached explanations written under older ones aren't served. */
-export const PROMPT_VERSION = 2;
+export const PROMPT_VERSION = 3;
 
 const HEADINGS: Record<ExplainLanguage, { preflop: string; Flop: string; Turn: string; River: string; result: string }> = {
   ko: { preflop: "프리플랍", Flop: "플랍", Turn: "턴", River: "리버", result: "결과" },
@@ -27,8 +27,10 @@ const GLOSSARY = `How to read the data:
 - stackBb is the effective stack behind at the start of the street; stackBb / startPotBb is the SPR.
 - result: "fold" names the winner; "showdown" and "allin" may give each seat's average equity over the ranges that reached the end of this line.`;
 
-export function explainInstructions(language: ExplainLanguage): string {
+/** `streets` are the ones the hand reached: the reply gets a section for each of those and no other. */
+export function explainInstructions(language: ExplainLanguage, streets: StreetSummary["street"][]): string {
   const h = HEADINGS[language];
+  const sections = [h.preflop, ...streets.map((s) => h[s]), h.result].map((title) => `"## ${title}"`).join(", ");
   return `You are a poker coach explaining one finished hand to a player studying game theory optimal (GTO) play. The user message is JSON holding everything our solver computed for this hand. Explain why the strategy looks the way it does, using that data.
 
 Rules:
@@ -41,7 +43,7 @@ Rules:
 - If a street's exploitabilityPct is above 2, say that street's numbers are less precise.
 
 Format:
-- Markdown sections in this order, only for streets present: "## ${h.preflop}", "## ${h.Flop}", "## ${h.Turn}", "## ${h.River}", then "## ${h.result}".
+- Exactly these Markdown sections, in this order: ${sections}. The hand ended before any other street, so write no section or sentence about a street that isn't listed.
 - 3 to 5 sentences per section, 2 for the result. Plain prose, no tables, no lists of raw numbers.
 - Write in ${LANGUAGE_NAMES[language]}. Keep seat names (BTN, BB, ...) and card names (Kh, 7s) as given.
 - Write for a player, not a programmer: never mention JSON field names or raw values like "startPotBb", "byBucket" or "heuristic-approx"; say "starting pot", "approximate chart" and so on.${language === "ko" ? `
